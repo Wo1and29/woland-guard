@@ -5,6 +5,7 @@ import pytest
 from woland_guard_control_plane.application.agent_keys import (
     SECRET_HASH_SIZE,
     generate_agent_api_key,
+    parse_agent_api_key_public_id,
     verify_agent_api_key,
 )
 
@@ -86,6 +87,16 @@ def test_missing_or_extra_separator_is_rejected(separator_count: int) -> None:
         expected_public_id=material.public_id,
         expected_secret_hash=material.secret_hash,
     )
+
+
+def test_public_id_is_extracted_only_from_valid_token_shape() -> None:
+    """Database lookup receives only a public ID from a structurally valid token."""
+
+    material = generate_agent_api_key()
+
+    assert parse_agent_api_key_public_id(material.token) == material.public_id
+    assert parse_agent_api_key_public_id("not-an-agent-key") is None
+    assert parse_agent_api_key_public_id(f"{material.token}.extra") is None
 
 
 def test_secret_material_is_hidden_from_repr() -> None:

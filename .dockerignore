@@ -11,6 +11,5 @@ htmlcov
 .env
 .env.*
 !.env.example
-tests
 docs
 README.md

@@ -1,5 +1,6 @@
 """Version 1 of the normalized security event contract."""
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Literal, Self
 from uuid import UUID, uuid4
@@ -11,6 +12,7 @@ from pydantic import (
     Field,
     IPvAnyAddress,
     JsonValue,
+    field_validator,
     model_validator,
 )
 
@@ -41,6 +43,23 @@ class NormalizedEventV1(BaseModel):
     summary: str | None = Field(default=None, max_length=1_000)
     attributes: dict[str, JsonValue] = Field(default_factory=dict)
 
+    @field_validator("actor", "summary")
+    @classmethod
+    def text_fields_do_not_contain_nul(cls, value: str | None) -> str | None:
+        """Reject text PostgreSQL JSONB cannot represent without altering it."""
+
+        if value is not None:
+            _reject_nul(value)
+        return value
+
+    @field_validator("attributes", mode="before")
+    @classmethod
+    def attributes_do_not_contain_nul(cls, value: object) -> object:
+        """Reject U+0000 recursively in JSON object keys and string values."""
+
+        _reject_nul(value)
+        return value
+
     @model_validator(mode="after")
     def collected_at_is_not_earlier_than_occurrence(self) -> Self:
         """Reject internally inconsistent timestamps."""
@@ -48,6 +67,26 @@ class NormalizedEventV1(BaseModel):
         if self.collected_at < self.occurred_at:
             raise ValueError("collected_at must not be earlier than occurred_at")
         return self
+
+
+def _reject_nul(value: object) -> None:
+    """Validate a JSON-like tree without mutating or normalizing its contents."""
+
+    if isinstance(value, str):
+        if "\x00" in value:
+            raise ValueError("U+0000 is not allowed in event text")
+        return
+
+    if isinstance(value, Mapping):
+        for key, nested_value in value.items():
+            if isinstance(key, str):
+                _reject_nul(key)
+            _reject_nul(nested_value)
+        return
+
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_nul(item)
 
 
 class EventBatchV1(BaseModel):

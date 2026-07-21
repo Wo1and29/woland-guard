@@ -58,6 +58,22 @@ def verify_agent_api_key(
     return public_id_matches and secret_matches
 
 
+def parse_agent_api_key_public_id(token: str) -> str | None:
+    """Extract a public identifier only from a structurally valid agent token."""
+
+    if not token.startswith(TOKEN_PREFIX):
+        return None
+
+    token_body = token.removeprefix(TOKEN_PREFIX)
+    if token_body.count(".") != 1:
+        return None
+
+    public_id, secret = token_body.split(".", maxsplit=1)
+    if not public_id or not secret:
+        return None
+    return public_id
+
+
 def _hash_secret(secret: str) -> bytes:
     """Hash a high-entropy random secret for database storage."""
 

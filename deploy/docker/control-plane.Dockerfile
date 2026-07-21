@@ -19,6 +19,20 @@ COPY packages/contracts/src packages/contracts/src
 
 RUN uv sync --locked --no-dev --package woland-guard-control-plane --no-editable
 
+FROM builder AS test
+
+ENV PATH="/workspace/.venv/bin:${PATH}" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY tests tests
+COPY alembic.ini ./alembic.ini
+COPY migrations migrations
+
+RUN uv sync --locked --all-packages
+
+CMD ["pytest"]
+
 FROM python:3.12-slim-bookworm AS runtime
 
 ENV PATH="/workspace/.venv/bin:${PATH}" \

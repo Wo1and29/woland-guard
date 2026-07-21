@@ -1,9 +1,11 @@
-"""Minimal database connectivity used by the readiness probe."""
+"""Shared database engine, sessions, and readiness connectivity."""
 
+from collections.abc import Iterator
 from functools import lru_cache
 
 from sqlalchemy import URL, Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
 
 from woland_guard_control_plane.config import Settings, get_settings
 
@@ -38,6 +40,20 @@ def get_engine() -> Engine:
         pool_pre_ping=True,
         connect_args={"connect_timeout": settings.postgres_connect_timeout_seconds},
     )
+
+
+@lru_cache
+def get_session_factory() -> sessionmaker[Session]:
+    """Return the process-wide SQLAlchemy session factory."""
+
+    return sessionmaker(bind=get_engine(), expire_on_commit=False)
+
+
+def get_session() -> Iterator[Session]:
+    """Yield one request-scoped session without implicit commits."""
+
+    with get_session_factory()() as session:
+        yield session
 
 
 def check_database() -> None:

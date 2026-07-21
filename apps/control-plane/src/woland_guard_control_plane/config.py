@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     postgres_user: str = "woland_guard"
     postgres_password: SecretStr | None = None
     postgres_connect_timeout_seconds: int = 3
+
+    ingest_max_body_bytes: int = Field(default=1_048_576, ge=1, le=10_485_760)
+    ingest_rate_limit_requests: int = Field(default=60, ge=1, le=10_000)
+    ingest_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    ingest_max_clock_skew_seconds: int = Field(default=300, ge=0, le=86_400)
 
 
 @lru_cache

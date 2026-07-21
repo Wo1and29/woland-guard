@@ -33,6 +33,9 @@ addopts = [
 ]
 pythonpath = ["apps/control-plane/src", "packages/contracts/src"]
 testpaths = ["tests"]
+markers = [
+    "integration: requires the real PostgreSQL service from Docker Compose",
+]
 
 [tool.coverage.run]
 branch = true

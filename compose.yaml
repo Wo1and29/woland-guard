@@ -23,6 +23,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/control-plane.Dockerfile
+      target: runtime
     environment:
       WG_APP_ENV: ${WG_APP_ENV:-development}
       WG_POSTGRES_HOST: postgres
@@ -31,6 +32,10 @@ services:
       WG_POSTGRES_USER: ${WG_POSTGRES_USER:-woland_guard}
       WG_POSTGRES_PASSWORD: ${WG_POSTGRES_PASSWORD:?Set WG_POSTGRES_PASSWORD in .env}
       WG_POSTGRES_CONNECT_TIMEOUT_SECONDS: ${WG_POSTGRES_CONNECT_TIMEOUT_SECONDS:-3}
+      WG_INGEST_MAX_BODY_BYTES: ${WG_INGEST_MAX_BODY_BYTES:-1048576}
+      WG_INGEST_RATE_LIMIT_REQUESTS: ${WG_INGEST_RATE_LIMIT_REQUESTS:-60}
+      WG_INGEST_RATE_LIMIT_WINDOW_SECONDS: ${WG_INGEST_RATE_LIMIT_WINDOW_SECONDS:-60}
+      WG_INGEST_MAX_CLOCK_SKEW_SECONDS: ${WG_INGEST_MAX_CLOCK_SKEW_SECONDS:-300}
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +58,36 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
+  integration-tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: deploy/docker/control-plane.Dockerfile
+      target: test
+    environment:
+      WG_APP_ENV: test
+      WG_POSTGRES_HOST: postgres
+      WG_POSTGRES_PORT: 5432
+      WG_POSTGRES_DB: ${WG_POSTGRES_DB:-woland_guard}
+      WG_POSTGRES_USER: ${WG_POSTGRES_USER:-woland_guard}
+      WG_POSTGRES_PASSWORD: ${WG_POSTGRES_PASSWORD:?Set WG_POSTGRES_PASSWORD in .env}
+      WG_POSTGRES_CONNECT_TIMEOUT_SECONDS: ${WG_POSTGRES_CONNECT_TIMEOUT_SECONDS:-3}
+      WG_INGEST_MAX_BODY_BYTES: ${WG_INGEST_MAX_BODY_BYTES:-1048576}
+      WG_INGEST_RATE_LIMIT_REQUESTS: ${WG_INGEST_RATE_LIMIT_REQUESTS:-60}
+      WG_INGEST_RATE_LIMIT_WINDOW_SECONDS: ${WG_INGEST_RATE_LIMIT_WINDOW_SECONDS:-60}
+      WG_INGEST_MAX_CLOCK_SKEW_SECONDS: ${WG_INGEST_MAX_CLOCK_SKEW_SECONDS:-300}
+      WG_RUN_INTEGRATION_TESTS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    init: true
     cap_drop:
       - ALL
     security_opt:
