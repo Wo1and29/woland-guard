@@ -1,0 +1,60 @@
+[project]
+name = "woland-guard-workspace"
+version = "0.1.0"
+description = "Workspace for the Woland Guard defensive Linux monitoring system"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "httpx2>=2,<3",
+    "mypy>=1.15,<2",
+    "pytest>=8.3,<10",
+    "pytest-cov>=6,<8",
+    "ruff>=0.11,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["apps/control-plane"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--cov=woland_guard_control_plane",
+    "--cov-report=term-missing",
+]
+pythonpath = ["apps/control-plane/src"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["woland_guard_control_plane"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+src = ["apps/control-plane/src", "tests"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["apps/control-plane/src", "tests"]
+strict = true
+warn_unreachable = true
+pretty = true
