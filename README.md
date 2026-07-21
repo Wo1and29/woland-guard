@@ -4,9 +4,8 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Проект находится на этапе 3: control plane принимает от зарегистрированного агента
-версионированные пакеты событий и сохраняет их в PostgreSQL идемпотентно. Linux-агент и
-detection engine ещё не реализованы.
+Этапы 1–4 приняты. Linux-агент реализован и проверен на синтетических journald fixtures и
+в Linux test image. Detection engine ещё не реализован.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -27,8 +26,10 @@ detection engine ещё не реализованы.
 - пакетная транзакционная вставка через PostgreSQL `ON CONFLICT DO NOTHING`;
 - локальный CLI для создания тестового сервера и одноразовой выдачи ключа;
 - PostgreSQL integration-тесты в отдельном Docker target;
+- Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
+  явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными решениями этапов 1 и 2 и предложениями этапа 3.
+- ADR с подтверждёнными архитектурными решениями этапов 1–4.
 
 ## Требования
 
@@ -184,10 +185,25 @@ docker compose --profile test run --rm integration-tests
 [`docs/adr/0002-event-contract-and-persistence.md`](docs/adr/0002-event-contract-and-persistence.md).
 Ingestion API описан в
 [`docs/adr/0003-ingestion-api.md`](docs/adr/0003-ingestion-api.md).
+Архитектура Linux Agent описана в
+[`docs/adr/0004-linux-agent.md`](docs/adr/0004-linux-agent.md).
 
-## Ограничения этапа 3
+## Linux Agent
 
-- нет агента и journald adapter;
+Пакет `apps/agent` предназначен только для Ubuntu Server 24.04 LTS. Он читает journald
+через фиксированный `journalctl`, атомарно хранит событие и cursor в SQLite WAL и доставляет
+пакеты по HTTPS. Безопасная конфигурация, политика переполнения, systemd unit и команды
+диагностики описаны в [`apps/agent/README.md`](apps/agent/README.md).
+
+Текущая Windows/Docker-среда не содержит Ubuntu 24.04 с запущенным systemd. Реальная
+проверка journald здесь не заявляется: автоматические тесты используют только синтетические
+fixtures и локальный HTTP backend.
+
+Nginx source/parser и два правила, которым нужны его события, перенесены в следующий релиз.
+Они не считаются end-to-end функциями MVP и не входят в этап 4.
+
+## Ограничения MVP
+
 - нет detection engine и Telegram;
 - нет HTTP API управления серверами и ключами;
 - outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;

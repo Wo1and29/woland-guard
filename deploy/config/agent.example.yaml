@@ -1,0 +1,21 @@
+schema_version: 1
+source: journald
+
+http:
+  base_url: https://control-plane.example.invalid
+  token_file: /etc/woland-guard/agent.token
+  connect_timeout_seconds: 5
+  read_timeout_seconds: 15
+  batch_size: 100
+
+spool:
+  path: /var/lib/woland-guard/spool.sqlite3
+  max_events: 10000
+
+retry:
+  base_seconds: 1
+  maximum_seconds: 300
+  authentication_seconds: 300
+
+delivery_poll_seconds: 1
+log_level: INFO

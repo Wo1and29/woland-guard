@@ -12,34 +12,36 @@ dev = [
     "pytest>=8.3,<10",
     "pytest-cov>=6,<8",
     "ruff>=0.11,<1",
+    "types-PyYAML>=6.0.12,<7",
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["apps/control-plane", "packages/contracts"]
+members = ["apps/agent", "apps/control-plane", "packages/contracts"]
 
 [tool.uv.sources]
 woland-guard-contracts = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = [
+    "--cov=woland_guard_agent",
     "--strict-config",
     "--strict-markers",
     "--cov=woland_guard_control_plane",
     "--cov=woland_guard_contracts",
     "--cov-report=term-missing",
 ]
-pythonpath = ["apps/control-plane/src", "packages/contracts/src"]
+pythonpath = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src"]
 testpaths = ["tests"]
 markers = [
-    "integration: requires the real PostgreSQL service from Docker Compose",
+    "integration: requires the Docker integration environment",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["woland_guard_control_plane", "woland_guard_contracts"]
+source = ["woland_guard_agent", "woland_guard_control_plane", "woland_guard_contracts"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -50,7 +52,7 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-src = ["apps/control-plane/src", "packages/contracts/src", "tests"]
+src = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "tests"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -61,7 +63,7 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["apps/control-plane/src", "packages/contracts/src", "tests"]
+files = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "tests"]
 strict = true
 warn_unreachable = true
 pretty = true

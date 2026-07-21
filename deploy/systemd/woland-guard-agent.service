@@ -1,0 +1,46 @@
+[Unit]
+Description=Woland Guard Linux Agent
+Documentation=file:/opt/woland-guard-agent/apps/agent/README.md
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=woland-guard
+Group=woland-guard
+SupplementaryGroups=systemd-journal
+UMask=0077
+StateDirectory=woland-guard
+StateDirectoryMode=0700
+ConfigurationDirectory=woland-guard
+ExecStartPre=/opt/woland-guard-agent/.venv/bin/woland-guard-agent check-config --config /etc/woland-guard/agent.yaml
+ExecStart=/opt/woland-guard-agent/.venv/bin/woland-guard-agent run --config /etc/woland-guard/agent.yaml
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/woland-guard
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

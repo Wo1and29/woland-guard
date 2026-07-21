@@ -1,0 +1,18 @@
+[project]
+name = "woland-guard-agent"
+version = "0.1.0"
+description = "Woland Guard agent for Ubuntu Server 24.04 LTS"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx2>=2,<3",
+    "pydantic>=2.10,<3",
+    "PyYAML>=6,<7",
+    "woland-guard-contracts",
+]
+
+[project.scripts]
+woland-guard-agent = "woland_guard_agent.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.16,<0.12"]
+build-backend = "uv_build"

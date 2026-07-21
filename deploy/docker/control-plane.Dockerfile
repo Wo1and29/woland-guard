@@ -12,6 +12,8 @@ WORKDIR /workspace
 
 COPY pyproject.toml ./
 COPY uv.lock ./
+COPY apps/agent/pyproject.toml apps/agent/pyproject.toml
+COPY apps/agent/src apps/agent/src
 COPY apps/control-plane/pyproject.toml apps/control-plane/pyproject.toml
 COPY apps/control-plane/src apps/control-plane/src
 COPY packages/contracts/pyproject.toml packages/contracts/pyproject.toml
@@ -26,6 +28,7 @@ ENV PATH="/workspace/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1
 
 COPY tests tests
+COPY deploy deploy
 COPY alembic.ini ./alembic.ini
 COPY migrations migrations
 
