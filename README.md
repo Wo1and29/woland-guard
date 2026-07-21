@@ -4,8 +4,9 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Проект находится на этапе 1: создан только технический каркас control plane. Сбор событий,
-модели данных, ingestion API, Linux-агент и detection engine ещё не реализованы.
+Проект находится на этапе 2: к техническому каркасу добавлены версионированный контракт
+событий, начальная схема PostgreSQL и миграции. Ingestion API, Linux-агент и detection
+engine ещё не реализованы.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -16,8 +17,12 @@ Woland Guard — разрабатываемая защитная система 
 - liveness endpoint `GET /health/live`;
 - readiness endpoint `GET /health/ready` с проверкой PostgreSQL;
 - Docker Compose для control plane и PostgreSQL;
+- workspace-пакет с Pydantic-контрактом нормализованного события версии 1;
+- модели серверов, ключей агентов, событий и transactional outbox;
+- миграции Alembic с обратимым начальным изменением схемы;
+- генерация ключей агента с сохранением только digest секрета;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями.
+- ADR с подтверждёнными решениями этапов 1 и 2.
 
 ## Требования
 
@@ -59,6 +64,7 @@ uv run uvicorn woland_guard_control_plane.main:app --app-dir apps/control-plane/
 ```bash
 docker compose config
 docker compose up --build -d
+docker compose exec control-plane alembic upgrade head
 docker compose ps
 ```
 
@@ -80,6 +86,7 @@ docker compose down
 
 ```bash
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
 uv run pytest
 ```
@@ -88,13 +95,16 @@ uv run pytest
 
 Принятые решения зафиксированы в
 [`docs/adr/0001-mvp-foundation.md`](docs/adr/0001-mvp-foundation.md).
+Контракт и хранение описаны в
+[`docs/adr/0002-event-contract-and-persistence.md`](docs/adr/0002-event-contract-and-persistence.md).
 
-## Ограничения этапа 1
+## Ограничения этапа 2
 
-- нет моделей и миграций;
 - нет ingestion API;
 - нет агента и journald adapter;
 - нет detection engine и Telegram;
-- transactional outbox описан архитектурно, но не реализован;
+- нет HTTP API управления серверами и ключами;
+- outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;
+- readiness проверяет соединение с PostgreSQL, но пока не проверяет актуальность миграции;
 - зависимости Python зафиксированы в `uv.lock`;
 - production deployment не подготовлен.

@@ -5,22 +5,20 @@ from functools import lru_cache
 from sqlalchemy import URL, Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from woland_guard_control_plane.config import get_settings
+from woland_guard_control_plane.config import Settings, get_settings
 
 
 class DatabaseConfigurationError(SQLAlchemyError):
     """Raised when required database settings are absent."""
 
 
-@lru_cache
-def get_engine() -> Engine:
-    """Create the shared SQLAlchemy engine without opening a connection."""
+def build_database_url(settings: Settings) -> URL:
+    """Build a PostgreSQL URL without converting the password to a plain loggable string."""
 
-    settings = get_settings()
     if settings.postgres_password is None:
         raise DatabaseConfigurationError("PostgreSQL password is not configured")
 
-    database_url = URL.create(
+    return URL.create(
         drivername="postgresql+psycopg",
         username=settings.postgres_user,
         password=settings.postgres_password.get_secret_value(),
@@ -28,8 +26,15 @@ def get_engine() -> Engine:
         port=settings.postgres_port,
         database=settings.postgres_db,
     )
+
+
+@lru_cache
+def get_engine() -> Engine:
+    """Create the shared SQLAlchemy engine without opening a connection."""
+
+    settings = get_settings()
     return create_engine(
-        database_url,
+        build_database_url(settings),
         pool_pre_ping=True,
         connect_args={"connect_timeout": settings.postgres_connect_timeout_seconds},
     )

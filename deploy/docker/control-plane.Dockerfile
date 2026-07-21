@@ -14,6 +14,8 @@ COPY pyproject.toml ./
 COPY uv.lock ./
 COPY apps/control-plane/pyproject.toml apps/control-plane/pyproject.toml
 COPY apps/control-plane/src apps/control-plane/src
+COPY packages/contracts/pyproject.toml packages/contracts/pyproject.toml
+COPY packages/contracts/src packages/contracts/src
 
 RUN uv sync --locked --no-dev --package woland-guard-control-plane --no-editable
 
@@ -30,6 +32,8 @@ RUN groupadd --gid 10001 woland-guard \
 WORKDIR /workspace
 
 COPY --from=builder --chown=woland-guard:woland-guard /workspace/.venv /workspace/.venv
+COPY --chown=woland-guard:woland-guard alembic.ini ./alembic.ini
+COPY --chown=woland-guard:woland-guard migrations ./migrations
 
 USER 10001:10001
 

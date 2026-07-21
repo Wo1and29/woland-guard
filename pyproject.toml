@@ -18,21 +18,25 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["apps/control-plane"]
+members = ["apps/control-plane", "packages/contracts"]
+
+[tool.uv.sources]
+woland-guard-contracts = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = [
     "--strict-config",
     "--strict-markers",
     "--cov=woland_guard_control_plane",
+    "--cov=woland_guard_contracts",
     "--cov-report=term-missing",
 ]
-pythonpath = ["apps/control-plane/src"]
+pythonpath = ["apps/control-plane/src", "packages/contracts/src"]
 testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
-source = ["woland_guard_control_plane"]
+source = ["woland_guard_control_plane", "woland_guard_contracts"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -43,7 +47,7 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-src = ["apps/control-plane/src", "tests"]
+src = ["apps/control-plane/src", "packages/contracts/src", "tests"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -54,7 +58,7 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["apps/control-plane/src", "tests"]
+files = ["apps/control-plane/src", "packages/contracts/src", "tests"]
 strict = true
 warn_unreachable = true
 pretty = true
