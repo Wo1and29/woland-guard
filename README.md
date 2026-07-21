@@ -4,8 +4,9 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–5 приняты. Linux-агент проверен на синтетических journald fixtures и в Linux test
-image, а control plane создаёт инциденты из нормализованных событий PostgreSQL.
+Этапы 1–5 приняты. Подэтап 6A реализован в рабочем дереве и ожидает ревью: Linux-агент
+проверен на синтетических journald fixtures и в Linux test image, control plane создаёт
+инциденты и поддерживает отдельные локальные identities операторов с RBAC.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -29,10 +30,11 @@ image, а control plane создаёт инциденты из нормализ�
 - строгие версионированные YAML-правила с локальными командами validate/sync;
 - Detection Engine с условиями single, threshold, distinct_count, sequence и first_seen;
 - восемь journald-правил, атомарные incidents и уникальные evidence-связи;
+- локальные Operator identities, независимо ротируемые `wgok_` API-ключи и фиксированный RBAC;
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–5.
+- ADR с подтверждёнными архитектурными решениями этапов 1–6.
 
 ## Требования
 
@@ -217,6 +219,40 @@ Ingestion API описан в
 [`docs/adr/0004-linux-agent.md`](docs/adr/0004-linux-agent.md).
 Архитектура Detection Engine описана в
 [`docs/adr/0005-detection-engine.md`](docs/adr/0005-detection-engine.md).
+Архитектура последовательного этапа 6 описана в
+[`docs/adr/0006-operator-rbac-incident-workflow-and-telegram.md`](docs/adr/0006-operator-rbac-incident-workflow-and-telegram.md).
+
+## Локальные операторы
+
+Оператор и его способы аутентификации — разные сущности. HTTP admin API отсутствует. Сначала
+локально создайте identity:
+
+```bash
+docker compose exec control-plane woland-guard-admin create-operator \
+  --username local-admin --role admin
+```
+
+Затем выпустите ключ по напечатанному `operator_id`. Необязательный `--expires-at` принимает
+только ISO 8601 timestamp с timezone:
+
+```bash
+docker compose exec control-plane woland-guard-admin issue-operator-key \
+  --operator-id <operator UUID> --label local-cli \
+  --expires-at 2030-01-01T00:00:00+00:00
+```
+
+CLI показывает `wgok_` token только один раз. PostgreSQL хранит только digest. Rotation
+атомарно отзывает прежний ключ и выдаёт новый:
+
+```bash
+docker compose exec control-plane woland-guard-admin rotate-operator-key \
+  --key-id <key UUID>
+docker compose exec control-plane woland-guard-admin revoke-operator-key \
+  --key-id <key UUID>
+```
+
+На границе 6A production routes для операторов ещё отсутствуют. Authentication dependency и
+матрица `viewer`/`analyst`/`admin` будут использованы Incident API только после ревью 6A.
 
 ## Linux Agent
 
@@ -235,7 +271,7 @@ journald-правил, а не десять end-to-end правил.
 
 ## Ограничения MVP
 
-- нет Telegram и API чтения/изменения статуса инцидентов;
+- нет Telegram и API чтения/изменения статуса инцидентов: они относятся к 6B–6D;
 - нет HTTP API управления серверами и ключами;
 - outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько

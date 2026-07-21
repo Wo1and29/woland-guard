@@ -10,7 +10,10 @@ from woland_guard_control_plane.api.middleware import (
     RequestIdMiddleware,
 )
 from woland_guard_control_plane.api.router import api_router
-from woland_guard_control_plane.application.rate_limit import AgentRateLimiter
+from woland_guard_control_plane.application.rate_limit import (
+    AgentRateLimiter,
+    FixedWindowRateLimiter,
+)
 from woland_guard_control_plane.config import Settings, get_settings
 
 
@@ -27,6 +30,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.agent_rate_limiter = AgentRateLimiter(
         max_requests=application_settings.ingest_rate_limit_requests,
         window_seconds=application_settings.ingest_rate_limit_window_seconds,
+    )
+    application.state.operator_security_log_limiter = FixedWindowRateLimiter(
+        max_requests=application_settings.operator_security_log_events,
+        window_seconds=application_settings.operator_security_log_window_seconds,
     )
     application.include_router(api_router)
     application.add_middleware(

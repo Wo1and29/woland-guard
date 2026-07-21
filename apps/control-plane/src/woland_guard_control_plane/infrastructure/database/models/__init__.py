@@ -7,6 +7,11 @@ from woland_guard_control_plane.infrastructure.database.models.detection import 
     IncidentStatus,
 )
 from woland_guard_control_plane.infrastructure.database.models.event import Event
+from woland_guard_control_plane.infrastructure.database.models.operator import (
+    Operator,
+    OperatorApiKey,
+    OperatorRole,
+)
 from woland_guard_control_plane.infrastructure.database.models.outbox import (
     OutboxMessage,
     OutboxStatus,
@@ -20,6 +25,9 @@ __all__ = [
     "Incident",
     "IncidentEvent",
     "IncidentStatus",
+    "Operator",
+    "OperatorApiKey",
+    "OperatorRole",
     "OutboxMessage",
     "OutboxStatus",
     "Server",

@@ -1,4 +1,4 @@
-"""Small process-local rate limiter keyed by authenticated agent public ID."""
+"""Small process-local fixed-window limiters for bounded MVP use cases."""
 
 from collections import defaultdict, deque
 from collections.abc import Callable
@@ -7,8 +7,8 @@ from threading import Lock
 from time import monotonic
 
 
-class AgentRateLimiter:
-    """Thread-safe fixed-window request limiter for the single-process MVP."""
+class FixedWindowRateLimiter:
+    """Thread-safe fixed-window counter keyed by a caller-provided safe identifier."""
 
     def __init__(
         self,
@@ -44,3 +44,7 @@ class AgentRateLimiter:
 
         with self._lock:
             self._requests.clear()
+
+
+class AgentRateLimiter(FixedWindowRateLimiter):
+    """Named compatibility type for the authenticated agent request limiter."""

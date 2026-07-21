@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     ingest_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
     ingest_max_clock_skew_seconds: int = Field(default=300, ge=0, le=86_400)
 
+    operator_security_log_events: int = Field(default=10, ge=1, le=1_000)
+    operator_security_log_window_seconds: int = Field(default=60, ge=1, le=3_600)
+
 
 @lru_cache
 def get_settings() -> Settings:

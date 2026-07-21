@@ -14,6 +14,8 @@ from woland_guard_control_plane.infrastructure.database.models import (
     Event,
     Incident,
     IncidentEvent,
+    Operator,
+    OperatorApiKey,
     OutboxMessage,
     Server,
 )
@@ -30,6 +32,8 @@ _REGISTERED_MODEL_TYPES = (
     Event,
     Incident,
     IncidentEvent,
+    Operator,
+    OperatorApiKey,
     OutboxMessage,
     Server,
 )

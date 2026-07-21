@@ -9,6 +9,8 @@ from woland_guard_control_plane.infrastructure.database.models import (
     Event,
     Incident,
     IncidentEvent,
+    Operator,
+    OperatorApiKey,
     OutboxMessage,
     Server,
 )
@@ -19,6 +21,8 @@ MODEL_TYPES = (
     Event,
     Incident,
     IncidentEvent,
+    Operator,
+    OperatorApiKey,
     OutboxMessage,
     Server,
 )
@@ -33,6 +37,8 @@ def test_expected_tables_are_registered() -> None:
         "events",
         "incident_events",
         "incidents",
+        "operator_api_keys",
+        "operators",
         "outbox_messages",
         "servers",
     }
@@ -68,6 +74,28 @@ def test_event_idempotency_is_scoped_to_server() -> None:
     }
 
     assert ("server_id", "agent_event_id") in unique_column_sets
+
+
+def test_operator_identity_is_separate_from_authentication_methods() -> None:
+    """Operator roles live on identities while only key rows contain credential digests."""
+
+    operator_columns = Base.metadata.tables["operators"].columns
+    key_table = Base.metadata.tables["operator_api_keys"]
+    key_columns = key_table.columns
+    check_constraints = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in key_table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+
+    assert {"username", "role", "is_active"} <= set(operator_columns.keys())
+    assert "secret_hash" not in operator_columns
+    assert {"operator_id", "secret_hash", "rotated_from_id"} <= set(key_columns.keys())
+    assert check_constraints["ck_operator_api_keys_secret_hash_length"] == (
+        "octet_length(secret_hash) = 32"  # noqa: S105 - SQL expression, not a secret
+    )
+    assert "token" not in key_columns
+    assert "secret" not in key_columns
 
 
 def test_detection_metadata_has_explicit_concurrency_constraints_and_indexes() -> None:
