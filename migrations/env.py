@@ -10,7 +10,10 @@ from woland_guard_control_plane.database import build_database_url
 from woland_guard_control_plane.infrastructure.database.base import Base
 from woland_guard_control_plane.infrastructure.database.models import (
     AgentApiKey,
+    DetectionRuleVersion,
     Event,
+    Incident,
+    IncidentEvent,
     OutboxMessage,
     Server,
 )
@@ -21,7 +24,15 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-_REGISTERED_MODEL_TYPES = (AgentApiKey, Event, OutboxMessage, Server)
+_REGISTERED_MODEL_TYPES = (
+    AgentApiKey,
+    DetectionRuleVersion,
+    Event,
+    Incident,
+    IncidentEvent,
+    OutboxMessage,
+    Server,
+)
 
 
 def run_migrations_offline() -> None:

@@ -31,6 +31,7 @@ COPY tests tests
 COPY deploy deploy
 COPY alembic.ini ./alembic.ini
 COPY migrations migrations
+COPY detection-rules detection-rules
 
 RUN uv sync --locked --all-packages
 
@@ -51,6 +52,7 @@ WORKDIR /workspace
 COPY --from=builder --chown=woland-guard:woland-guard /workspace/.venv /workspace/.venv
 COPY --chown=woland-guard:woland-guard alembic.ini ./alembic.ini
 COPY --chown=woland-guard:woland-guard migrations ./migrations
+COPY --chown=woland-guard:woland-guard detection-rules ./detection-rules
 
 USER 10001:10001
 

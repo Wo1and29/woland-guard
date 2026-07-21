@@ -5,20 +5,34 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 from woland_guard_control_plane.infrastructure.database.base import Base
 from woland_guard_control_plane.infrastructure.database.models import (
     AgentApiKey,
+    DetectionRuleVersion,
     Event,
+    Incident,
+    IncidentEvent,
     OutboxMessage,
     Server,
 )
 
-MODEL_TYPES = (AgentApiKey, Event, OutboxMessage, Server)
+MODEL_TYPES = (
+    AgentApiKey,
+    DetectionRuleVersion,
+    Event,
+    Incident,
+    IncidentEvent,
+    OutboxMessage,
+    Server,
+)
 
 
 def test_expected_tables_are_registered() -> None:
-    """The initial metadata contains only the stage 2 persistence tables."""
+    """The metadata contains the accepted foundation and stage 5 persistence tables."""
 
     assert set(Base.metadata.tables) == {
         "agent_api_keys",
+        "detection_rule_versions",
         "events",
+        "incident_events",
+        "incidents",
         "outbox_messages",
         "servers",
     }
@@ -54,6 +68,32 @@ def test_event_idempotency_is_scoped_to_server() -> None:
     }
 
     assert ("server_id", "agent_event_id") in unique_column_sets
+
+
+def test_detection_metadata_has_explicit_concurrency_constraints_and_indexes() -> None:
+    """PostgreSQL enforces one active version/incident and indexes correlation paths."""
+
+    rule_indexes = {index.name for index in Base.metadata.tables["detection_rule_versions"].indexes}
+    incident_indexes = {index.name for index in Base.metadata.tables["incidents"].indexes}
+    evidence_indexes = {index.name for index in Base.metadata.tables["incident_events"].indexes}
+    event_indexes = {index.name for index in Base.metadata.tables["events"].indexes}
+
+    assert "uq_detection_rule_versions_active_rule_key" in rule_indexes
+    assert "uq_incidents_active_server_rule_version_correlation" in incident_indexes
+    assert "ix_incidents_server_status_last_seen" in incident_indexes
+    assert "ix_incidents_rule_key_correlation_hash" in incident_indexes
+    assert "ix_incident_events_event_id" in evidence_indexes
+    assert "ix_events_server_id_event_type_occurred_at" in event_indexes
+    active_incident_index = next(
+        index
+        for index in Base.metadata.tables["incidents"].indexes
+        if index.name == "uq_incidents_active_server_rule_version_correlation"
+    )
+    assert tuple(column.name for column in active_incident_index.columns) == (
+        "server_id",
+        "rule_version_id",
+        "correlation_hash",
+    )
 
 
 def test_outbox_has_required_states_and_retry_columns() -> None:

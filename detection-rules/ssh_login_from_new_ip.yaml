@@ -1,0 +1,18 @@
+schema_version: 1
+rule_key: ssh_login_from_new_ip
+version: 1
+enabled: true
+severity: medium
+title: SSH-вход пользователя с нового IP
+description: Пользователь успешно вошёл с адреса, не встречавшегося за тридцать дней.
+explanation: Новый адрес может быть легитимным изменением или использованием чужих учётных данных.
+recommendation: Подтвердите вход у владельца аккаунта и проверьте последующую активность.
+mitre_attack_ids: [T1078, T1021.004]
+condition:
+  type: first_seen
+  event_type: linux.ssh.login_succeeded
+  value_field: source_ip
+  scope_fields: [actor]
+  lookback_seconds: 2592000
+  require_prior_baseline_events: 1
+correlation_fields: [actor, source_ip]

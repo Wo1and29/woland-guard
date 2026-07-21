@@ -23,6 +23,12 @@ class Event(Base):
         ),
         Index("ix_events_server_id_occurred_at", "server_id", "occurred_at"),
         Index("ix_events_event_type_occurred_at", "event_type", "occurred_at"),
+        Index(
+            "ix_events_server_id_event_type_occurred_at",
+            "server_id",
+            "event_type",
+            "occurred_at",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)

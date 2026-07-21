@@ -1,0 +1,17 @@
+schema_version: 1
+rule_key: sudo_auth_failures
+version: 1
+enabled: true
+severity: medium
+title: Повторные ошибки аутентификации sudo
+description: Пять ошибок sudo для пользователя за десять минут.
+explanation: События могут указывать на ошибочные действия или попытку повышения привилегий.
+recommendation: Проверьте пользователя и команды вокруг периода события; MITRE указан как контекст, а не доказательство атаки.
+mitre_attack_ids: [T1548.003]
+condition:
+  type: threshold
+  event_type: linux.sudo.authentication_failed
+  threshold: 5
+  window_seconds: 600
+  group_by: [actor]
+correlation_fields: [actor]

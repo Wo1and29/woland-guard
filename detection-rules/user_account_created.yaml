@@ -1,0 +1,14 @@
+schema_version: 1
+rule_key: user_account_created
+version: 1
+enabled: true
+severity: high
+title: Создана локальная учётная запись
+description: На сервере создан новый локальный пользователь.
+explanation: Создание учётной записи меняет поверхность доступа и требует подтверждения.
+recommendation: Проверьте инициатора, назначение аккаунта и его группы.
+mitre_attack_ids: [T1136.001]
+condition:
+  type: single
+  event_type: linux.account.user_created
+correlation_fields: [actor]

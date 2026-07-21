@@ -1,0 +1,19 @@
+schema_version: 1
+rule_key: ssh_success_after_failures
+version: 1
+enabled: true
+severity: critical
+title: Успешный SSH-вход после неудачных попыток
+description: Успешному входу предшествуют минимум три ошибки для той же корреляции.
+explanation: Успех после серии ошибок может означать компрометацию учётных данных.
+recommendation: Срочно проверьте пользователя, адрес источника и активность после входа.
+mitre_attack_ids: [T1110, T1078]
+condition:
+  type: sequence
+  window_seconds: 900
+  steps:
+    - event_type: linux.ssh.authentication_failed
+      repeat_at_least: 3
+    - event_type: linux.ssh.login_succeeded
+      repeat_at_least: 1
+correlation_fields: [source_ip, actor]

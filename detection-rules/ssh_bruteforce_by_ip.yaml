@@ -1,0 +1,17 @@
+schema_version: 1
+rule_key: ssh_bruteforce_by_ip
+version: 1
+enabled: true
+severity: high
+title: Перебор SSH-паролей с одного IP
+description: Восемь неудачных SSH-аутентификаций с одного адреса за пять минут.
+explanation: Серия неудачных входов может соответствовать подбору учётных данных.
+recommendation: Проверьте адрес, затронутые учётные записи и настройки SSH-доступа.
+mitre_attack_ids: [T1110]
+condition:
+  type: threshold
+  event_type: linux.ssh.authentication_failed
+  threshold: 8
+  window_seconds: 300
+  group_by: [source_ip]
+correlation_fields: [source_ip]

@@ -17,6 +17,8 @@ from woland_guard_control_plane.application.authentication import (
     InvalidAgentCredentialsError,
     authenticate_agent,
 )
+from woland_guard_control_plane.application.detection import run_detection
+from woland_guard_control_plane.application.detection.engine import DetectionEngineError
 from woland_guard_control_plane.application.rate_limit import AgentRateLimiter
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.database import get_session
@@ -68,12 +70,18 @@ def ingest_events(
 
             _validate_timestamps(batch, now=now, settings=settings)
             agent.key.last_used_at = now
-            accepted = insert_event_batch(
+            new_events = insert_event_batch(
                 session,
                 server_id=agent.server_id,
                 events=batch.events,
                 persisted_at=now,
             )
+            try:
+                detection_result = run_detection(session, new_events=new_events)
+            except (DetectionEngineError, SQLAlchemyError):
+                raise
+            except Exception as error:
+                raise DetectionEngineError("unexpected detection failure") from error
     except InvalidAgentCredentialsError:
         raise ApiError(
             status.HTTP_401_UNAUTHORIZED,
@@ -84,17 +92,22 @@ def ingest_events(
         raise ApiError(status.HTTP_403_FORBIDDEN, "server is inactive") from None
     except ApiError:
         raise
-    except SQLAlchemyError:
+    except (DetectionEngineError, SQLAlchemyError):
         logger.error("request_id=%s ingestion_database_error", request_id)
         raise ApiError(status.HTTP_503_SERVICE_UNAVAILABLE, "event ingestion unavailable") from None
 
+    accepted = len(new_events)
     existing = len(batch.events) - accepted
     logger.info(
-        "request_id=%s server_id=%s event_batch_committed accepted=%d existing=%d",
+        "request_id=%s server_id=%s event_batch_committed accepted=%d existing=%d "
+        "matched_rules=%d created_incidents=%d linked_evidence=%d",
         request_id,
         agent.server_id,
         accepted,
         existing,
+        detection_result.matched_rules,
+        detection_result.created_incidents,
+        detection_result.linked_evidence,
     )
     return IngestEventsResponse(
         request_id=request_id,

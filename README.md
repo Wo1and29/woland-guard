@@ -4,8 +4,8 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–4 приняты. Linux-агент реализован и проверен на синтетических journald fixtures и
-в Linux test image. Detection engine ещё не реализован.
+Этапы 1–5 приняты. Linux-агент проверен на синтетических journald fixtures и в Linux test
+image, а control plane создаёт инциденты из нормализованных событий PostgreSQL.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -26,10 +26,13 @@ Woland Guard — разрабатываемая защитная система 
 - пакетная транзакционная вставка через PostgreSQL `ON CONFLICT DO NOTHING`;
 - локальный CLI для создания тестового сервера и одноразовой выдачи ключа;
 - PostgreSQL integration-тесты в отдельном Docker target;
+- строгие версионированные YAML-правила с локальными командами validate/sync;
+- Detection Engine с условиями single, threshold, distinct_count, sequence и first_seen;
+- восемь journald-правил, атомарные incidents и уникальные evidence-связи;
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–4.
+- ADR с подтверждёнными архитектурными решениями этапов 1–5.
 
 ## Требования
 
@@ -96,6 +99,31 @@ CLI выводит plaintext-токен только один раз. PostgreSQL
 32-байтовый digest секрета. Не добавляйте выданный токен в `.env`, Git, логи или примеры.
 HTTP admin API намеренно отсутствует.
 
+## Правила Detection Engine
+
+Проверка всех восьми файлов не обращается к PostgreSQL:
+
+```bash
+docker compose exec control-plane woland-guard-admin validate-rules \
+  --rules-dir /workspace/detection-rules
+```
+
+После `alembic upgrade head` явная синхронизация добавляет версии и атомарно активирует
+набор правил:
+
+```bash
+docker compose exec control-plane woland-guard-admin sync-rules \
+  --rules-dir /workspace/detection-rules
+```
+
+Startup control plane намеренно не изменяет правила. YAML допускает только пять закрытых
+типов условий и не выполняет выражения. Временные окна рассчитываются по `occurred_at`,
+изолированы по server и включают обе границы. Detection получает только строки, впервые
+вставленные через `ON CONFLICT DO NOTHING ... RETURNING`, в той же транзакции ingestion.
+
+Восемь текущих правил работают только с нормализованными journald-событиями SSH, sudo и
+account management. Nginx-правила не входят в этот набор.
+
 ## Пример Ingestion API
 
 Endpoint:
@@ -121,7 +149,7 @@ X-Request-ID: local-example-001
       "occurred_at": "<current UTC timestamp>",
       "collected_at": "<current UTC timestamp>",
       "source": "journald",
-      "event_type": "ssh.authentication_failed",
+      "event_type": "linux.ssh.authentication_failed",
       "actor": "synthetic-agent",
       "source_ip": "192.0.2.10",
       "summary": "synthetic local example",
@@ -187,6 +215,8 @@ Ingestion API описан в
 [`docs/adr/0003-ingestion-api.md`](docs/adr/0003-ingestion-api.md).
 Архитектура Linux Agent описана в
 [`docs/adr/0004-linux-agent.md`](docs/adr/0004-linux-agent.md).
+Архитектура Detection Engine описана в
+[`docs/adr/0005-detection-engine.md`](docs/adr/0005-detection-engine.md).
 
 ## Linux Agent
 
@@ -200,11 +230,12 @@ Ingestion API описан в
 fixtures и локальный HTTP backend.
 
 Nginx source/parser и два правила, которым нужны его события, перенесены в следующий релиз.
-Они не считаются end-to-end функциями MVP и не входят в этап 4.
+Они не считаются end-to-end функциями MVP; текущий Detection Engine содержит восемь
+journald-правил, а не десять end-to-end правил.
 
 ## Ограничения MVP
 
-- нет detection engine и Telegram;
+- нет Telegram и API чтения/изменения статуса инцидентов;
 - нет HTTP API управления серверами и ключами;
 - outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько
@@ -213,6 +244,8 @@ Nginx source/parser и два правила, которым нужны его �
   отклонённые middleware или JSON validation раньше endpoint, требуют ограничения на
   reverse proxy;
 - нет автоматической ротации ключей и очистки старых событий;
+- синхронизация правил выполняется явно локальной CLI-командой и не запускается при startup;
+- запросы истории выполняются отдельно для trigger/rule; оптимизация отложена до измерений;
 - readiness проверяет соединение с PostgreSQL, но пока не проверяет актуальность миграции;
 - зависимости Python зафиксированы в `uv.lock`;
 - production deployment не подготовлен.

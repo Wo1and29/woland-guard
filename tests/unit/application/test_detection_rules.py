@@ -1,0 +1,152 @@
+"""Strict validation tests for declarative Detection Engine rules."""
+
+import sys
+from pathlib import Path
+
+import pytest
+
+from woland_guard_control_plane import cli
+from woland_guard_control_plane.application.detection.rules import (
+    DistinctCountCondition,
+    FirstSeenCondition,
+    RuleValidationError,
+    SequenceCondition,
+    SingleCondition,
+    ThresholdCondition,
+    canonical_rule,
+    load_rules_directory,
+    rule_checksum,
+)
+
+RULES_DIR = Path(__file__).parents[3] / "detection-rules"
+
+
+def test_eight_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:
+    """The shipped set has the agreed identities and no executable condition language."""
+
+    rules = load_rules_directory(RULES_DIR)
+
+    assert {rule.rule_key for rule in rules} == {
+        "privileged_group_membership_changed",
+        "ssh_bruteforce_by_ip",
+        "ssh_login_from_new_ip",
+        "ssh_password_spray_by_ip",
+        "ssh_root_login_success",
+        "ssh_success_after_failures",
+        "sudo_auth_failures",
+        "user_account_created",
+    }
+    assert {type(rule.condition) for rule in rules} == {
+        SingleCondition,
+        ThresholdCondition,
+        DistinctCountCondition,
+        SequenceCondition,
+        FirstSeenCondition,
+    }
+    assert all(rule.schema_version == 1 and rule.version == 1 for rule in rules)
+
+
+def test_rule_checksum_is_stable_sha256_of_canonical_json() -> None:
+    """Equivalent validated input produces an immutable 64-character checksum."""
+
+    rule = load_rules_directory(RULES_DIR)[0]
+    reconstructed = type(rule).model_validate(canonical_rule(rule))
+
+    assert rule_checksum(rule) == rule_checksum(reconstructed)
+    assert len(rule_checksum(rule)) == 64
+
+
+@pytest.mark.parametrize(
+    "invalid_document",
+    [
+        "schema_version: 1\ncondition:\n  type: arbitrary_expression\n",
+        "schema_version: 1\nunexpected_stage5_field: true\n",
+        "!!python/object/apply:os.system ['synthetic-command']\n",
+        "condition: [not: valid\n",
+    ],
+    ids=["unknown-condition", "extra-field", "unsafe-yaml-tag", "malformed-yaml"],
+)
+def test_unknown_extra_unsafe_and_malformed_yaml_are_rejected(
+    tmp_path: Path,
+    invalid_document: str,
+) -> None:
+    """Only safe-loadable documents matching the closed Pydantic schema are accepted."""
+
+    (tmp_path / "invalid.yaml").write_text(invalid_document, encoding="utf-8")
+
+    with pytest.raises(RuleValidationError, match="invalid rule file: invalid.yaml"):
+        load_rules_directory(tmp_path)
+
+
+def test_all_files_are_validated_before_callers_can_sync_any_rule(tmp_path: Path) -> None:
+    """One malformed member prevents returning a partially valid rule set."""
+
+    valid = (RULES_DIR / "ssh_root_login_success.yaml").read_text(encoding="utf-8")
+    (tmp_path / "01-valid.yaml").write_text(valid, encoding="utf-8")
+    (tmp_path / "02-invalid.yaml").write_text("condition: {type: unknown}\n", encoding="utf-8")
+
+    with pytest.raises(RuleValidationError, match="02-invalid.yaml"):
+        load_rules_directory(tmp_path)
+
+
+def test_two_versions_of_same_rule_key_in_one_directory_are_rejected(tmp_path: Path) -> None:
+    """A deployment set contains at most one requested version for each stable rule key."""
+
+    version_one = (RULES_DIR / "ssh_root_login_success.yaml").read_text(encoding="utf-8")
+    version_two = version_one.replace("\nversion: 1\n", "\nversion: 2\n", 1)
+    (tmp_path / "root-v1.yaml").write_text(version_one, encoding="utf-8")
+    (tmp_path / "root-v2.yaml").write_text(version_two, encoding="utf-8")
+
+    with pytest.raises(RuleValidationError, match="duplicate rule keys"):
+        load_rules_directory(tmp_path)
+
+
+def test_missing_or_empty_rules_directory_is_rejected(tmp_path: Path) -> None:
+    """An absent configuration is not silently treated as zero active rules."""
+
+    with pytest.raises(RuleValidationError, match="contains no YAML"):
+        load_rules_directory(tmp_path)
+    with pytest.raises(RuleValidationError, match="unavailable"):
+        load_rules_directory(tmp_path / "missing")
+
+
+def test_validate_rules_cli_checks_files_without_opening_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The validation command succeeds without constructing a PostgreSQL session."""
+
+    monkeypatch.setattr(
+        sys, "argv", ["woland-guard-admin", "validate-rules", "--rules-dir", str(RULES_DIR)]
+    )
+    monkeypatch.setattr(
+        cli,
+        "get_session_factory",
+        lambda: (_ for _ in ()).throw(AssertionError("database must not be opened")),
+    )
+
+    cli.main()
+
+    assert capsys.readouterr().out == "Правила корректны: 8\n"
+
+
+def test_validate_rules_cli_returns_safe_error_for_invalid_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI error output contains no YAML body or arbitrary source content."""
+
+    marker = "synthetic-sensitive-marker"
+    (tmp_path / "bad.yaml").write_text(f"condition: [{marker}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["woland-guard-admin", "validate-rules", "--rules-dir", str(tmp_path)]
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        cli.main()
+
+    captured = capsys.readouterr()
+    assert raised.value.code == 2
+    assert "Набор правил не прошёл строгую проверку." in captured.err
+    assert marker not in captured.err

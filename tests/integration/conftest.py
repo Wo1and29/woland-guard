@@ -140,4 +140,9 @@ def reset_rate_limiter(api_app: FastAPI) -> None:
 
 def _truncate_application_tables() -> None:
     with get_engine().begin() as connection:
-        connection.execute(text("TRUNCATE TABLE events, agent_api_keys, servers CASCADE"))
+        connection.execute(
+            text(
+                "TRUNCATE TABLE incident_events, incidents, detection_rule_versions, "
+                "events, agent_api_keys, servers CASCADE"
+            )
+        )

@@ -1,0 +1,19 @@
+schema_version: 1
+rule_key: privileged_group_membership_changed
+version: 1
+enabled: true
+severity: high
+title: Изменено членство в привилегированной группе
+description: Пользователь добавлен в привилегированную группу или удалён из неё.
+explanation: Изменение sudo, adm или wheel влияет на административные возможности аккаунта.
+recommendation: Подтвердите изменение и проверьте полномочия пользователя.
+mitre_attack_ids: [T1098.007]
+condition:
+  type: single
+  event_type: linux.account.privileged_group_changed
+  filters:
+    group:
+      one_of: [sudo, adm, wheel]
+    action:
+      one_of: [added, removed]
+correlation_fields: [actor, group, action]

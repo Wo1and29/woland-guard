@@ -17,8 +17,8 @@ def insert_event_batch(
     server_id: UUID,
     events: tuple[NormalizedEventV1, ...],
     persisted_at: datetime,
-) -> int:
-    """Insert a complete batch idempotently and return the newly stored row count."""
+) -> tuple[Event, ...]:
+    """Insert a complete batch and return only its newly stored ORM rows."""
 
     values: list[dict[str, Any]] = [
         {
@@ -39,7 +39,6 @@ def insert_event_batch(
         insert(Event)
         .values(values)
         .on_conflict_do_nothing(constraint="uq_events_server_id_agent_event_id")
-        .returning(Event.id)
+        .returning(Event)
     )
-    inserted_ids = session.execute(statement).scalars().all()
-    return len(inserted_ids)
+    return tuple(session.scalars(statement).all())

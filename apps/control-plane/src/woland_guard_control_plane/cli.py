@@ -2,9 +2,15 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from woland_guard_control_plane.application.detection.rules import (
+    RuleValidationError,
+    load_rules_directory,
+)
+from woland_guard_control_plane.application.detection.sync import RuleSyncError, sync_rules
 from woland_guard_control_plane.application.provisioning import provision_test_server
 from woland_guard_control_plane.database import get_session_factory
 
@@ -21,6 +27,16 @@ def build_parser() -> argparse.ArgumentParser:
     create_agent.add_argument("--name", required=True)
     create_agent.add_argument("--hostname", required=True)
     create_agent.add_argument("--label")
+    validate_rules = subcommands.add_parser(
+        "validate-rules",
+        help="validate every YAML rule without changing PostgreSQL",
+    )
+    validate_rules.add_argument("--rules-dir", type=Path, required=True)
+    sync_rule_set = subcommands.add_parser(
+        "sync-rules",
+        help="atomically append and activate a fully valid rule set",
+    )
+    sync_rule_set.add_argument("--rules-dir", type=Path, required=True)
     return parser
 
 
@@ -28,6 +44,23 @@ def main() -> None:
     """Provision a local test server and reveal its generated token exactly once."""
 
     arguments = build_parser().parse_args()
+    if arguments.command in {"validate-rules", "sync-rules"}:
+        try:
+            rules = load_rules_directory(arguments.rules_dir)
+            if arguments.command == "validate-rules":
+                print(f"Правила корректны: {len(rules)}")
+                return
+            with get_session_factory().begin() as session:
+                synchronized = sync_rules(session, rules)
+        except RuleValidationError:
+            print("Набор правил не прошёл строгую проверку.", file=sys.stderr)
+            raise SystemExit(2) from None
+        except (RuleSyncError, SQLAlchemyError):
+            print("Не удалось атомарно синхронизировать правила.", file=sys.stderr)
+            raise SystemExit(1) from None
+        print(f"Активировано правил: {synchronized}")
+        return
+
     try:
         with get_session_factory().begin() as session:
             provisioned = provision_test_server(
