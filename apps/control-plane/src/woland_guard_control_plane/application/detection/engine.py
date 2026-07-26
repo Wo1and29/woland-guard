@@ -26,6 +26,7 @@ from woland_guard_control_plane.application.detection.rules import (
     canonical_rule,
 )
 from woland_guard_control_plane.application.incident_workflow import add_baseline_history
+from woland_guard_control_plane.application.outbox import enqueue_incident_created_notifications
 from woland_guard_control_plane.infrastructure.database.models import (
     DetectionRuleVersion,
     Event,
@@ -54,7 +55,12 @@ class DetectionResult:
     linked_evidence: int = 0
 
 
-def run_detection(session: Session, *, new_events: Sequence[Event]) -> DetectionResult:
+def run_detection(
+    session: Session,
+    *,
+    new_events: Sequence[Event],
+    outbox_max_attempts: int = 5,
+) -> DetectionResult:
     """Evaluate only newly inserted rows inside the caller's open transaction."""
 
     if not new_events:
@@ -102,6 +108,7 @@ def run_detection(session: Session, *, new_events: Sequence[Event]) -> Detection
                 trigger=trigger,
                 match=match,
                 correlation_hash=correlation_hash,
+                outbox_max_attempts=outbox_max_attempts,
             )
             matched_rules += 1
             created_incidents += int(created)
@@ -398,6 +405,7 @@ def _persist_match(
     trigger: Event,
     match: DetectionMatch,
     correlation_hash: str,
+    outbox_max_attempts: int,
 ) -> tuple[bool, int]:
     incident = session.scalar(
         select(Incident)
@@ -454,4 +462,10 @@ def _persist_match(
         ),
     )
     incident.updated_at = datetime.now(UTC)
+    if created:
+        enqueue_incident_created_notifications(
+            session,
+            incident=incident,
+            max_attempts=outbox_max_attempts,
+        )
     return created, len(linked_ids)

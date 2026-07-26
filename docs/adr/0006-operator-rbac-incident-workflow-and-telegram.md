@@ -83,21 +83,41 @@
 11. Создание нового incident, baseline history и outbox-строк выполняется в транзакции
     ingestion. Повторное evidence не создаёт уведомление. Минимальный idempotency key включает
     `notification_type + incident_id + destination_id`.
-12. Worker захватывает строки через `FOR UPDATE SKIP LOCKED`, назначает случайный claim token и
-    выполняет HTTP только после commit claim-транзакции. Завершение условно по `id`, статусу
-    `processing` и точному claim token. Зависшие claims восстанавливаются после lease timeout.
-13. Ограниченные повторы используют exponential backoff с jitter; 429 учитывает `retry_after`.
-    `last_error` очищается. Доставка at-least-once: crash после внешней отправки до DB commit
-    может дать повторное Telegram-сообщение.
+12. Provider-neutral `notification_destinations` хранит только `adapter_kind`, `enabled`,
+    `minimum_severity` и timestamps. В 6C разрешён production identifier `telegram`, но нет
+    Telegram-конфигурации, seed-записей, HTTP-клиента и внешних вызовов. В 6D provider-specific
+    таблица будет связана с foundation отношением 1:1.
+13. Immutable outbox envelope содержит только allowlisted incident metadata. PostgreSQL trigger
+    запрещает изменение notification type, incident/destination, payload/version,
+    idempotency key и `created_at` после INSERT. Lifecycle защищён state-shape constraints и
+    trigger разрешённых переходов.
+14. Worker захватывает по одной строке через `FOR UPDATE SKIP LOCKED`, назначает случайный claim
+    token и вызывает delivery adapter только после commit и полного закрытия claim Session.
+    Завершение условно по `id`, статусу `processing` и точному claim token. Зависшие claims
+    восстанавливаются после lease timeout.
+15. Ограниченные повторы используют exponential equal jitter; `retry_after` ограничивается
+    конфигурационным максимумом. Успех очищает `last_error`, permanent failure автоматически
+    не повторяется. Delivery остаётся at-least-once: crash после внешнего side effect до DB
+    acknowledge допускает повтор.
+16. Manual requeue разрешён только из `failed`, требует точного UUID-подтверждения, сохраняет
+    `attempt_count`, ограниченно увеличивает `max_attempts` и атомарно создаёт allowlisted audit
+    action `outbox.failed_requeued`. Ошибки adapter сохраняются только как закрытый code и
+    статический безопасный текст.
+17. Long-running worker выполняет lease recovery при старте и затем с ограниченным
+    настраиваемым интервалом независимо от pending backlog. Интервал положителен, не превышает
+    lease и проверяется вместе с инвариантом `lease > adapter timeout`; ожидание пустой очереди
+    остаётся interruptible для SIGTERM. Неожиданные исключения adapter классифицируются отдельно
+    как `adapter_unexpected_error`, без сохранения текста исключения.
 
 ## 6D: только исходящий Telegram
 
-14. `TelegramDestination` поддерживает `enabled`, `minimum_severity` и timestamps. Управление
+17. Telegram-конфигурация расширяет provider-neutral destination отношением 1:1. Логическая
+    destination уже поддерживает `enabled`, `minimum_severity` и timestamps. Управление
     выполняется безопасным локальным CLI; удаление заменено отключением для сохранения истории.
-15. Bot token читается только из отдельного token file. Redirects запрещены, TLS verification и
+18. Bot token читается только из отдельного token file. Redirects запрещены, TLS verification и
     ограниченные timeout обязательны. Production Telegram API base URL нельзя произвольно
     переопределять.
-16. Уведомление — простой текст без `parse_mode`. Оно не содержит raw payload, attributes,
+19. Уведомление — простой текст без `parse_mode`. Оно не содержит raw payload, attributes,
     correlation, actor или IP. Polling, webhook, команды, callback-кнопки и status transitions
     через Telegram отложены.
 
@@ -106,8 +126,10 @@
 - **6A:** identities, API keys, CLI lifecycle, authentication dependency, RBAC, migration.
 - **6B:** incident read/status API, history, audit и status idempotency.
 - **6C:** конкурентный outbox worker, lease recovery, retries и операционные CLI-команды.
-- **6D:** Telegram destinations и исходящий adapter на fake Bot API в автоматических тестах.
+- **6D:** Telegram-specific destination config и исходящий adapter на fake Bot API в
+  автоматических тестах.
 
-Каждая часть проходит отдельное ревью. На границе 6B реализованы Incident/Audit API, history,
-audit persistence и status idempotency. Worker, destinations и Telegram HTTP-клиент относятся
-к 6C–6D и отсутствуют.
+Каждая часть проходит отдельное ревью. На границе 6C реализованы Incident/Audit API, history,
+status idempotency, provider-neutral destination foundation и worker core. Telegram config,
+настоящий HTTP adapter, token file, chat ID и destination management относятся только к 6D и
+отсутствуют.

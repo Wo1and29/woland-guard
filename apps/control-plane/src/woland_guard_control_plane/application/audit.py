@@ -91,6 +91,15 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
                 to_version=AuditDetailType.POSITIVE_INTEGER,
             ),
         ),
+        "outbox.failed_requeued": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="outbox_message",
+            detail_fields=_fields(
+                from_attempt_count=AuditDetailType.POSITIVE_INTEGER,
+                from_max_attempts=AuditDetailType.POSITIVE_INTEGER,
+                to_max_attempts=AuditDetailType.POSITIVE_INTEGER,
+            ),
+        ),
     }
 )
 

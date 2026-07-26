@@ -31,6 +31,9 @@ from woland_guard_control_plane.infrastructure.database.models import (
     Event,
     Incident,
     IncidentEvent,
+    IncidentHistoryEntry,
+    NotificationDestination,
+    OutboxMessage,
 )
 
 pytestmark = pytest.mark.integration
@@ -46,6 +49,18 @@ def _default_rule(rule_key: str) -> RuleDefinition:
 def _sync_rule(rule_key: str) -> None:
     with get_session_factory().begin() as session:
         assert sync_rules(session, (_default_rule(rule_key),)) == 1
+
+
+def _create_destination(*, minimum_severity: str = "low") -> UUID:
+    with get_session_factory().begin() as session:
+        destination = NotificationDestination(
+            adapter_kind="telegram",
+            enabled=True,
+            minimum_severity=minimum_severity,
+        )
+        session.add(destination)
+        session.flush()
+        return destination.id
 
 
 def _event(
@@ -215,6 +230,92 @@ def test_each_rule_runs_ingestion_to_incident_on_real_postgresql(
         assert session.scalar(select(func.count()).select_from(IncidentEvent)) == expected_evidence
 
 
+def test_new_incident_without_destination_creates_no_outbox_row(
+    client: TestClient,
+    register_agent: AgentFactory,
+) -> None:
+    _sync_rule("ssh_root_login_success")
+    agent = register_agent()
+
+    response = client.post(
+        INGESTION_PATH,
+        json=_batch(
+            _positive_events("ssh_root_login_success", datetime.now(UTC) - timedelta(seconds=1))
+        ),
+        headers=_headers(agent, "outbox-no-destination"),
+    )
+
+    assert response.status_code == 200
+    with get_session_factory()() as session:
+        assert session.scalar(select(func.count()).select_from(Incident)) == 1
+        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 0
+
+
+@pytest.mark.parametrize("destination_count", [1, 2])
+def test_new_incident_creates_one_outbox_per_enabled_destination(
+    client: TestClient,
+    register_agent: AgentFactory,
+    destination_count: int,
+) -> None:
+    _sync_rule("ssh_root_login_success")
+    destination_ids = {_create_destination() for _ in range(destination_count)}
+    agent = register_agent()
+
+    response = client.post(
+        INGESTION_PATH,
+        json=_batch(
+            _positive_events("ssh_root_login_success", datetime.now(UTC) - timedelta(seconds=1))
+        ),
+        headers=_headers(agent, f"outbox-destinations-{destination_count}"),
+    )
+
+    assert response.status_code == 200
+    with get_session_factory()() as session:
+        incident = session.execute(select(Incident)).scalar_one()
+        messages = session.scalars(
+            select(OutboxMessage).order_by(OutboxMessage.destination_id)
+        ).all()
+        assert len(messages) == destination_count
+        assert {message.destination_id for message in messages} == destination_ids
+        for message in messages:
+            assert message.incident_id == incident.id
+            assert message.notification_type == "incident.created"
+            assert set(message.payload) == {
+                "schema_version",
+                "notification_type",
+                "incident_id",
+                "server_id",
+                "rule_key",
+                "rule_version",
+                "severity",
+                "title",
+                "created_at",
+            }
+
+
+def test_destination_minimum_severity_filters_outbox_routing(
+    client: TestClient,
+    register_agent: AgentFactory,
+) -> None:
+    _sync_rule("ssh_root_login_success")
+    accepted_destination = _create_destination(minimum_severity="medium")
+    _create_destination(minimum_severity="critical")
+    agent = register_agent()
+
+    response = client.post(
+        INGESTION_PATH,
+        json=_batch(
+            _positive_events("ssh_root_login_success", datetime.now(UTC) - timedelta(seconds=1))
+        ),
+        headers=_headers(agent, "outbox-severity-routing"),
+    )
+
+    assert response.status_code == 200
+    with get_session_factory()() as session:
+        message = session.execute(select(OutboxMessage)).scalar_one()
+        assert message.destination_id == accepted_destination
+
+
 def test_duplicate_delivery_does_not_run_detection_or_duplicate_evidence(
     client: TestClient,
     register_agent: AgentFactory,
@@ -252,6 +353,7 @@ def test_repeated_match_updates_one_active_incident_with_unique_evidence(
     """A later match reuses its correlation bucket and extends first/last/evidence."""
 
     _sync_rule("ssh_root_login_success")
+    _create_destination()
     agent = register_agent()
     first_time = datetime.now(UTC) - timedelta(seconds=2)
     second_time = first_time + timedelta(seconds=1)
@@ -272,6 +374,7 @@ def test_repeated_match_updates_one_active_incident_with_unique_evidence(
         assert incident.last_seen_at == second_time
         assert incident.event_count == 2
         assert session.scalar(select(func.count()).select_from(IncidentEvent)) == 2
+        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 1
 
 
 def test_server_and_correlation_boundaries_create_separate_incidents(
@@ -573,6 +676,7 @@ def test_detection_failure_rolls_back_event_incident_and_key_usage(
     """A failure after incident flush rolls the complete ingestion transaction back."""
 
     _sync_rule("ssh_root_login_success")
+    _create_destination()
     agent = register_agent()
 
     def detect_then_fail(session: Session, *, new_events: tuple[Event, ...]) -> NoReturn:
@@ -601,6 +705,8 @@ def test_detection_failure_rolls_back_event_incident_and_key_usage(
         assert session.scalar(select(func.count()).select_from(Event)) == 0
         assert session.scalar(select(func.count()).select_from(Incident)) == 0
         assert session.scalar(select(func.count()).select_from(IncidentEvent)) == 0
+        assert session.scalar(select(func.count()).select_from(IncidentHistoryEntry)) == 0
+        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 0
         key = session.get(AgentApiKey, agent.key_id)
         assert key is not None
         assert key.last_used_at is None

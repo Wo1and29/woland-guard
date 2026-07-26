@@ -13,6 +13,10 @@ from woland_guard_control_plane.infrastructure.database.models.operator import (
     OperatorRole,
 )
 from woland_guard_control_plane.infrastructure.database.models.outbox import (
+    NotificationAdapterKind,
+    NotificationDestination,
+    NotificationSeverity,
+    OutboxErrorCode,
     OutboxMessage,
     OutboxStatus,
 )
@@ -36,10 +40,14 @@ __all__ = [
     "IncidentHistoryEntry",
     "IncidentStatus",
     "HistoryEntryType",
+    "NotificationAdapterKind",
+    "NotificationDestination",
+    "NotificationSeverity",
     "Operator",
     "OperatorApiKey",
     "OperatorIdempotencyRecord",
     "OperatorRole",
+    "OutboxErrorCode",
     "OutboxMessage",
     "OutboxStatus",
     "Server",

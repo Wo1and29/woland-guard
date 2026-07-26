@@ -56,6 +56,16 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
             "to_version": 2,
         },
     ),
+    (
+        "outbox.failed_requeued",
+        AuditActorType.LOCAL_CLI,
+        "outbox_message",
+        {
+            "from_attempt_count": 5,
+            "from_max_attempts": 5,
+            "to_max_attempts": 6,
+        },
+    ),
 )
 
 
@@ -77,7 +87,7 @@ def test_all_registered_actions_accept_only_their_exact_schema(
     )
 
 
-def test_registry_contains_exactly_the_five_supported_actions() -> None:
+def test_registry_contains_exactly_the_six_supported_actions() -> None:
     assert set(AUDIT_ACTION_REGISTRY) == {item[0] for item in _ALLOWED_ACTIONS}
 
 

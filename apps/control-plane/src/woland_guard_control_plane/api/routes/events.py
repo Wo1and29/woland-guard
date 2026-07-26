@@ -77,7 +77,11 @@ def ingest_events(
                 persisted_at=now,
             )
             try:
-                detection_result = run_detection(session, new_events=new_events)
+                detection_result = run_detection(
+                    session,
+                    new_events=new_events,
+                    outbox_max_attempts=settings.outbox_default_max_attempts,
+                )
             except (DetectionEngineError, SQLAlchemyError):
                 raise
             except Exception as error:

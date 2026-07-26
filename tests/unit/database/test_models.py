@@ -11,6 +11,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     Incident,
     IncidentEvent,
     IncidentHistoryEntry,
+    NotificationDestination,
     Operator,
     OperatorApiKey,
     OperatorIdempotencyRecord,
@@ -26,6 +27,7 @@ MODEL_TYPES = (
     Incident,
     IncidentEvent,
     IncidentHistoryEntry,
+    NotificationDestination,
     Operator,
     OperatorApiKey,
     OperatorIdempotencyRecord,
@@ -48,6 +50,7 @@ def test_expected_tables_are_registered() -> None:
         "operator_api_keys",
         "operator_idempotency_records",
         "operators",
+        "notification_destinations",
         "outbox_messages",
         "servers",
     }
@@ -160,8 +163,8 @@ def test_incident_workflow_metadata_has_versions_and_immutable_record_shapes() -
     )
 
 
-def test_outbox_has_required_states_and_retry_columns() -> None:
-    """Metadata captures the required delivery lifecycle and retry data."""
+def test_outbox_has_destination_lease_and_immutable_envelope_metadata() -> None:
+    """Metadata captures the destination-aware lease and retry lifecycle."""
 
     outbox_table = Base.metadata.tables["outbox_messages"]
     check_sql = " ".join(
@@ -175,9 +178,43 @@ def test_outbox_has_required_states_and_retry_columns() -> None:
     assert {
         "attempt_count",
         "max_attempts",
-        "available_at",
-        "locked_at",
-        "locked_by",
+        "notification_type",
+        "incident_id",
+        "destination_id",
+        "payload_schema_version",
+        "payload",
+        "next_attempt_at",
+        "claim_token",
+        "claimed_at",
+        "lease_expires_at",
+        "failed_at",
+        "last_error_code",
         "last_error",
         "idempotency_key",
     } <= set(columns.keys())
+    unique_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in outbox_table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+    assert ("notification_type", "incident_id", "destination_id") in unique_columns
+    assert "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" in check_sql
+    assert "[0-9a-f-]{36}" not in check_sql
+
+
+def test_notification_destination_is_provider_neutral_and_telegram_only() -> None:
+    destination_table = Base.metadata.tables["notification_destinations"]
+    check_sql = " ".join(
+        str(constraint.sqltext)
+        for constraint in destination_table.constraints
+        if isinstance(constraint, CheckConstraint)
+    )
+
+    assert {"adapter_kind", "enabled", "minimum_severity", "created_at", "updated_at"} <= set(
+        destination_table.columns.keys()
+    )
+    assert "telegram" in check_sql
+    assert "synthetic" not in check_sql
+    assert "fake" not in check_sql
+    assert "chat_id" not in destination_table.columns
+    assert "token_file" not in destination_table.columns

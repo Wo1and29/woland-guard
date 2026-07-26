@@ -4,7 +4,7 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–5 и подэтап 6A приняты. Подэтап 6B реализован в рабочем дереве и ожидает ревью:
+Этапы 1–5, 6A и 6B приняты. Подэтап 6C реализован в рабочем дереве и ожидает ревью:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их и выполняют идемпотентные status transitions.
 
@@ -33,6 +33,10 @@ Linux-агент проверен на синтетических journald fixtu
 - локальные Operator identities, независимо ротируемые `wgok_` API-ключи и фиксированный RBAC;
 - безопасные Incident/Audit API, optimistic `lock_version`, immutable history и audit;
 - operator-scoped идемпотентность status transitions с сохранёнными 200/404/409 outcomes;
+- provider-neutral notification destinations без provider credentials и seed-записей;
+- transactional outbox, атомарный с новым incident, baseline history и evidence;
+- конкурентный worker с `FOR UPDATE SKIP LOCKED`, claim token, lease recovery и equal jitter;
+- безопасные outbox CLI-команды run/run-once/status/recovery/manual requeue;
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
@@ -209,6 +213,40 @@ docker compose --profile test run --rm integration-tests
 - `WG_INGEST_RATE_LIMIT_WINDOW_SECONDS` — размер окна rate limit;
 - `WG_INGEST_MAX_CLOCK_SKEW_SECONDS` — допустимое расхождение `sent_at`.
 
+Настройки worker:
+
+- `WG_OUTBOX_POLL_SECONDS` — пауза при пустой очереди;
+- `WG_OUTBOX_LEASE_SECONDS` — срок одного claim;
+- `WG_OUTBOX_ADAPTER_TIMEOUT_SECONDS` — верхняя граница вызова adapter;
+- `WG_OUTBOX_RECOVERY_INTERVAL_SECONDS` — период recovery просроченных claims; должен быть
+  положительным и не превышать lease;
+- `WG_OUTBOX_BACKOFF_BASE_SECONDS` и `WG_OUTBOX_BACKOFF_MAX_SECONDS` — границы backoff;
+- `WG_OUTBOX_RETRY_AFTER_CAP_SECONDS` — безопасный максимум `retry_after`;
+- `WG_OUTBOX_DEFAULT_MAX_ATTEMPTS` — число автоматических попыток для новой строки.
+
+## Transactional outbox worker
+
+Миграция 0005 не создаёт destinations автоматически. Без enabled destination новый incident
+успешно фиксируется без outbox rows. В 6C настоящий delivery adapter отсутствует; значение
+`adapter_kind=telegram` зарезервировано для 6D, а автоматические тесты маршрутизируют его в
+синтетический fake adapter.
+
+Безопасные локальные команды:
+
+```bash
+docker compose exec control-plane woland-guard-outbox run-once --limit 10
+docker compose exec control-plane woland-guard-outbox status
+docker compose exec control-plane woland-guard-outbox recover-expired
+docker compose exec control-plane woland-guard-outbox requeue-failed <outbox UUID> \
+  --confirm <тот же outbox UUID> --additional-attempts 1
+```
+
+Непрерывный процесс запускается командой `woland-guard-outbox run`, периодически выполняет
+lease recovery независимо от наличия pending backlog и кооперативно завершает текущую
+ограниченную попытку после SIGTERM. Delivery выполняется at-least-once: падение после внешнего
+side effect, но до PostgreSQL acknowledge, может привести к повтору. Команда `status` выводит
+только агрегаты, включая неотрицательный возраст старейшей pending-записи или `null`.
+
 ## Архитектурные решения
 
 Принятые решения зафиксированы в
@@ -303,9 +341,9 @@ journald-правил, а не десять end-to-end правил.
 
 ## Ограничения MVP
 
-- нет Telegram; outbox worker и Telegram integration относятся к 6C–6D;
+- нет Telegram HTTP, chat ID, bot token и управления destinations — это этап 6D;
 - нет HTTP API управления серверами и ключами;
-- outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;
+- production adapter registry пуст до 6D, поэтому 6C проверяет доставку только fake adapter;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько
   экземпляров control plane;
 - rate limiter учитывает каждый запрос после успешной аутентификации, но запросы,
