@@ -92,9 +92,11 @@ class Incident(Base):
             name="status_allowed",
         ),
         CheckConstraint("event_count > 0", name="event_count_positive"),
+        CheckConstraint("lock_version > 0", name="lock_version_positive"),
         CheckConstraint("char_length(correlation_hash) = 64", name="correlation_hash_length"),
         Index("ix_incidents_server_status_last_seen", "server_id", "status", "last_seen_at"),
         Index("ix_incidents_rule_key_correlation_hash", "rule_key", "correlation_hash"),
+        Index("ix_incidents_created_at_id", "created_at", "id"),
         Index(
             "uq_incidents_active_server_rule_version_correlation",
             "server_id",
@@ -127,6 +129,7 @@ class Incident(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     event_count: Mapped[int] = mapped_column(Integer)
+    lock_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

@@ -8,6 +8,8 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -21,7 +23,7 @@ from woland_guard_control_plane.application.rate_limit import (
     AgentRateLimiter,
     FixedWindowRateLimiter,
 )
-from woland_guard_control_plane.config import Settings
+from woland_guard_control_plane.config import Settings, get_settings
 from woland_guard_control_plane.database import get_engine, get_session_factory
 from woland_guard_control_plane.infrastructure.database.models import (
     AgentApiKey,
@@ -85,7 +87,11 @@ def require_real_postgresql() -> None:
     if os.environ.get("WG_RUN_INTEGRATION_TESTS") != "1":
         pytest.skip("integration tests require Docker Compose PostgreSQL")
 
+    _assert_isolated_test_database_settings()
+    command.upgrade(Config("alembic.ini"), "head")
     with get_engine().connect() as connection:
+        current_database = connection.execute(text("SELECT current_database()"))
+        assert current_database.scalar_one() == get_settings().postgres_db
         product = connection.execute(text("SELECT current_setting('server_version')")).scalar_one()
     if not str(product):
         pytest.fail("PostgreSQL did not return its server version")
@@ -225,10 +231,46 @@ def reset_rate_limiter(api_app: FastAPI) -> None:
 
 
 def _truncate_application_tables() -> None:
-    with get_engine().begin() as connection:
-        connection.execute(
-            text(
-                "TRUNCATE TABLE incident_events, incidents, detection_rule_versions, "
-                "events, agent_api_keys, servers, operator_api_keys, operators CASCADE"
+    _assert_isolated_test_database_settings()
+    immutable_tables = (
+        "incident_history",
+        "audit_log_entries",
+        "operator_idempotency_records",
+    )
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            current_database = connection.execute(text("SELECT current_database()"))
+            if current_database.scalar_one() != get_settings().postgres_db:
+                raise RuntimeError("integration cleanup database identity mismatch")
+            for table_name in immutable_tables:
+                connection.execute(text(f"ALTER TABLE {table_name} DISABLE TRIGGER USER"))
+            connection.execute(
+                text(
+                    "TRUNCATE TABLE operator_idempotency_records, audit_log_entries, "
+                    "incident_history, incident_events, incidents, detection_rule_versions, "
+                    "events, outbox_messages, agent_api_keys, servers, operator_api_keys, "
+                    "operators CASCADE"
+                )
             )
-        )
+            for table_name in immutable_tables:
+                connection.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER USER"))
+            transaction.commit()
+        except Exception:
+            transaction.rollback()
+            raise
+        finally:
+            with get_engine().begin() as safety_connection:
+                for table_name in immutable_tables:
+                    safety_connection.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER USER"))
+
+
+def _assert_isolated_test_database_settings() -> None:
+    settings = get_settings()
+    if (
+        settings.app_env != "test"
+        or settings.postgres_host != "postgres"
+        or not settings.postgres_db.endswith("_test")
+        or os.environ.get("WG_RUN_INTEGRATION_TESTS") != "1"
+    ):
+        raise RuntimeError("immutable cleanup requires the isolated integration database")

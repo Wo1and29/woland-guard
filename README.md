@@ -4,9 +4,9 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–5 приняты. Подэтап 6A реализован в рабочем дереве и ожидает ревью: Linux-агент
-проверен на синтетических journald fixtures и в Linux test image, control plane создаёт
-инциденты и поддерживает отдельные локальные identities операторов с RBAC.
+Этапы 1–5 и подэтап 6A приняты. Подэтап 6B реализован в рабочем дереве и ожидает ревью:
+Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
+создаёт инциденты, а локальные операторы читают их и выполняют идемпотентные status transitions.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -31,6 +31,8 @@ Woland Guard — разрабатываемая защитная система 
 - Detection Engine с условиями single, threshold, distinct_count, sequence и first_seen;
 - восемь journald-правил, атомарные incidents и уникальные evidence-связи;
 - локальные Operator identities, независимо ротируемые `wgok_` API-ключи и фиксированный RBAC;
+- безопасные Incident/Audit API, optimistic `lock_version`, immutable history и audit;
+- operator-scoped идемпотентность status transitions с сохранёнными 200/404/409 outcomes;
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
@@ -251,8 +253,38 @@ docker compose exec control-plane woland-guard-admin revoke-operator-key \
   --key-id <key UUID>
 ```
 
-На границе 6A production routes для операторов ещё отсутствуют. Authentication dependency и
-матрица `viewer`/`analyst`/`admin` будут использованы Incident API только после ревью 6A.
+## Incident workflow и audit
+
+`viewer`, `analyst` и `admin` могут читать безопасные summaries и detail без event payload:
+
+```text
+GET /api/v1/incidents?status=new&severity=critical&limit=50
+GET /api/v1/incidents/<incident UUID>
+Authorization: Bearer <operator token>
+```
+
+`analyst` и `admin` могут менять статус. Обязательные поля — текущий `expected_version` и
+уникальный в scope оператора `Idempotency-Key`. Для `resolved` и `false_positive` требуется
+`reason`:
+
+```text
+POST /api/v1/incidents/<incident UUID>/transitions
+Authorization: Bearer <operator token>
+Idempotency-Key: local-review-001
+Content-Type: application/json
+
+{"status":"resolved","expected_version":1,"reason":"Проверено локальным оператором"}
+```
+
+Разрешены только `new → investigating|resolved|false_positive` и
+`investigating → resolved|false_positive`; терминальные статусы не переоткрываются. Повтор
+идентичного запроса возвращает первоначальный business snapshot и заголовок
+`Idempotency-Replayed: true`. Тот же ключ с другим нормализованным запросом возвращает 409.
+
+Только `admin` читает append-only audit через `GET /api/v1/audit-log`. Cursor в обоих list API
+строго валидируется и связан с нормализованными фильтрами, но не является криптографически
+подписанным. History, audit и idempotency rows защищены PostgreSQL-триггерами от `UPDATE`,
+`DELETE` и `TRUNCATE`; владелец таблиц и superuser PostgreSQL остаются за пределами этой защиты.
 
 ## Linux Agent
 
@@ -271,7 +303,7 @@ journald-правил, а не десять end-to-end правил.
 
 ## Ограничения MVP
 
-- нет Telegram и API чтения/изменения статуса инцидентов: они относятся к 6B–6D;
+- нет Telegram; outbox worker и Telegram integration относятся к 6C–6D;
 - нет HTTP API управления серверами и ключами;
 - outbox worker, конкурентный захват, backoff и отправка уведомлений ещё не реализованы;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько

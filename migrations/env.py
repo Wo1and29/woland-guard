@@ -10,12 +10,15 @@ from woland_guard_control_plane.database import build_database_url
 from woland_guard_control_plane.infrastructure.database.base import Base
 from woland_guard_control_plane.infrastructure.database.models import (
     AgentApiKey,
+    AuditLogEntry,
     DetectionRuleVersion,
     Event,
     Incident,
     IncidentEvent,
+    IncidentHistoryEntry,
     Operator,
     OperatorApiKey,
+    OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
 )
@@ -23,17 +26,20 @@ from woland_guard_control_plane.infrastructure.database.models import (
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 _REGISTERED_MODEL_TYPES = (
     AgentApiKey,
+    AuditLogEntry,
     DetectionRuleVersion,
     Event,
     Incident,
     IncidentEvent,
+    IncidentHistoryEntry,
     Operator,
     OperatorApiKey,
+    OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
 )

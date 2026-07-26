@@ -44,7 +44,39 @@
    Повтор ключа с другим hash даёт 409. Replay проверяется раньше stale `expected_version`.
 10. Append-only audit хранит успешные status transitions, provisioning/revocation ключей и
     управление Telegram destinations. Audit details строятся только из allowlist и не содержат
-    credentials, HTTP body или event payload. Неизменяемость не защищает от PostgreSQL superuser.
+    credentials, HTTP body или event payload. Неизменяемость не защищает от владельца таблиц
+    или PostgreSQL superuser.
+
+Реализация 6B уточняет эти решения:
+
+- после authentication, RBAC и синтаксической валидации запрос нормализуется, получает
+  canonical SHA-256 hash и входит в транзакцию; transaction-level advisory lock берётся по
+  `operator_id + Idempotency-Key` до чтения incident;
+- совпавший hash возвращает сохранённый business snapshot, даже если incident позднее изменён.
+  Транспорт добавляет текущий request ID и только для replay ставит
+  `Idempotency-Replayed: true`. Другой hash возвращает 409 без чтения incident;
+- 404, stale-version 409 и запрещённый-transition 409 сохраняются как завершённые outcomes.
+  Ошибки 5xx/БД, 401, 403 и validation errors не сохраняются;
+- `reason` проверяется до `strip(" ")`, затем нормализуется в NFC. Запрещены управляющие,
+  format/surrogate, line/paragraph separator символы; итоговая длина — 1–1000 символов;
+- `incident_history`, `audit_log_entries` и `operator_idempotency_records` отклоняют
+  `UPDATE`, `DELETE` и `TRUNCATE` PostgreSQL-триггерами. Миграция создаёт ровно один baseline
+  версии 1 для каждого ранее существовавшего incident;
+- единый application-layer audit writer проверяет действие до создания SQLAlchemy-модели.
+  Закрытый реестр разрешает только: `operator.created` с `{role}`;
+  `operator_api_key.issued|revoked` с `{operator_id}`; `operator_api_key.rotated` с
+  `{operator_id, replaced_key_id}`; `incident.status_changed` с
+  `{from_status, from_version, history_id, to_status, to_version}`. Для каждого действия
+  зафиксированы actor type и target type; UUID обязаны быть каноническими строками, роли и
+  статусы проверяются по enum, версии — положительные `int` без `bool`. Missing/extra поля и
+  неизвестные действия отклоняются без отражения переданного значения в ошибке;
+- `lock_version` изменяется только status workflow. Добавление evidence его не увеличивает.
+  Detection под correlation lock выполняет history/evaluate, затем блокирует найденный active
+  incident через `SELECT FOR UPDATE`; после терминального перехода новое совпадение создаёт
+  отдельный incident;
+- Incident API использует cursor keyset pagination по `(created_at, id)`. Cursor — строго
+  проверяемый, но не криптографически защищённый base64url JSON; RBAC применяется независимо
+  от его содержимого. Audit API доступен только `admin`.
 
 ## 6C: transactional outbox worker
 
@@ -76,5 +108,6 @@
 - **6C:** конкурентный outbox worker, lease recovery, retries и операционные CLI-команды.
 - **6D:** Telegram destinations и исходящий adapter на fake Bot API в автоматических тестах.
 
-Каждая часть проходит отдельное ревью. На завершении 6A ещё отсутствуют incident API, history,
-audit persistence, worker, destinations и Telegram HTTP-клиент.
+Каждая часть проходит отдельное ревью. На границе 6B реализованы Incident/Audit API, history,
+audit persistence и status idempotency. Worker, destinations и Telegram HTTP-клиент относятся
+к 6C–6D и отсутствуют.

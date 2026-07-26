@@ -11,7 +11,7 @@ from uuid import UUID
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from tests.integration.conftest import OperatorFactory, RegisteredOperator
@@ -19,6 +19,10 @@ from woland_guard_control_plane import cli
 from woland_guard_control_plane.api.dependencies import (
     get_authenticated_operator,
     require_permission,
+)
+from woland_guard_control_plane.application.audit import (
+    AuditValidationError,
+    record_local_cli_action,
 )
 from woland_guard_control_plane.application.operator_authentication import (
     AuthenticatedOperator,
@@ -35,6 +39,8 @@ from woland_guard_control_plane.application.rbac import Permission
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.database import get_session_factory
 from woland_guard_control_plane.infrastructure.database.models import (
+    AuditLogEntry,
+    Operator,
     OperatorApiKey,
     OperatorRole,
 )
@@ -319,6 +325,86 @@ def test_cli_create_issue_rotate_and_revoke_operator_key(
     with get_session_factory()() as session:
         with pytest.raises(InvalidOperatorCredentialsError):
             authenticate_operator(session, second_token, now=datetime.now(UTC))
+        audit_entries = session.scalars(
+            select(AuditLogEntry).order_by(AuditLogEntry.created_at, AuditLogEntry.id)
+        ).all()
+        assert [entry.action for entry in audit_entries] == [
+            "operator.created",
+            "operator_api_key.issued",
+            "operator_api_key.rotated",
+            "operator_api_key.revoked",
+        ]
+        assert [entry.target_type for entry in audit_entries] == [
+            "operator",
+            "operator_api_key",
+            "operator_api_key",
+            "operator_api_key",
+        ]
+        assert [entry.details for entry in audit_entries] == [
+            {"role": "admin"},
+            {"operator_id": str(operator_id)},
+            {
+                "operator_id": str(operator_id),
+                "replaced_key_id": str(first_key_id),
+            },
+            {"operator_id": str(operator_id)},
+        ]
+        serialized_audit = " ".join(str(entry.details) for entry in audit_entries)
+        assert first_token not in serialized_audit
+        assert second_token not in serialized_audit
+        assert all(entry.actor_type == "local_cli" for entry in audit_entries)
+
+
+def test_failed_operator_cli_action_does_not_create_audit_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["woland-guard-admin", "issue-operator-key", "--operator-id", str(UUID(int=7))],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    captured = capsys.readouterr()
+    assert "token=" not in captured.out
+    with get_session_factory()() as session:
+        count = session.scalar(select(func.count()).select_from(AuditLogEntry))
+    assert count == 0
+
+
+def test_forbidden_audit_detail_rolls_back_caller_transaction(
+    register_operator: OperatorFactory,
+) -> None:
+    registered = register_operator(role=OperatorRole.ADMIN)
+    with get_session_factory()() as session:
+        initial_audit_count = session.scalar(select(func.count()).select_from(AuditLogEntry))
+
+    with pytest.raises(AuditValidationError):
+        with get_session_factory().begin() as session:
+            operator = session.get(Operator, registered.operator_id)
+            assert operator is not None
+            operator.is_active = False
+            record_local_cli_action(
+                session,
+                action="operator_api_key.revoked",
+                target_type="operator_api_key",
+                target_id=registered.key_id,
+                details={
+                    "operator_id": str(registered.operator_id),
+                    "event_payload": {"synthetic": "must not be stored"},
+                },
+            )
+
+    with get_session_factory()() as session:
+        operator = session.get(Operator, registered.operator_id)
+        assert operator is not None
+        assert operator.is_active
+        final_audit_count = session.scalar(select(func.count()).select_from(AuditLogEntry))
+    assert final_audit_count == initial_audit_count
 
 
 def test_concurrent_rotation_creates_exactly_one_replacement(

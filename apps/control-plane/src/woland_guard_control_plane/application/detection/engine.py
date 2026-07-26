@@ -25,6 +25,7 @@ from woland_guard_control_plane.application.detection.rules import (
     ThresholdCondition,
     canonical_rule,
 )
+from woland_guard_control_plane.application.incident_workflow import add_baseline_history
 from woland_guard_control_plane.infrastructure.database.models import (
     DetectionRuleVersion,
     Event,
@@ -399,13 +400,15 @@ def _persist_match(
     correlation_hash: str,
 ) -> tuple[bool, int]:
     incident = session.scalar(
-        select(Incident).where(
+        select(Incident)
+        .where(
             Incident.server_id == trigger.server_id,
             Incident.rule_version_id == stored_rule.id,
             Incident.rule_key == rule.rule_key,
             Incident.correlation_hash == correlation_hash,
             Incident.status.in_((IncidentStatus.NEW.value, IncidentStatus.INVESTIGATING.value)),
         )
+        .with_for_update()
     )
     evidence_times = [event.occurred_at for event in match.evidence]
     created = incident is None
@@ -429,6 +432,7 @@ def _persist_match(
         )
         session.add(incident)
         session.flush()
+        add_baseline_history(session, incident)
 
     evidence_values = [
         {"incident_id": incident.id, "event_id": event.id} for event in match.evidence

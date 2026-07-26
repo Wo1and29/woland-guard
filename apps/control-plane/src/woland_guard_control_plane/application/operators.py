@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from woland_guard_control_plane.application.audit import record_local_cli_action
 from woland_guard_control_plane.application.operator_keys import generate_operator_api_key
 from woland_guard_control_plane.infrastructure.database.models import (
     Operator,
@@ -51,6 +52,13 @@ def create_operator(
     operator = Operator(username=username, role=role.value)
     session.add(operator)
     session.flush()
+    record_local_cli_action(
+        session,
+        action="operator.created",
+        target_type="operator",
+        target_id=operator.id,
+        details={"role": role.value},
+    )
     return ProvisionedOperator(id=operator.id, username=operator.username, role=role)
 
 
@@ -72,7 +80,7 @@ def issue_operator_api_key(
         raise OperatorManagementError("operator does not exist")
     if not operator.is_active:
         raise OperatorManagementError("operator is inactive")
-    return _create_key(
+    issued = _create_key(
         session,
         operator=operator,
         label=normalized_label,
@@ -80,6 +88,14 @@ def issue_operator_api_key(
         rotated_from_id=None,
         created_at=current_time,
     )
+    record_local_cli_action(
+        session,
+        action="operator_api_key.issued",
+        target_type="operator_api_key",
+        target_id=issued.key_id,
+        details={"operator_id": str(operator.id)},
+    )
+    return issued
 
 
 def rotate_operator_api_key(
@@ -115,6 +131,16 @@ def rotate_operator_api_key(
         created_at=current_time,
     )
     key.revoked_at = current_time
+    record_local_cli_action(
+        session,
+        action="operator_api_key.rotated",
+        target_type="operator_api_key",
+        target_id=replacement.key_id,
+        details={
+            "operator_id": str(operator.id),
+            "replaced_key_id": str(key.id),
+        },
+    )
     session.flush()
     return replacement
 
@@ -134,6 +160,13 @@ def revoke_operator_api_key(
     if key.revoked_at is not None:
         return False
     key.revoked_at = current_time
+    record_local_cli_action(
+        session,
+        action="operator_api_key.revoked",
+        target_type="operator_api_key",
+        target_id=key.id,
+        details={"operator_id": str(key.operator_id)},
+    )
     session.flush()
     return True
 

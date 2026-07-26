@@ -17,16 +17,28 @@ from woland_guard_control_plane.infrastructure.database.models.outbox import (
     OutboxStatus,
 )
 from woland_guard_control_plane.infrastructure.database.models.server import AgentApiKey, Server
+from woland_guard_control_plane.infrastructure.database.models.workflow import (
+    AuditActorType,
+    AuditLogEntry,
+    HistoryEntryType,
+    IncidentHistoryEntry,
+    OperatorIdempotencyRecord,
+)
 
 __all__ = [
     "AgentApiKey",
+    "AuditActorType",
+    "AuditLogEntry",
     "DetectionRuleVersion",
     "Event",
     "Incident",
     "IncidentEvent",
+    "IncidentHistoryEntry",
     "IncidentStatus",
+    "HistoryEntryType",
     "Operator",
     "OperatorApiKey",
+    "OperatorIdempotencyRecord",
     "OperatorRole",
     "OutboxMessage",
     "OutboxStatus",

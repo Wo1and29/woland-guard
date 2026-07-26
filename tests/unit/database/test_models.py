@@ -5,24 +5,30 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 from woland_guard_control_plane.infrastructure.database.base import Base
 from woland_guard_control_plane.infrastructure.database.models import (
     AgentApiKey,
+    AuditLogEntry,
     DetectionRuleVersion,
     Event,
     Incident,
     IncidentEvent,
+    IncidentHistoryEntry,
     Operator,
     OperatorApiKey,
+    OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
 )
 
 MODEL_TYPES = (
     AgentApiKey,
+    AuditLogEntry,
     DetectionRuleVersion,
     Event,
     Incident,
     IncidentEvent,
+    IncidentHistoryEntry,
     Operator,
     OperatorApiKey,
+    OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
 )
@@ -33,11 +39,14 @@ def test_expected_tables_are_registered() -> None:
 
     assert set(Base.metadata.tables) == {
         "agent_api_keys",
+        "audit_log_entries",
         "detection_rule_versions",
         "events",
         "incident_events",
+        "incident_history",
         "incidents",
         "operator_api_keys",
+        "operator_idempotency_records",
         "operators",
         "outbox_messages",
         "servers",
@@ -121,6 +130,33 @@ def test_detection_metadata_has_explicit_concurrency_constraints_and_indexes() -
         "server_id",
         "rule_version_id",
         "correlation_hash",
+    )
+
+
+def test_incident_workflow_metadata_has_versions_and_immutable_record_shapes() -> None:
+    """Stage 6B metadata makes versions, history, audit, and replay results explicit."""
+
+    incident_table = Base.metadata.tables["incidents"]
+    history_table = Base.metadata.tables["incident_history"]
+    audit_table = Base.metadata.tables["audit_log_entries"]
+    idempotency_table = Base.metadata.tables["operator_idempotency_records"]
+    history_unique_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in history_table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+    idempotency_unique_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in idempotency_table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+
+    assert "lock_version" in incident_table.columns
+    assert ("incident_id", "version") in history_unique_columns
+    assert "incident_history_id" in audit_table.columns
+    assert ("operator_id", "idempotency_key") in idempotency_unique_columns
+    assert {"canonical_request_hash", "response_status", "response_body"} <= set(
+        idempotency_table.columns.keys()
     )
 
 
