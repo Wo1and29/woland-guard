@@ -58,10 +58,15 @@ class OutboxErrorCode(StrEnum):
     PAYLOAD_INVALID = "payload_invalid"
     PERMANENT_DELIVERY_ERROR = "permanent_delivery_error"
     RETRYABLE_DELIVERY_ERROR = "retryable_delivery_error"
+    TELEGRAM_PROTOCOL_ERROR = "telegram_protocol_error"
+    TELEGRAM_RUNTIME_COPY_INVALID = "telegram_runtime_copy_invalid"
+    TELEGRAM_RUNTIME_COPY_UNAVAILABLE = "telegram_runtime_copy_unavailable"
+    TELEGRAM_STAGING_FILE_INVALID = "telegram_staging_file_invalid"
+    TELEGRAM_STAGING_FILE_MISSING = "telegram_staging_file_missing"
 
 
 class NotificationDestination(Base):
-    """Provider-neutral routing policy; provider configuration arrives in stage 6D."""
+    """Provider-neutral routing policy separated from provider-specific configuration."""
 
     __tablename__ = "notification_destinations"
     __table_args__ = (
@@ -119,7 +124,10 @@ class OutboxMessage(Base):
             "last_error_code IS NULL OR last_error_code IN ("
             "'adapter_unexpected_error', 'attempts_exhausted', 'destination_disabled', "
             "'destination_unconfigured', 'lease_expired', 'payload_invalid', "
-            "'permanent_delivery_error', 'retryable_delivery_error')",
+            "'permanent_delivery_error', 'retryable_delivery_error', "
+            "'telegram_protocol_error', 'telegram_runtime_copy_invalid', "
+            "'telegram_runtime_copy_unavailable', 'telegram_staging_file_invalid', "
+            "'telegram_staging_file_missing')",
             name="last_error_code_allowed",
         ),
         CheckConstraint(

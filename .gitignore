@@ -4,6 +4,7 @@ __pycache__/
 *.pyd
 *.so
 .pytest_cache/
+.pytest-tmp/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -21,6 +22,8 @@ build/
 .env
 .env.*
 !.env.example
+local-secrets/
+.docker-test-telegram/
 
 # IDE and OS files
 .idea/

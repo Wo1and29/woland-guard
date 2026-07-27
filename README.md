@@ -4,7 +4,7 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–5, 6A и 6B приняты. Подэтап 6C реализован в рабочем дереве и ожидает ревью:
+Этапы 1–5 и 6A–6C приняты. Подэтап 6D реализован в рабочем дереве и ожидает ревью:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их и выполняют идемпотентные status transitions.
 
@@ -37,6 +37,10 @@ Linux-агент проверен на синтетических journald fixtu
 - transactional outbox, атомарный с новым incident, baseline history и evidence;
 - конкурентный worker с `FOR UPDATE SKIP LOCKED`, claim token, lease recovery и equal jitter;
 - безопасные outbox CLI-команды run/run-once/status/recovery/manual requeue;
+- исходящий Telegram adapter с фиксированным origin, bounded streaming response и без
+  входящих Telegram-команд;
+- provider-specific Telegram destination config 1:1 и локальное управление без HTTP admin API;
+- on-demand синхронизация bot token из read-only staging в private tmpfs worker;
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
@@ -226,15 +230,15 @@ docker compose --profile test run --rm integration-tests
 
 ## Transactional outbox worker
 
-Миграция 0005 не создаёт destinations автоматически. Без enabled destination новый incident
-успешно фиксируется без outbox rows. В 6C настоящий delivery adapter отсутствует; значение
-`adapter_kind=telegram` зарезервировано для 6D, а автоматические тесты маршрутизируют его в
-синтетический fake adapter.
+Миграции не создают destinations автоматически. Без enabled destination новый incident
+успешно фиксируется без outbox rows. Миграция 0006 добавляет Telegram-конфигурацию 1:1;
+bot token в PostgreSQL не хранится.
 
 Безопасные локальные команды:
 
 ```bash
-docker compose exec control-plane woland-guard-outbox run-once --limit 10
+docker compose --profile telegram-notifications run --rm outbox-worker \
+  woland-guard-outbox run-once --limit 10
 docker compose exec control-plane woland-guard-outbox status
 docker compose exec control-plane woland-guard-outbox recover-expired
 docker compose exec control-plane woland-guard-outbox requeue-failed <outbox UUID> \
@@ -246,6 +250,67 @@ lease recovery независимо от наличия pending backlog и ко�
 ограниченную попытку после SIGTERM. Delivery выполняется at-least-once: падение после внешнего
 side effect, но до PostgreSQL acknowledge, может привести к повтору. Команда `status` выводит
 только агрегаты, включая неотрицательный возраст старейшей pending-записи или `null`.
+
+## Исходящие Telegram-уведомления
+
+Telegram-профиль запускается отдельно и не входит в обычный `docker compose up`. Основной
+`control-plane` не получает ни staging mount, ни private runtime tmpfs. Для локального CLI
+используется одноразовый контейнер `telegram-admin`; непрерывную доставку выполняет отдельный
+`outbox-worker`. Оба работают как UID/GID `10001:10001`, без capabilities и с read-only root
+filesystem.
+
+Создайте на host каталог, указанный в `WG_TELEGRAM_STAGING_DIRECTORY` (по умолчанию
+`./local-secrets/telegram`), и отдельный файл с безопасным basename. Файл содержит ровно одну
+непустую ASCII-строку без whitespace, NUL и control characters, не более 256 байт. Структура
+Telegram bot token намеренно не проверяется по неофициальной грамматике. Token нельзя помещать
+в `.env`, аргументы CLI, PostgreSQL или Git.
+
+Создание destination выполняется в отключённом состоянии. Chat ID вводится скрытым prompt и
+не печатается; `--token-file-name` принимает basename, а не путь:
+
+```bash
+docker compose --profile telegram-notifications run --rm telegram-admin \
+  woland-guard-admin create-telegram-destination \
+  --token-file-name local-bot.token --minimum-severity high
+```
+
+CLI сообщает только `configured` и `staging_file_ready`. Это проверка read-only staging, а не
+runtime health private tmpfs другого контейнера. После проверки включите destination:
+
+```bash
+docker compose --profile telegram-notifications run --rm telegram-admin \
+  woland-guard-admin enable-notification-destination \
+  --destination-id <destination UUID>
+docker compose --profile telegram-notifications run --rm telegram-admin \
+  woland-guard-admin list-notification-destinations
+```
+
+Доступны также `show-notification-destination`, `disable-notification-destination` и
+`update-telegram-destination`. Удаление отсутствует, чтобы сохранять историю доставок. Для
+смены chat ID команда update использует `--change-chat-id` и скрытый prompt; новый token
+задаётся только новым `--token-file-name`, но не его содержимым.
+
+Worker запускается отдельно:
+
+```bash
+docker compose --profile telegram-notifications up -d outbox-worker
+```
+
+Перед каждой delivery worker заново безопасно проверяет staging. Он читает файл через
+`lstat → open(O_NOFOLLOW) → fstat`, ограничивает размер, затем публикует private runtime copy
+атомарной заменой. Runtime directory имеет режим `0700`, файл — `0400`, владелец и группа —
+`10001:10001`; `chown` и capabilities не используются. Новый destination и корректная
+атомарная ротация staging подхватываются без restart. Невалидный или удалённый staging
+приводит к retryable безопасному error code; прежняя runtime copy сохраняется, но fail-closed
+не используется для отправки.
+
+HTTP boundary использует только `https://api.telegram.org`, `trust_env=False`, TLS verification,
+запрет redirects и ноль внутренних HTTP retries. Connect/read/write/pool timeouts ограничены
+и в сумме не превышают adapter budget. Это phase timeouts, а не обещание отдельного
+wall-clock deadline. Ответ читается streaming chunks до жёсткого лимита 64 KiB и только затем
+разбирается как JSON. Логи `httpx2`/`httpcore2` подавляются до создания request независимо от
+root logger, потому что token является частью URL. Уведомление — plain text без `parse_mode` и
+без event payload, attributes, correlation, actor или IP.
 
 ## Архитектурные решения
 
@@ -341,9 +406,10 @@ journald-правил, а не десять end-to-end правил.
 
 ## Ограничения MVP
 
-- нет Telegram HTTP, chat ID, bot token и управления destinations — это этап 6D;
+- Telegram поддерживает только исходящие сообщения: polling, webhook, `getUpdates`, команды,
+  callback-кнопки и изменение incident status через Telegram отсутствуют;
 - нет HTTP API управления серверами и ключами;
-- production adapter registry пуст до 6D, поэтому 6C проверяет доставку только fake adapter;
+- delivery остаётся at-least-once и допускает повтор после внешнего side effect до acknowledge;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько
   экземпляров control plane;
 - rate limiter учитывает каждый запрос после успешной аутентификации, но запросы,

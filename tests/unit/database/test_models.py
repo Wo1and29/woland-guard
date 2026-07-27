@@ -17,6 +17,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
+    TelegramDestinationConfig,
 )
 
 MODEL_TYPES = (
@@ -33,6 +34,7 @@ MODEL_TYPES = (
     OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
+    TelegramDestinationConfig,
 )
 
 
@@ -53,6 +55,7 @@ def test_expected_tables_are_registered() -> None:
         "notification_destinations",
         "outbox_messages",
         "servers",
+        "telegram_destination_configs",
     }
 
 
@@ -218,3 +221,20 @@ def test_notification_destination_is_provider_neutral_and_telegram_only() -> Non
     assert "fake" not in check_sql
     assert "chat_id" not in destination_table.columns
     assert "token_file" not in destination_table.columns
+
+
+def test_telegram_provider_configuration_is_one_to_one_without_token_column() -> None:
+    table = Base.metadata.tables["telegram_destination_configs"]
+    check_sql = " ".join(
+        str(constraint.sqltext)
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    )
+
+    assert table.primary_key.columns.keys() == ["destination_id"]
+    assert {"destination_id", "chat_id", "token_file_name", "created_at", "updated_at"} == set(
+        table.columns.keys()
+    )
+    assert "token_file_name" in check_sql
+    stored_columns = {column.name for column in table.columns if column.name != "token_file_name"}
+    assert "token" not in stored_columns

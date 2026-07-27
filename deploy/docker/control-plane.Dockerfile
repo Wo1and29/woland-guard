@@ -29,6 +29,7 @@ ENV PATH="/workspace/.venv/bin:${PATH}" \
 
 COPY tests tests
 COPY deploy deploy
+COPY compose.yaml ./compose.yaml
 COPY alembic.ini ./alembic.ini
 COPY migrations migrations
 COPY detection-rules detection-rules

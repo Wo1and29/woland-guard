@@ -42,6 +42,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     OutboxMessage,
     OutboxStatus,
     Server,
+    TelegramDestinationConfig,
 )
 
 pytestmark = pytest.mark.integration
@@ -112,6 +113,7 @@ def _seed_outbox(
     max_attempts: int = 5,
     payload: dict[str, object] | None = None,
     idempotency_key: str | None = None,
+    token_file_name: str | None = None,
 ) -> SeededOutbox:
     unique = uuid4().hex
     claim_token = uuid4() if status is OutboxStatus.PROCESSING else None
@@ -129,12 +131,24 @@ def _seed_outbox(
         )
         destination = NotificationDestination(
             adapter_kind="telegram",
-            enabled=destination_enabled,
+            enabled=False,
             minimum_severity="low",
             created_at=now,
             updated_at=now,
         )
         session.add_all((server, rule, destination))
+        session.flush()
+        session.add(
+            TelegramDestinationConfig(
+                destination_id=destination.id,
+                chat_id=(uuid4().int % (2**52 - 1)) + 1,
+                token_file_name=token_file_name or f"{unique}.token",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.flush()
+        destination.enabled = destination_enabled
         session.flush()
         incident = Incident(
             server_id=server.id,

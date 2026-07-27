@@ -111,15 +111,56 @@
 
 ## 6D: только исходящий Telegram
 
-17. Telegram-конфигурация расширяет provider-neutral destination отношением 1:1. Логическая
-    destination уже поддерживает `enabled`, `minimum_severity` и timestamps. Управление
-    выполняется безопасным локальным CLI; удаление заменено отключением для сохранения истории.
-18. Bot token читается только из отдельного token file. Redirects запрещены, TLS verification и
-    ограниченные timeout обязательны. Production Telegram API base URL нельзя произвольно
-    переопределять.
-19. Уведомление — простой текст без `parse_mode`. Оно не содержит raw payload, attributes,
-    correlation, actor или IP. Polling, webhook, команды, callback-кнопки и status transitions
-    через Telegram отложены.
+18. `telegram_destination_configs` расширяет provider-neutral destination отношением 1:1 и
+    хранит только `chat_id`, безопасный `token_file_name` и timestamps. PostgreSQL triggers
+    запрещают provider row для другого adapter kind, смену kind при существующей config,
+    включение Telegram destination без config и удаление config включённой destination.
+    Destination создаётся отключённой; delete отсутствует, отключение сохраняет историю.
+19. Управление выполняет только одноразовый Compose service `telegram-admin`. Основной
+    `control-plane` не монтирует Telegram secrets. `telegram-admin` видит только read-only
+    staging и сообщает `configured`/`staging_file_ready`, не заявляя runtime health private
+    tmpfs worker. Chat ID вводится скрытым prompt; CLI принимает только безопасный basename
+    `--token-file-name`, а не путь или token.
+20. `outbox-worker` работает непривилегированным UID/GID `10001:10001`, с `cap_drop: ALL`,
+    read-only root filesystem, read-only staging mount и private tmpfs. Перед каждой delivery
+    он выполняет on-demand staging validation и синхронизацию. Новый файл и атомарная ротация
+    подхватываются без restart и background watcher.
+21. Staging validation не доверяет owner/mode Windows bind mount, но требует regular file,
+    отсутствие symlink, bounded single-line printable ASCII content и стабильные inode/device
+    metadata при чтении. Runtime validation требует private parent `0700`, regular file
+    `0400`, owner/group `10001:10001`, `O_NOFOLLOW` и повторный `fstat`. Worker создаёт temp
+    через `O_CREAT|O_EXCL|O_NOFOLLOW`, выполняет bounded write, `fsync`, `fchmod` и atomic
+    replace; `chown` не вызывается. Невалидная ротация не уничтожает прежнюю copy, но при
+    invalid/missing staging прежняя copy fail-closed не используется.
+22. Token — одна непустая ASCII-строка до 256 байт без whitespace, NUL и control characters.
+    Неофициальная грамматика Telegram token не навязывается. Token не хранится в PostgreSQL,
+    `.env`, CLI-аргументах, audit или repr и не копируется в image layer.
+23. Production HTTP origin — compile-time constant `https://api.telegram.org`; factory не
+    принимает base URL. Client использует `trust_env=False`, `verify=True`,
+    `follow_redirects=False`, transport retries `0` и bounded connect/read/write/pool
+    timeouts. Их сумма не превышает adapter budget, но отдельный wall-clock deadline не
+    заявляется. Внутренних threads/futures и фоновых запросов нет.
+24. Response читается streaming chunks в локальный buffer до 64 KiB. До проверки лимита не
+    вызываются `content`, `read()` или `json()`; oversized body безопасно классифицируется.
+    JSON разбирается только из ограниченного buffer. URL, request/response, headers, body и
+    исключения не передаются application logger.
+25. Поскольку token находится в URL `/bot<token>/sendMessage`, namespace `httpx2`, `httpcore2`
+    и их дочерние logger подавляются до создания request независимо от root log level.
+    Regression-тесты с canary при INFO/DEBUG проверяют все `LogRecord`, stdout и stderr.
+26. `DeliveryResult` остаётся закрытым контрактом. Retryable codes: общий temporary failure,
+    staging missing/invalid, runtime copy unavailable/invalid и Telegram protocol error.
+    Permanent codes: общий permanent failure, destination unconfigured и payload invalid.
+    Worker сохраняет точный безопасный provider code; exhaustion и unexpected exception
+    остаются отдельными `attempts_exhausted`/`adapter_unexpected_error`.
+27. Уведомление — plain text без `parse_mode`. Formatter использует только allowlisted
+    incident envelope: identifiers, rule key/version, severity, title и timestamp. Raw event
+    payload, attributes, evidence, correlation, actor, IP и credentials не передаются.
+28. Test-only fake transport доступен только через явную dependency injection, проверяет POST,
+    официальный origin и canonical path и не выбирается через Settings, env, CLI или БД.
+    Production registry всегда создаёт production transport. Автотесты не выполняют реальные
+    Telegram DNS/HTTP-запросы.
+29. Polling, webhook, `getUpdates`, команды, callback-кнопки и изменение status через Telegram
+    отложены. Delivery остаётся at-least-once и не заявляется как exactly-once.
 
 ## Последовательность и границы
 
@@ -129,7 +170,6 @@
 - **6D:** Telegram-specific destination config и исходящий adapter на fake Bot API в
   автоматических тестах.
 
-Каждая часть проходит отдельное ревью. На границе 6C реализованы Incident/Audit API, history,
-status idempotency, provider-neutral destination foundation и worker core. Telegram config,
-настоящий HTTP adapter, token file, chat ID и destination management относятся только к 6D и
-отсутствуют.
+Каждая часть проходит отдельное ревью. На границе 6D реализованы Incident/Audit API, history,
+status idempotency, provider-neutral destination foundation, worker core и только исходящая
+Telegram delivery. Входящие Telegram-взаимодействия остаются за пределами этапа.

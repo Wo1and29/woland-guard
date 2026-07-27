@@ -90,3 +90,26 @@ def test_settings_validate_recovery_interval_bounds_and_relationship() -> None:
         Settings(outbox_recovery_interval_seconds=0)
     with pytest.raises(ValidationError):
         Settings(outbox_lease_seconds=60, outbox_recovery_interval_seconds=61)
+
+
+def test_settings_require_telegram_phase_timeouts_to_fit_adapter_budget() -> None:
+    settings = Settings(
+        outbox_adapter_timeout_seconds=10,
+        outbox_lease_seconds=11,
+        outbox_recovery_interval_seconds=5,
+        telegram_connect_timeout_seconds=2,
+        telegram_read_timeout_seconds=3,
+        telegram_write_timeout_seconds=2,
+        telegram_pool_timeout_seconds=1,
+    )
+    assert settings.telegram_read_timeout_seconds == 3
+    with pytest.raises(ValidationError):
+        Settings(
+            outbox_adapter_timeout_seconds=10,
+            outbox_lease_seconds=11,
+            outbox_recovery_interval_seconds=5,
+            telegram_connect_timeout_seconds=3,
+            telegram_read_timeout_seconds=3,
+            telegram_write_timeout_seconds=3,
+            telegram_pool_timeout_seconds=2,
+        )

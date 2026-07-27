@@ -72,6 +72,19 @@ def test_delivery_result_accepts_only_exact_valid_shapes() -> None:
         ).retry_after_seconds
         is None
     )
+    for error_code in (
+        OutboxErrorCode.TELEGRAM_PROTOCOL_ERROR,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_INVALID,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_UNAVAILABLE,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_INVALID,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_MISSING,
+    ):
+        assert DeliveryResult(DeliveryDisposition.RETRYABLE, error_code).error_code is error_code
+    for error_code in (
+        OutboxErrorCode.DESTINATION_UNCONFIGURED,
+        OutboxErrorCode.PAYLOAD_INVALID,
+    ):
+        assert DeliveryResult(DeliveryDisposition.PERMANENT, error_code).error_code is error_code
 
 
 @pytest.mark.parametrize(
@@ -104,6 +117,31 @@ def test_delivery_result_accepts_only_exact_valid_shapes() -> None:
             OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
             True,
         ),
+        (
+            DeliveryDisposition.RETRYABLE,
+            OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+            -1.0,
+        ),
+        (
+            DeliveryDisposition.RETRYABLE,
+            OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+            float("nan"),
+        ),
+        (
+            DeliveryDisposition.RETRYABLE,
+            OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+            float("inf"),
+        ),
+        (
+            DeliveryDisposition.RETRYABLE,
+            OutboxErrorCode.ADAPTER_UNEXPECTED_ERROR,
+            None,
+        ),
+        (
+            DeliveryDisposition.PERMANENT,
+            OutboxErrorCode.DESTINATION_DISABLED,
+            None,
+        ),
     ],
 )
 def test_delivery_result_rejects_every_invalid_combination(
@@ -113,6 +151,43 @@ def test_delivery_result_rejects_every_invalid_combination(
 ) -> None:
     with pytest.raises(ValueError):
         DeliveryResult(disposition, error_code, retry_after_seconds)
+
+
+def test_delivery_result_closed_matrix_covers_every_persisted_error_code() -> None:
+    retryable = {
+        OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_MISSING,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_INVALID,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_UNAVAILABLE,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_INVALID,
+        OutboxErrorCode.TELEGRAM_PROTOCOL_ERROR,
+    }
+    permanent = {
+        OutboxErrorCode.PERMANENT_DELIVERY_ERROR,
+        OutboxErrorCode.DESTINATION_UNCONFIGURED,
+        OutboxErrorCode.PAYLOAD_INVALID,
+    }
+    for disposition in DeliveryDisposition:
+        for error_code in [None, *OutboxErrorCode]:
+            for retry_after in (None, 1.0):
+                expected_valid = (
+                    (
+                        disposition is DeliveryDisposition.DELIVERED
+                        and error_code is None
+                        and retry_after is None
+                    )
+                    or (disposition is DeliveryDisposition.RETRYABLE and error_code in retryable)
+                    or (
+                        disposition is DeliveryDisposition.PERMANENT
+                        and error_code in permanent
+                        and retry_after is None
+                    )
+                )
+                if expected_valid:
+                    DeliveryResult(disposition, error_code, retry_after)
+                else:
+                    with pytest.raises(ValueError):
+                        DeliveryResult(disposition, error_code, retry_after)
 
 
 def _worker_with_timings(**overrides: float) -> OutboxWorker:

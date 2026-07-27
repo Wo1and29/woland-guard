@@ -21,6 +21,9 @@ from woland_guard_control_plane.infrastructure.database.models.outbox import (
     OutboxStatus,
 )
 from woland_guard_control_plane.infrastructure.database.models.server import AgentApiKey, Server
+from woland_guard_control_plane.infrastructure.database.models.telegram import (
+    TelegramDestinationConfig,
+)
 from woland_guard_control_plane.infrastructure.database.models.workflow import (
     AuditActorType,
     AuditLogEntry,
@@ -51,4 +54,5 @@ __all__ = [
     "OutboxMessage",
     "OutboxStatus",
     "Server",
+    "TelegramDestinationConfig",
 ]

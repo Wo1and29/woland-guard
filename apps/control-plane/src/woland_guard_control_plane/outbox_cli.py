@@ -22,6 +22,18 @@ from woland_guard_control_plane.application.outbox_worker import (
 )
 from woland_guard_control_plane.config import Settings, get_settings
 from woland_guard_control_plane.database import get_session_factory
+from woland_guard_control_plane.infrastructure.database.models import NotificationAdapterKind
+from woland_guard_control_plane.infrastructure.telegram.adapter import (
+    TelegramDeliveryAdapter,
+    load_telegram_delivery_configuration,
+)
+from woland_guard_control_plane.infrastructure.telegram.client import (
+    TelegramBotApiClient,
+    TelegramHttpTimeouts,
+)
+from woland_guard_control_plane.infrastructure.telegram.token_file import (
+    TelegramTokenSynchronizer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +121,24 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 def _build_worker(settings: Settings) -> OutboxWorker:
-    adapters: dict[str, DeliveryAdapter] = {}
+    telegram_kind = NotificationAdapterKind.TELEGRAM.value
+    adapters: dict[str, DeliveryAdapter] = {
+        telegram_kind: TelegramDeliveryAdapter(
+            client=TelegramBotApiClient.production(
+                timeouts=TelegramHttpTimeouts(
+                    connect=settings.telegram_connect_timeout_seconds,
+                    read=settings.telegram_read_timeout_seconds,
+                    write=settings.telegram_write_timeout_seconds,
+                    pool=settings.telegram_pool_timeout_seconds,
+                )
+            ),
+            synchronizer=TelegramTokenSynchronizer(),
+        )
+    }
     return OutboxWorker(
         session_factory=get_session_factory(),
         adapters=adapters,
+        configuration_loaders={telegram_kind: load_telegram_delivery_configuration},
         backoff=EqualJitterBackoff(
             base_seconds=settings.outbox_backoff_base_seconds,
             maximum_seconds=settings.outbox_backoff_max_seconds,

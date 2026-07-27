@@ -6,7 +6,7 @@ import logging
 import math
 import random
 import signal
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -39,7 +39,32 @@ _ERROR_MESSAGES: Mapping[OutboxErrorCode, str] = {
     OutboxErrorCode.PAYLOAD_INVALID: "Notification payload is invalid.",
     OutboxErrorCode.PERMANENT_DELIVERY_ERROR: "Delivery was rejected permanently.",
     OutboxErrorCode.RETRYABLE_DELIVERY_ERROR: "Delivery failed temporarily.",
+    OutboxErrorCode.TELEGRAM_PROTOCOL_ERROR: "Telegram response was not valid.",
+    OutboxErrorCode.TELEGRAM_RUNTIME_COPY_INVALID: "Telegram runtime token copy is invalid.",
+    OutboxErrorCode.TELEGRAM_RUNTIME_COPY_UNAVAILABLE: (
+        "Telegram runtime token copy is unavailable."
+    ),
+    OutboxErrorCode.TELEGRAM_STAGING_FILE_INVALID: "Telegram staging token file is invalid.",
+    OutboxErrorCode.TELEGRAM_STAGING_FILE_MISSING: "Telegram staging token file is missing.",
 }
+
+_DELIVERY_RETRYABLE_CODES = frozenset(
+    {
+        OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+        OutboxErrorCode.TELEGRAM_PROTOCOL_ERROR,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_INVALID,
+        OutboxErrorCode.TELEGRAM_RUNTIME_COPY_UNAVAILABLE,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_INVALID,
+        OutboxErrorCode.TELEGRAM_STAGING_FILE_MISSING,
+    }
+)
+_DELIVERY_PERMANENT_CODES = frozenset(
+    {
+        OutboxErrorCode.PERMANENT_DELIVERY_ERROR,
+        OutboxErrorCode.DESTINATION_UNCONFIGURED,
+        OutboxErrorCode.PAYLOAD_INVALID,
+    }
+)
 
 
 class OutboxOperationError(RuntimeError):
@@ -75,6 +100,7 @@ class DeliveryRequest:
     notification_type: str
     payload: IncidentCreatedNotificationV1 = field(repr=False)
     attempt_count: int
+    provider_configuration: object | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,15 +117,17 @@ class DeliveryResult:
                 raise ValueError("successful delivery result contains failure fields")
             return
         if self.disposition is DeliveryDisposition.RETRYABLE:
-            if self.error_code is not OutboxErrorCode.RETRYABLE_DELIVERY_ERROR:
+            if self.error_code not in _DELIVERY_RETRYABLE_CODES:
                 raise ValueError("retryable delivery result has an unsupported error code")
             if self.retry_after_seconds is not None and (
                 isinstance(self.retry_after_seconds, bool)
                 or not isinstance(self.retry_after_seconds, (int, float))
+                or not math.isfinite(self.retry_after_seconds)
+                or self.retry_after_seconds < 0
             ):
                 raise ValueError("retryable delivery result has an invalid retry hint")
             return
-        if self.error_code is not OutboxErrorCode.PERMANENT_DELIVERY_ERROR:
+        if self.error_code not in _DELIVERY_PERMANENT_CODES:
             raise ValueError("permanent delivery result has an unsupported error code")
         if self.retry_after_seconds is not None:
             raise ValueError("permanent delivery result contains a retry hint")
@@ -112,6 +140,9 @@ class DeliveryAdapter(Protocol):
         *,
         timeout_seconds: float,
     ) -> DeliveryResult: ...
+
+
+DestinationConfigurationLoader = Callable[[Session, UUID], object | None]
 
 
 class Clock(Protocol):
@@ -175,6 +206,7 @@ class ClaimedOutboxMessage:
     payload: IncidentCreatedNotificationV1 = field(repr=False)
     attempt_count: int
     claim_token: UUID = field(repr=False)
+    provider_configuration: object | None = field(default=None, repr=False)
 
     def delivery_request(self) -> DeliveryRequest:
         return DeliveryRequest(
@@ -185,6 +217,7 @@ class ClaimedOutboxMessage:
             notification_type=self.notification_type,
             payload=self.payload,
             attempt_count=self.attempt_count,
+            provider_configuration=self.provider_configuration,
         )
 
 
@@ -219,6 +252,7 @@ def claim_next_message(
     *,
     now: datetime,
     lease_seconds: float,
+    configuration_loaders: Mapping[str, DestinationConfigurationLoader] | None = None,
 ) -> ClaimResult:
     """Claim one due row and return a safe DTO after caller commit closes the Session."""
 
@@ -266,6 +300,19 @@ def claim_next_message(
         )
         return ClaimResult(processed=True)
 
+    provider_configuration: object | None = None
+    loader = (configuration_loaders or {}).get(destination.adapter_kind)
+    if loader is not None:
+        provider_configuration = loader(session, destination.id)
+        if provider_configuration is None:
+            _fail_claimed_orm(
+                session,
+                message=message,
+                now=now,
+                error_code=OutboxErrorCode.DESTINATION_UNCONFIGURED,
+            )
+            return ClaimResult(processed=True)
+
     return ClaimResult(
         processed=True,
         message=ClaimedOutboxMessage(
@@ -277,6 +324,7 @@ def claim_next_message(
             payload=payload,
             attempt_count=message.attempt_count,
             claim_token=token,
+            provider_configuration=provider_configuration,
         ),
     )
 
@@ -531,6 +579,7 @@ class OutboxWorker:
         *,
         session_factory: sessionmaker[Session],
         adapters: Mapping[str, DeliveryAdapter],
+        configuration_loaders: Mapping[str, DestinationConfigurationLoader] | None = None,
         clock: Clock | None = None,
         backoff: EqualJitterBackoff,
         lease_seconds: float,
@@ -546,6 +595,7 @@ class OutboxWorker:
         )
         self._session_factory = session_factory
         self._adapters = dict(adapters)
+        self._configuration_loaders = dict(configuration_loaders or {})
         self._clock = clock or SystemClock()
         self._backoff = backoff
         self._lease_seconds = lease_seconds
@@ -604,6 +654,7 @@ class OutboxWorker:
                     session,
                     now=self._clock.now(),
                     lease_seconds=self._lease_seconds,
+                    configuration_loaders=self._configuration_loaders,
                 )
             if not claim.processed:
                 break
@@ -670,13 +721,25 @@ class OutboxWorker:
                     )
                 return OutboxStatus.DELIVERED
             if result.disposition is DeliveryDisposition.PERMANENT:
+                if result.error_code is None:  # defensive against unsafe runtime mutation
+                    return self._complete_retry(
+                        claim,
+                        error_code=OutboxErrorCode.ADAPTER_UNEXPECTED_ERROR,
+                        retry_after_seconds=None,
+                    )
                 return self._complete_permanent(
                     claim,
-                    OutboxErrorCode.PERMANENT_DELIVERY_ERROR,
+                    result.error_code,
+                )
+            if result.error_code is None:  # defensive against unsafe runtime mutation
+                return self._complete_retry(
+                    claim,
+                    error_code=OutboxErrorCode.ADAPTER_UNEXPECTED_ERROR,
+                    retry_after_seconds=None,
                 )
             return self._complete_retry(
                 claim,
-                error_code=OutboxErrorCode.RETRYABLE_DELIVERY_ERROR,
+                error_code=result.error_code,
                 retry_after_seconds=result.retry_after_seconds,
             )
         except LeaseLostError:

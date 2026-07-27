@@ -66,6 +66,36 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
             "to_max_attempts": 6,
         },
     ),
+    (
+        "notification_destination.created",
+        AuditActorType.LOCAL_CLI,
+        "notification_destination",
+        {"adapter_kind": "telegram", "minimum_severity": "high"},
+    ),
+    (
+        "notification_destination.updated",
+        AuditActorType.LOCAL_CLI,
+        "notification_destination",
+        {
+            "adapter_kind": "telegram",
+            "from_minimum_severity": "high",
+            "to_minimum_severity": "critical",
+            "chat_id_changed": False,
+            "token_file_changed": True,
+        },
+    ),
+    (
+        "notification_destination.enabled",
+        AuditActorType.LOCAL_CLI,
+        "notification_destination",
+        {"adapter_kind": "telegram", "minimum_severity": "critical"},
+    ),
+    (
+        "notification_destination.disabled",
+        AuditActorType.LOCAL_CLI,
+        "notification_destination",
+        {"adapter_kind": "telegram", "minimum_severity": "critical"},
+    ),
 )
 
 
@@ -87,7 +117,7 @@ def test_all_registered_actions_accept_only_their_exact_schema(
     )
 
 
-def test_registry_contains_exactly_the_six_supported_actions() -> None:
+def test_registry_contains_exactly_the_supported_actions() -> None:
     assert set(AUDIT_ACTION_REGISTRY) == {item[0] for item in _ALLOWED_ACTIONS}
 
 

@@ -33,9 +33,10 @@ addopts = [
     "--cov=woland_guard_contracts",
     "--cov-report=term-missing",
 ]
-pythonpath = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src"]
+pythonpath = [".", "apps/agent/src", "apps/control-plane/src", "packages/contracts/src"]
 testpaths = ["tests"]
 markers = [
+    "docker: requires the local Docker engine and an isolated Compose project",
     "integration: requires the Docker integration environment",
 ]
 

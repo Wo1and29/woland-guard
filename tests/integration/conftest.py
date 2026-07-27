@@ -249,7 +249,8 @@ def _truncate_application_tables() -> None:
                 text(
                     "TRUNCATE TABLE operator_idempotency_records, audit_log_entries, "
                     "incident_history, incident_events, incidents, detection_rule_versions, "
-                    "events, outbox_messages, notification_destinations, agent_api_keys, "
+                    "events, outbox_messages, telegram_destination_configs, "
+                    "notification_destinations, agent_api_keys, "
                     "servers, operator_api_keys, "
                     "operators CASCADE"
                 )

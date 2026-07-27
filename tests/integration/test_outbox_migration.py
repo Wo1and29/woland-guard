@@ -58,6 +58,10 @@ def test_upgrade_and_downgrade_refuse_incompatible_populated_outbox() -> None:
 
     _seed_outbox(now=datetime.now(UTC))
     try:
+        with get_engine().begin() as connection:
+            connection.execute(text("UPDATE notification_destinations SET enabled = false"))
+            connection.execute(text("DELETE FROM telegram_destination_configs"))
+        command.downgrade(config, "20260726_0005")
         with pytest.raises(DBAPIError, match="cannot migrate populated outbox safely"):
             command.downgrade(config, "20260722_0004")
     finally:

@@ -22,6 +22,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
+    TelegramDestinationConfig,
 )
 
 config = context.config
@@ -44,6 +45,7 @@ _REGISTERED_MODEL_TYPES = (
     OperatorIdempotencyRecord,
     OutboxMessage,
     Server,
+    TelegramDestinationConfig,
 )
 
 

@@ -13,6 +13,8 @@ from woland_guard_control_plane.infrastructure.database.models import (
     AuditActorType,
     AuditLogEntry,
     IncidentStatus,
+    NotificationAdapterKind,
+    NotificationSeverity,
     OperatorRole,
 )
 
@@ -40,6 +42,9 @@ class AuditDetailType(StrEnum):
     OPERATOR_ROLE = "operator_role"
     INCIDENT_STATUS = "incident_status"
     POSITIVE_INTEGER = "positive_integer"
+    BOOLEAN = "boolean"
+    NOTIFICATION_ADAPTER_KIND = "notification_adapter_kind"
+    NOTIFICATION_SEVERITY = "notification_severity"
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +103,41 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
                 from_attempt_count=AuditDetailType.POSITIVE_INTEGER,
                 from_max_attempts=AuditDetailType.POSITIVE_INTEGER,
                 to_max_attempts=AuditDetailType.POSITIVE_INTEGER,
+            ),
+        ),
+        "notification_destination.created": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+            ),
+        ),
+        "notification_destination.updated": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                from_minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+                to_minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+                chat_id_changed=AuditDetailType.BOOLEAN,
+                token_file_changed=AuditDetailType.BOOLEAN,
+            ),
+        ),
+        "notification_destination.enabled": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+            ),
+        ),
+        "notification_destination.disabled": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
             ),
         ),
     }
@@ -230,6 +270,20 @@ def _validate_detail_value(
         return value
     if detail_type is AuditDetailType.INCIDENT_STATUS:
         if type(value) is not str or value not in {status.value for status in IncidentStatus}:
+            raise AuditValidationError("audit detail value is invalid")
+        return value
+    if detail_type is AuditDetailType.NOTIFICATION_ADAPTER_KIND:
+        if type(value) is not str or value not in {kind.value for kind in NotificationAdapterKind}:
+            raise AuditValidationError("audit detail value is invalid")
+        return value
+    if detail_type is AuditDetailType.NOTIFICATION_SEVERITY:
+        if type(value) is not str or value not in {
+            severity.value for severity in NotificationSeverity
+        }:
+            raise AuditValidationError("audit detail value is invalid")
+        return value
+    if detail_type is AuditDetailType.BOOLEAN:
+        if type(value) is not bool:
             raise AuditValidationError("audit detail value is invalid")
         return value
     if type(value) is not int or not 1 <= value <= _MAX_DATABASE_INTEGER:

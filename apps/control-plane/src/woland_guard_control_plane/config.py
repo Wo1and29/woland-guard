@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     outbox_backoff_max_seconds: float = Field(default=900.0, ge=0.1, le=86_400.0)
     outbox_retry_after_cap_seconds: float = Field(default=3_600.0, ge=0.0, le=86_400.0)
     outbox_default_max_attempts: int = Field(default=5, ge=1, le=20)
+    telegram_connect_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    telegram_read_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
+    telegram_write_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    telegram_pool_timeout_seconds: float = Field(default=1.0, gt=0.0, le=60.0)
 
     @model_validator(mode="after")
     def validate_outbox_timings(self) -> "Settings":
@@ -53,6 +57,14 @@ class Settings(BaseSettings):
             raise ValueError("outbox lease must exceed adapter timeout")
         if self.outbox_recovery_interval_seconds > self.outbox_lease_seconds:
             raise ValueError("outbox recovery interval must not exceed lease")
+        telegram_timeout_sum = (
+            self.telegram_connect_timeout_seconds
+            + self.telegram_read_timeout_seconds
+            + self.telegram_write_timeout_seconds
+            + self.telegram_pool_timeout_seconds
+        )
+        if telegram_timeout_sum > self.outbox_adapter_timeout_seconds:
+            raise ValueError("Telegram phase timeouts must fit the adapter timeout budget")
         return self
 
 

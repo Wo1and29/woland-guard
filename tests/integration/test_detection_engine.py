@@ -34,6 +34,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     IncidentHistoryEntry,
     NotificationDestination,
     OutboxMessage,
+    TelegramDestinationConfig,
 )
 
 pytestmark = pytest.mark.integration
@@ -52,13 +53,24 @@ def _sync_rule(rule_key: str) -> None:
 
 
 def _create_destination(*, minimum_severity: str = "low") -> UUID:
+    unique = uuid4()
     with get_session_factory().begin() as session:
         destination = NotificationDestination(
             adapter_kind="telegram",
-            enabled=True,
+            enabled=False,
             minimum_severity=minimum_severity,
         )
         session.add(destination)
+        session.flush()
+        session.add(
+            TelegramDestinationConfig(
+                destination_id=destination.id,
+                chat_id=(unique.int % (2**52 - 1)) + 1,
+                token_file_name=f"{unique.hex}.token",
+            )
+        )
+        session.flush()
+        destination.enabled = True
         session.flush()
         return destination.id
 
