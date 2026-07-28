@@ -1,6 +1,6 @@
 """Database-backed authentication for local operator identities."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -12,9 +12,11 @@ from woland_guard_control_plane.application.operator_keys import (
     parse_operator_api_key_public_id,
     verify_operator_api_key,
 )
+from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.infrastructure.database.models import (
     Operator,
     OperatorApiKey,
+    OperatorAuthMethodType,
     OperatorRole,
 )
 
@@ -26,15 +28,32 @@ class InvalidOperatorCredentialsError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class AuthenticatedOperator:
-    """An authenticated identity independent from future session mechanisms."""
+class AuthenticatedOperatorApiKey:
+    """API-key authentication result kept outside provider-neutral services."""
 
-    operator_id: UUID
-    key_id: UUID
-    username: str
-    role: OperatorRole
+    principal: OperatorPrincipal
     public_id: str
-    key: OperatorApiKey
+    key: OperatorApiKey = field(repr=False, compare=False)
+
+    @property
+    def operator_id(self) -> UUID:
+        return self.principal.operator_id
+
+    @property
+    def key_id(self) -> UUID:
+        return self.principal.auth_method_id
+
+    @property
+    def username(self) -> str:
+        return self.principal.username
+
+    @property
+    def role(self) -> OperatorRole:
+        return self.principal.role
+
+
+# Internal compatibility alias while callers migrate to the explicit wrapper name.
+AuthenticatedOperator = AuthenticatedOperatorApiKey
 
 
 def authenticate_operator(
@@ -42,8 +61,31 @@ def authenticate_operator(
     token: str,
     *,
     now: datetime,
-) -> AuthenticatedOperator:
+) -> AuthenticatedOperatorApiKey:
     """Resolve an active operator through one valid, unexpired, unrevoked API key."""
+
+    return _authenticate_operator(session, token, now=now, lock_key=False)
+
+
+def authenticate_operator_for_web_session(
+    session: Session,
+    token: str,
+    *,
+    now: datetime,
+) -> AuthenticatedOperatorApiKey:
+    """Lock and resolve one API key for an atomic browser-session exchange."""
+
+    return _authenticate_operator(session, token, now=now, lock_key=True)
+
+
+def _authenticate_operator(
+    session: Session,
+    token: str,
+    *,
+    now: datetime,
+    lock_key: bool,
+) -> AuthenticatedOperatorApiKey:
+    """Resolve credentials, optionally serializing lifecycle changes for one key."""
 
     public_id = parse_operator_api_key_public_id(token)
     if public_id is None:
@@ -54,6 +96,8 @@ def authenticate_operator(
         .join(Operator, Operator.id == OperatorApiKey.operator_id)
         .where(OperatorApiKey.public_id == public_id)
     )
+    if lock_key:
+        statement = statement.with_for_update(of=OperatorApiKey)
     row = session.execute(statement).one_or_none()
     if row is None:
         verify_operator_api_key(
@@ -78,11 +122,14 @@ def authenticate_operator(
     if not credential_is_usable:
         raise InvalidOperatorCredentialsError
 
-    return AuthenticatedOperator(
-        operator_id=operator.id,
-        key_id=key.id,
-        username=operator.username,
-        role=OperatorRole(operator.role),
+    return AuthenticatedOperatorApiKey(
+        principal=OperatorPrincipal(
+            operator_id=operator.id,
+            username=operator.username,
+            role=OperatorRole(operator.role),
+            auth_method_type=OperatorAuthMethodType.OPERATOR_API_KEY,
+            auth_method_id=key.id,
+        ),
         public_id=key.public_id,
         key=key,
     )

@@ -381,7 +381,7 @@ def test_identical_parallel_requests_mutate_once(
             start.wait(timeout=10)
             return transition_incident(
                 session,
-                actor=actor,
+                actor=actor.principal,
                 incident_id=incident.id,
                 transition=transition,
                 idempotency_key="parallel-identical",
@@ -430,7 +430,7 @@ def test_parallel_different_keys_with_same_version_have_one_stale_result(
             start.wait(timeout=10)
             return transition_incident(
                 session,
-                actor=actor,
+                actor=actor.principal,
                 incident_id=incident.id,
                 transition=transition,
                 idempotency_key=f"parallel-version-{index}",
@@ -478,7 +478,7 @@ def test_parallel_different_requests_with_same_idempotency_key_mutate_once(
             start.wait(timeout=10)
             return transition_incident(
                 session,
-                actor=actor,
+                actor=actor.principal,
                 incident_id=incident.id,
                 transition=transition,
                 idempotency_key="parallel-different",

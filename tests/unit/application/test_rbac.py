@@ -16,7 +16,11 @@ from woland_guard_control_plane.infrastructure.database.models import OperatorRo
         (OperatorRole.VIEWER, {Permission.VIEW_INCIDENTS}),
         (
             OperatorRole.ANALYST,
-            {Permission.VIEW_INCIDENTS, Permission.TRANSITION_INCIDENTS},
+            {
+                Permission.ACCESS_DASHBOARD,
+                Permission.VIEW_INCIDENTS,
+                Permission.TRANSITION_INCIDENTS,
+            },
         ),
         (OperatorRole.ADMIN, set(Permission)),
     ],

@@ -15,7 +15,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from woland_guard_control_plane.application.audit import record_operator_action
-from woland_guard_control_plane.application.operator_authentication import AuthenticatedOperator
+from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.infrastructure.database.models import (
     HistoryEntryType,
     Incident,
@@ -122,7 +122,7 @@ def canonical_transition_hash(incident_id: UUID, transition: NormalizedTransitio
 def transition_incident(
     session: Session,
     *,
-    actor: AuthenticatedOperator,
+    actor: OperatorPrincipal,
     incident_id: UUID,
     transition: NormalizedTransition,
     idempotency_key: str,
@@ -214,8 +214,8 @@ def transition_incident(
         reason=transition.reason,
         changed_by_operator_id=actor.operator_id,
         actor_username_snapshot=actor.username,
-        auth_method_type="operator_api_key",
-        auth_method_id=actor.key_id,
+        auth_method_type=actor.auth_method_type.value,
+        auth_method_id=actor.auth_method_id,
         request_id=request_id,
         created_at=changed_at,
     )
@@ -293,7 +293,7 @@ def _acquire_idempotency_lock(
 def _store_outcome(
     session: Session,
     *,
-    actor: AuthenticatedOperator,
+    actor: OperatorPrincipal,
     incident_id: UUID,
     idempotency_key: str,
     canonical_request_hash: str,

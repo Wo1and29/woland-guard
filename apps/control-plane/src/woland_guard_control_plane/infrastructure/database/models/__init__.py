@@ -10,6 +10,7 @@ from woland_guard_control_plane.infrastructure.database.models.event import Even
 from woland_guard_control_plane.infrastructure.database.models.operator import (
     Operator,
     OperatorApiKey,
+    OperatorAuthMethodType,
     OperatorRole,
 )
 from woland_guard_control_plane.infrastructure.database.models.outbox import (
@@ -23,6 +24,9 @@ from woland_guard_control_plane.infrastructure.database.models.outbox import (
 from woland_guard_control_plane.infrastructure.database.models.server import AgentApiKey, Server
 from woland_guard_control_plane.infrastructure.database.models.telegram import (
     TelegramDestinationConfig,
+)
+from woland_guard_control_plane.infrastructure.database.models.web_session import (
+    OperatorWebSession,
 )
 from woland_guard_control_plane.infrastructure.database.models.workflow import (
     AuditActorType,
@@ -48,8 +52,10 @@ __all__ = [
     "NotificationSeverity",
     "Operator",
     "OperatorApiKey",
+    "OperatorAuthMethodType",
     "OperatorIdempotencyRecord",
     "OperatorRole",
+    "OperatorWebSession",
     "OutboxErrorCode",
     "OutboxMessage",
     "OutboxStatus",

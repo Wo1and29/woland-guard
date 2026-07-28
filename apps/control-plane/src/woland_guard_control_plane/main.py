@@ -15,6 +15,7 @@ from woland_guard_control_plane.application.rate_limit import (
     FixedWindowRateLimiter,
 )
 from woland_guard_control_plane.config import Settings, get_settings
+from woland_guard_control_plane.web.app import create_dashboard_app
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         window_seconds=application_settings.operator_security_log_window_seconds,
     )
     application.include_router(api_router)
+    application.mount("/dashboard", create_dashboard_app(application_settings))
     application.add_middleware(
         IngestionRequestGuardMiddleware,
         max_body_bytes=application_settings.ingest_max_body_bytes,

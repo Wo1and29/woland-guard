@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 
 from woland_guard_control_plane.application.audit import record_local_cli_action
 from woland_guard_control_plane.application.operator_keys import generate_operator_api_key
+from woland_guard_control_plane.application.web_sessions import (
+    revoke_sessions_authenticated_by_key,
+)
 from woland_guard_control_plane.infrastructure.database.models import (
     Operator,
     OperatorApiKey,
@@ -131,6 +134,7 @@ def rotate_operator_api_key(
         created_at=current_time,
     )
     key.revoked_at = current_time
+    revoke_sessions_authenticated_by_key(session, key_id=key.id, now=current_time)
     record_local_cli_action(
         session,
         action="operator_api_key.rotated",
@@ -160,6 +164,7 @@ def revoke_operator_api_key(
     if key.revoked_at is not None:
         return False
     key.revoked_at = current_time
+    revoke_sessions_authenticated_by_key(session, key_id=key.id, now=current_time)
     record_local_cli_action(
         session,
         action="operator_api_key.revoked",

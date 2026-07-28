@@ -1,0 +1,11 @@
+{% extends "base_minimal.html" %}
+{% block title %}Сессия — Woland Guard{% endblock %}
+{% block content %}
+<h1>Сессия активна</h1>
+<p>Оператор: {{ username }}</p>
+<p>Страницы мониторинга будут добавлены на этапе 7B.</p>
+<form method="post" action="/dashboard/logout" accept-charset="UTF-8">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  <button type="submit">Выйти</button>
+</form>
+{% endblock %}

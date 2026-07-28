@@ -25,6 +25,7 @@ def test_application_starts(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Woland Guard Control Plane"
+    assert all(not path.startswith("/dashboard") for path in response.json()["paths"])
 
 
 def test_liveness_does_not_require_database(client: TestClient) -> None:

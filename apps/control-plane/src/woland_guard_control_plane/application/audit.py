@@ -8,13 +8,14 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from woland_guard_control_plane.application.operator_authentication import AuthenticatedOperator
+from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.infrastructure.database.models import (
     AuditActorType,
     AuditLogEntry,
     IncidentStatus,
     NotificationAdapterKind,
     NotificationSeverity,
+    OperatorAuthMethodType,
     OperatorRole,
 )
 
@@ -47,6 +48,13 @@ class AuditDetailType(StrEnum):
     NOTIFICATION_SEVERITY = "notification_severity"
 
 
+class IncidentHistoryPolicy(StrEnum):
+    """Closed action-specific relationship to immutable incident history."""
+
+    REQUIRED = "required"
+    FORBIDDEN = "forbidden"
+
+
 @dataclass(frozen=True, slots=True)
 class AuditActionSpec:
     """Exact actor, target, and required detail schema for one audit action."""
@@ -54,6 +62,8 @@ class AuditActionSpec:
     actor_type: AuditActorType
     target_type: str
     detail_fields: Mapping[str, AuditDetailType]
+    allowed_auth_methods: frozenset[OperatorAuthMethodType] = frozenset()
+    incident_history_policy: IncidentHistoryPolicy = IncidentHistoryPolicy.FORBIDDEN
 
 
 def _fields(**fields: AuditDetailType) -> Mapping[str, AuditDetailType]:
@@ -95,6 +105,20 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
                 to_status=AuditDetailType.INCIDENT_STATUS,
                 to_version=AuditDetailType.POSITIVE_INTEGER,
             ),
+            allowed_auth_methods=frozenset(OperatorAuthMethodType),
+            incident_history_policy=IncidentHistoryPolicy.REQUIRED,
+        ),
+        "operator_web_session.started": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="operator_web_session",
+            detail_fields=_fields(),
+            allowed_auth_methods=frozenset({OperatorAuthMethodType.OPERATOR_API_KEY}),
+        ),
+        "operator_web_session.ended": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="operator_web_session",
+            detail_fields=_fields(),
+            allowed_auth_methods=frozenset({OperatorAuthMethodType.WEB_SESSION}),
         ),
         "outbox.failed_requeued": AuditActionSpec(
             actor_type=AuditActorType.LOCAL_CLI,
@@ -143,13 +167,14 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
     }
 )
 
-AuditDetailValue = str | int
+AuditDetailValue = str | int | bool
 
 
 def validate_audit_action(
     *,
     action: str,
     actor_type: AuditActorType,
+    auth_method_type: OperatorAuthMethodType | None,
     target_type: str,
     details: Mapping[str, object],
 ) -> dict[str, AuditDetailValue]:
@@ -160,6 +185,11 @@ def validate_audit_action(
         raise AuditValidationError("audit action is not allowed")
     if actor_type is not spec.actor_type:
         raise AuditValidationError("audit actor is not allowed for action")
+    if actor_type is AuditActorType.OPERATOR:
+        if auth_method_type not in spec.allowed_auth_methods:
+            raise AuditValidationError("audit authentication method is not allowed for action")
+    elif auth_method_type is not None:
+        raise AuditValidationError("audit authentication method is not allowed for action")
     if target_type != spec.target_type:
         raise AuditValidationError("audit target type is not allowed for action")
     supplied_fields = set(details)
@@ -190,6 +220,7 @@ def record_local_cli_action(
     validated_details = validate_audit_action(
         action=action,
         actor_type=AuditActorType.LOCAL_CLI,
+        auth_method_type=None,
         target_type=target_type,
         details=details,
     )
@@ -213,7 +244,7 @@ def record_local_cli_action(
 def record_operator_action(
     session: Session,
     *,
-    actor: AuthenticatedOperator,
+    actor: OperatorPrincipal,
     action: str,
     target_type: str,
     target_id: UUID,
@@ -226,19 +257,24 @@ def record_operator_action(
     validated_details = validate_audit_action(
         action=action,
         actor_type=AuditActorType.OPERATOR,
+        auth_method_type=actor.auth_method_type,
         target_type=target_type,
         details=details,
     )
-    if incident_history_id is None or validated_details.get("history_id") != str(
-        incident_history_id
-    ):
-        raise AuditValidationError("audit history reference does not match action schema")
+    spec = AUDIT_ACTION_REGISTRY[action]
+    if spec.incident_history_policy is IncidentHistoryPolicy.REQUIRED:
+        if incident_history_id is None or validated_details.get("history_id") != str(
+            incident_history_id
+        ):
+            raise AuditValidationError("audit history reference does not match action schema")
+    elif incident_history_id is not None:
+        raise AuditValidationError("audit history reference is not allowed for action")
     entry = AuditLogEntry(
         actor_type=AuditActorType.OPERATOR.value,
         operator_id=actor.operator_id,
         actor_username_snapshot=actor.username,
-        auth_method_type="operator_api_key",
-        auth_method_id=actor.key_id,
+        auth_method_type=actor.auth_method_type.value,
+        auth_method_id=actor.auth_method_id,
         action=action,
         target_type=target_type,
         target_id=target_id,

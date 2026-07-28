@@ -11,9 +11,15 @@ from woland_guard_control_plane.application.audit import (
     AUDIT_ACTION_REGISTRY,
     AuditValidationError,
     record_local_cli_action,
+    record_operator_action,
     validate_audit_action,
 )
-from woland_guard_control_plane.infrastructure.database.models import AuditActorType
+from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
+from woland_guard_control_plane.infrastructure.database.models import (
+    AuditActorType,
+    OperatorAuthMethodType,
+    OperatorRole,
+)
 
 _OPERATOR_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 _KEY_ID = "11111111-2222-4333-8444-555555555555"
@@ -55,6 +61,18 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
             "to_status": "investigating",
             "to_version": 2,
         },
+    ),
+    (
+        "operator_web_session.started",
+        AuditActorType.OPERATOR,
+        "operator_web_session",
+        {},
+    ),
+    (
+        "operator_web_session.ended",
+        AuditActorType.OPERATOR,
+        "operator_web_session",
+        {},
     ),
     (
         "outbox.failed_requeued",
@@ -110,6 +128,7 @@ def test_all_registered_actions_accept_only_their_exact_schema(
         validate_audit_action(
             action=action,
             actor_type=actor_type,
+            auth_method_type=_auth_method_for(action, actor_type),
             target_type=target_type,
             details=details,
         )
@@ -214,6 +233,7 @@ def test_invalid_audit_payloads_are_rejected_without_reflecting_values(
         validate_audit_action(
             action=action,
             actor_type=actor_type,
+            auth_method_type=_auth_method_for(action, actor_type),
             target_type=target_type,
             details=details,
         )
@@ -236,3 +256,74 @@ def test_writer_does_not_add_model_after_validation_error() -> None:
         )
 
     session.add.assert_not_called()
+
+
+def test_operator_actions_enforce_auth_method_and_history_policy_before_add() -> None:
+    session = Mock(spec=Session)
+    api_key_principal = OperatorPrincipal(
+        operator_id=UUID(_OPERATOR_ID),
+        username="synthetic-operator",
+        role=OperatorRole.ADMIN,
+        auth_method_type=OperatorAuthMethodType.OPERATOR_API_KEY,
+        auth_method_id=UUID(_KEY_ID),
+    )
+    web_principal = OperatorPrincipal(
+        operator_id=api_key_principal.operator_id,
+        username=api_key_principal.username,
+        role=api_key_principal.role,
+        auth_method_type=OperatorAuthMethodType.WEB_SESSION,
+        auth_method_id=UUID(_HISTORY_ID),
+    )
+
+    with pytest.raises(AuditValidationError):
+        record_operator_action(
+            session,
+            actor=web_principal,
+            action="operator_web_session.started",
+            target_type="operator_web_session",
+            target_id=UUID(_HISTORY_ID),
+            request_id="safe-request",
+            incident_history_id=None,
+            details={},
+        )
+    with pytest.raises(AuditValidationError):
+        record_operator_action(
+            session,
+            actor=api_key_principal,
+            action="operator_web_session.started",
+            target_type="operator_web_session",
+            target_id=UUID(_HISTORY_ID),
+            request_id="safe-request",
+            incident_history_id=UUID(_HISTORY_ID),
+            details={},
+        )
+    with pytest.raises(AuditValidationError):
+        record_operator_action(
+            session,
+            actor=api_key_principal,
+            action="incident.status_changed",
+            target_type="incident",
+            target_id=UUID(_OPERATOR_ID),
+            request_id="safe-request",
+            incident_history_id=None,
+            details={
+                "from_status": "new",
+                "from_version": 1,
+                "history_id": _HISTORY_ID,
+                "to_status": "investigating",
+                "to_version": 2,
+            },
+        )
+
+    session.add.assert_not_called()
+
+
+def _auth_method_for(
+    action: str,
+    actor_type: AuditActorType,
+) -> OperatorAuthMethodType | None:
+    if actor_type is AuditActorType.LOCAL_CLI:
+        return None
+    if action == "operator_web_session.ended":
+        return OperatorAuthMethodType.WEB_SESSION
+    return OperatorAuthMethodType.OPERATOR_API_KEY

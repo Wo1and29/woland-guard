@@ -27,6 +27,13 @@ class OperatorRole(StrEnum):
     ADMIN = "admin"
 
 
+class OperatorAuthMethodType(StrEnum):
+    """Closed authentication-method identifiers for human operators."""
+
+    OPERATOR_API_KEY = "operator_api_key"
+    WEB_SESSION = "web_session"
+
+
 class Operator(Base):
     """A human operator identity independent from any authentication method."""
 
@@ -81,6 +88,11 @@ class OperatorApiKey(Base):
         UniqueConstraint(
             "rotated_from_id",
             name="uq_operator_api_keys_rotated_from_id",
+        ),
+        UniqueConstraint(
+            "id",
+            "operator_id",
+            name="uq_operator_api_keys_id_operator_id",
         ),
     )
 

@@ -16,7 +16,9 @@ from woland_guard_control_plane.application.incident_queries import (
     AuditFilters,
     list_audit_entries,
 )
-from woland_guard_control_plane.application.operator_authentication import AuthenticatedOperator
+from woland_guard_control_plane.application.operator_authentication import (
+    AuthenticatedOperatorApiKey,
+)
 from woland_guard_control_plane.application.pagination import CursorValidationError
 from woland_guard_control_plane.application.rbac import Permission
 from woland_guard_control_plane.database import get_session
@@ -49,7 +51,7 @@ def get_audit_log(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     _operator: Annotated[
-        AuthenticatedOperator,
+        AuthenticatedOperatorApiKey,
         Depends(require_permission(Permission.VIEW_AUDIT_LOG)),
     ],
     operator_id: UUID | None = None,

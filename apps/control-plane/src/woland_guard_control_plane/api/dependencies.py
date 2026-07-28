@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from woland_guard_control_plane.api.errors import ApiError
 from woland_guard_control_plane.application.operator_authentication import (
-    AuthenticatedOperator,
+    AuthenticatedOperatorApiKey,
     InvalidOperatorCredentialsError,
     authenticate_operator,
 )
@@ -26,7 +26,7 @@ def get_authenticated_operator(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
-) -> AuthenticatedOperator:
+) -> AuthenticatedOperatorApiKey:
     """Authenticate one operator API key and persist successful key usage."""
 
     request_id = str(request.state.request_id)
@@ -34,8 +34,8 @@ def get_authenticated_operator(
     now = datetime.now(UTC)
     try:
         with session.begin():
-            operator = authenticate_operator(session, token, now=now)
-            operator.key.last_used_at = now
+            authenticated = authenticate_operator(session, token, now=now)
+            authenticated.key.last_used_at = now
     except InvalidOperatorCredentialsError:
         _log_security_event(request, "operator_authentication_failed")
         raise _invalid_credentials_error() from None
@@ -48,18 +48,18 @@ def get_authenticated_operator(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "operator authentication unavailable",
         ) from None
-    return operator
+    return authenticated
 
 
 def require_permission(
     permission: Permission,
-) -> Callable[..., AuthenticatedOperator]:
+) -> Callable[..., AuthenticatedOperatorApiKey]:
     """Build a FastAPI dependency backed only by the centralized RBAC matrix."""
 
     def authorize(
         request: Request,
-        operator: Annotated[AuthenticatedOperator, Depends(get_authenticated_operator)],
-    ) -> AuthenticatedOperator:
+        operator: Annotated[AuthenticatedOperatorApiKey, Depends(get_authenticated_operator)],
+    ) -> AuthenticatedOperatorApiKey:
         if not role_has_permission(operator.role, permission):
             _log_security_event(request, "operator_authorization_denied")
             raise ApiError(status.HTTP_403_FORBIDDEN, "insufficient operator permission")

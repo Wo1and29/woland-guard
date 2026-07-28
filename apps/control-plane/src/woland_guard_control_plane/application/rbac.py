@@ -6,6 +6,7 @@ from woland_guard_control_plane.infrastructure.database.models import OperatorRo
 
 
 class Permission(StrEnum):
+    ACCESS_DASHBOARD = "dashboard:access"
     VIEW_INCIDENTS = "incidents:view"
     TRANSITION_INCIDENTS = "incidents:transition"
     VIEW_AUDIT_LOG = "audit:view"
@@ -17,6 +18,7 @@ ROLE_PERMISSIONS: dict[OperatorRole, frozenset[Permission]] = {
     OperatorRole.VIEWER: frozenset({Permission.VIEW_INCIDENTS}),
     OperatorRole.ANALYST: frozenset(
         {
+            Permission.ACCESS_DASHBOARD,
             Permission.VIEW_INCIDENTS,
             Permission.TRANSITION_INCIDENTS,
         }

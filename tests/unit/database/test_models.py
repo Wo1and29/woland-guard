@@ -51,6 +51,7 @@ def test_expected_tables_are_registered() -> None:
         "incidents",
         "operator_api_keys",
         "operator_idempotency_records",
+        "operator_web_sessions",
         "operators",
         "notification_destinations",
         "outbox_messages",

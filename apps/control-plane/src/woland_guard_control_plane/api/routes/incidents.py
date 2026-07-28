@@ -26,7 +26,9 @@ from woland_guard_control_plane.application.incident_workflow import (
     transition_incident,
     validate_idempotency_key,
 )
-from woland_guard_control_plane.application.operator_authentication import AuthenticatedOperator
+from woland_guard_control_plane.application.operator_authentication import (
+    AuthenticatedOperatorApiKey,
+)
 from woland_guard_control_plane.application.pagination import CursorValidationError
 from woland_guard_control_plane.application.rbac import Permission
 from woland_guard_control_plane.database import get_session
@@ -94,7 +96,7 @@ def get_incidents(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     _operator: Annotated[
-        AuthenticatedOperator,
+        AuthenticatedOperatorApiKey,
         Depends(require_permission(Permission.VIEW_INCIDENTS)),
     ],
     statuses: Annotated[list[IncidentStatus] | None, Query(alias="status")] = None,
@@ -138,7 +140,7 @@ def get_incident(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     _operator: Annotated[
-        AuthenticatedOperator,
+        AuthenticatedOperatorApiKey,
         Depends(require_permission(Permission.VIEW_INCIDENTS)),
     ],
 ) -> IncidentDetailEnvelope:
@@ -165,7 +167,7 @@ def transition_incident_status(
     transition_request: TransitionIncidentRequest,
     session: Annotated[Session, Depends(get_session)],
     operator: Annotated[
-        AuthenticatedOperator,
+        AuthenticatedOperatorApiKey,
         Depends(require_permission(Permission.TRANSITION_INCIDENTS)),
     ],
     idempotency_key_header: Annotated[
@@ -193,7 +195,7 @@ def transition_incident_status(
         with session.begin():
             outcome = transition_incident(
                 session,
-                actor=operator,
+                actor=operator.principal,
                 incident_id=incident_id,
                 transition=normalized,
                 idempotency_key=idempotency_key,

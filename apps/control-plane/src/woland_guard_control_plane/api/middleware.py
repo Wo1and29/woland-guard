@@ -58,12 +58,10 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         except Exception:
-            logger.error(
-                "request_id=%s method=%s path=%s status=500",
-                request_id,
-                scope.get("method", ""),
-                scope.get("path", ""),
-            )
+            state = scope.setdefault("state", {})
+            if not state.get("wg_unexpected_error_logged", False):
+                logger.error("request_id=%s event=request_unexpected_error", request_id)
+                state["wg_unexpected_error_logged"] = True
             raise
 
         logger.info(

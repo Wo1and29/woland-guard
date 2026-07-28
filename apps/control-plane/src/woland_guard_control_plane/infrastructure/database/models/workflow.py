@@ -43,6 +43,12 @@ class IncidentHistoryEntry(Base):
             name="entry_type_allowed",
         ),
         CheckConstraint(
+            "(auth_method_type IS NULL AND auth_method_id IS NULL) OR "
+            "(auth_method_type IN ('operator_api_key', 'web_session') "
+            "AND auth_method_id IS NOT NULL)",
+            name="auth_method_type_allowed",
+        ),
+        CheckConstraint(
             "to_status IN ('new', 'investigating', 'resolved', 'false_positive')",
             name="to_status_allowed",
         ),
@@ -102,6 +108,14 @@ class AuditLogEntry(Base):
     __tablename__ = "audit_log_entries"
     __table_args__ = (
         CheckConstraint("actor_type IN ('operator', 'local_cli')", name="actor_type_allowed"),
+        CheckConstraint(
+            "(actor_type = 'local_cli' AND auth_method_type IS NULL "
+            "AND auth_method_id IS NULL) OR "
+            "(actor_type = 'operator' "
+            "AND auth_method_type IN ('operator_api_key', 'web_session') "
+            "AND auth_method_id IS NOT NULL)",
+            name="auth_method_type_allowed",
+        ),
         CheckConstraint(
             "(actor_type = 'local_cli' AND operator_id IS NULL "
             "AND actor_username_snapshot IS NULL AND auth_method_type IS NULL "
