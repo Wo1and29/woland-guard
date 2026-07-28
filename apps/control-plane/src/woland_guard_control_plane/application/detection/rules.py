@@ -9,15 +9,30 @@ from pathlib import Path
 from typing import Annotated, Literal, Self, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 _FIELD_PATTERN = r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$"
 _RULE_KEY_PATTERN = r"^[a-z][a-z0-9_]{0,99}$"
 _MITRE_PATTERN = r"^T[0-9]{4}(?:\.[0-9]{3})?$"
 
+RuleKey = Annotated[str, Field(pattern=_RULE_KEY_PATTERN, max_length=100)]
+_RULE_KEY_ADAPTER = TypeAdapter(RuleKey)
+
 
 class RuleValidationError(ValueError):
     """A safe aggregate error for an invalid rules directory."""
+
+
+class RuleKeyValidationError(ValueError):
+    """A safe error for a value outside the canonical rule-key contract."""
 
 
 class Severity(StrEnum):
@@ -111,7 +126,7 @@ class RuleDefinition(StrictModel):
     """Versioned immutable rule definition stored as an incident snapshot."""
 
     schema_version: Literal[1]
-    rule_key: str = Field(pattern=_RULE_KEY_PATTERN, max_length=100)
+    rule_key: RuleKey
     version: int = Field(gt=0)
     enabled: bool = True
     severity: Severity
@@ -137,6 +152,15 @@ class RuleDefinition(StrictModel):
         if any(len(values) != len(set(values)) for values in lists):
             raise ValueError("rule field lists must not contain duplicates")
         return self
+
+
+def validate_rule_key(value: object) -> str:
+    """Validate one value with the same canonical contract as RuleDefinition.rule_key."""
+
+    try:
+        return _RULE_KEY_ADAPTER.validate_python(value, strict=True)
+    except ValidationError:
+        raise RuleKeyValidationError("invalid rule key") from None
 
 
 def load_rules_directory(path: Path) -> tuple[RuleDefinition, ...]:

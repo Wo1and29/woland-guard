@@ -4,7 +4,7 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–6 завершены и зафиксированы локально. Подэтап 7A реализуется в рабочем дереве:
+Этапы 1–6 и подэтап 7A завершены и зафиксированы локально. Текущая реализация:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их и выполняют идемпотентные status transitions.
 
@@ -44,12 +44,15 @@ Linux-агент проверен на синтетических journald fixtu
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–6.
+- ADR с подтверждёнными архитектурными решениями этапов 1–7B.
 
-Подэтап 7A добавляет изолированную HTML-границу `/dashboard`: вход существующим operator
-API-ключом, серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки,
-ограниченный разбор URL-encoded форм и logout с атомарным audit. Overview, серверы,
-инциденты, правила, audit pages, HTMX и полноценный интерфейс относятся к 7B и позднее.
+Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
+серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки, ограниченный
+разбор URL-encoded форм и logout с атомарным audit. Read-only Dashboard показывает factual
+overview, серверы, инциденты с ограниченной evidence projection и history, активные правила и
+audit для admin. Изменение статусов и комментарии через HTML относятся к 7C.
+Перед показом rules Dashboard bounded-проверяет все active definitions независимо от фильтров и
+pagination; повреждённое правило закрывает страницу безопасным 503, а не исчезает из выдачи.
 
 ## Требования
 
@@ -331,6 +334,10 @@ Ingestion API описан в
 [`docs/adr/0005-detection-engine.md`](docs/adr/0005-detection-engine.md).
 Архитектура последовательного этапа 6 описана в
 [`docs/adr/0006-operator-rbac-incident-workflow-and-telegram.md`](docs/adr/0006-operator-rbac-incident-workflow-and-telegram.md).
+Dashboard authentication и sessions описаны в
+[`docs/adr/0007-dashboard-authentication-and-sessions.md`](docs/adr/0007-dashboard-authentication-and-sessions.md).
+Read-only Dashboard и его query projections описаны в
+[`docs/adr/0008-read-only-dashboard.md`](docs/adr/0008-read-only-dashboard.md).
 
 ## Локальные операторы
 
@@ -360,6 +367,29 @@ docker compose exec control-plane woland-guard-admin rotate-operator-key \
 docker compose exec control-plane woland-guard-admin revoke-operator-key \
   --key-id <key UUID>
 ```
+
+## Read-only Dashboard
+
+Dashboard смонтирован на `/dashboard`. Вход принимает действующий operator API key и после
+успеха использует только server-side web session; Bearer header не является альтернативой
+Dashboard cookie. Доступ к overview, servers, incidents и active rules имеют `analyst` и
+`admin`; audit page доступна только `admin`.
+
+Cookies имеют обязательный `Secure`, поэтому обычный HTTP URL Compose не ослабляет политику и
+не является готовым browser deployment. Для интерактивного просмотра нужен настроенный HTTPS
+origin, точно совпадающий с `WG_WEB_PUBLIC_ORIGIN`. REST API и health endpoints продолжают
+работать независимо от HTML handlers.
+
+Страницы используют server-side keyset pagination с размерами 25, 50 или 100. Cursor строго
+проверяется и связан со страницей, фильтрами, literal prefix, сортировкой и page size, но не
+подписан и не заявляется tamper-proof. Поиск трактует `%`, `_` и `!` буквально; exact UUID
+передаётся отдельным фильтром. Времена показаны в UTC.
+
+`active`/`inactive` сервера — только сохранённое `Server.is_active`, не online/offline и не
+healthcheck. Последнее событие — отдельный максимум `occurred_at`. Dashboard не показывает
+event payload, attributes, actor, IP, correlation, API keys, cookies или Telegram credentials.
+Evidence содержит только UUID события, event type, source и три UTC timestamp. Комментариев и
+HTML-изменения статуса в 7B нет.
 
 ## Incident workflow и audit
 

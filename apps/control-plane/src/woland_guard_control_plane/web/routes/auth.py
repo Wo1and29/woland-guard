@@ -31,7 +31,6 @@ from woland_guard_control_plane.application.web_sessions import (
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.database import get_session
 from woland_guard_control_plane.web.dependencies import (
-    get_authenticated_web_session,
     get_authenticated_web_session_for_mutation,
 )
 from woland_guard_control_plane.web.errors import WebError
@@ -140,36 +139,6 @@ def login(
         max_age=max_age,
     )
     return success_response
-
-
-@router.get("/", response_class=HTMLResponse, name="dashboard_session")
-def session_page(
-    request: Request,
-    authenticated: Annotated[
-        AuthenticatedWebSession,
-        Depends(get_authenticated_web_session),
-    ],
-) -> HTMLResponse:
-    """Render the minimal 7A session page without Dashboard data."""
-
-    csrf_token = request.cookies.get(CSRF_COOKIE_NAME, "")
-    if not verify_csrf_tokens(
-        cookie_token=csrf_token,
-        form_token=csrf_token,
-        expected_digest=authenticated.csrf_token_digest,
-    ):
-        raise WebError(401, "Требуется повторный вход.")
-    return cast(
-        HTMLResponse,
-        request.app.state.templates.TemplateResponse(
-            request=request,
-            name="auth/session.html",
-            context={
-                "username": authenticated.principal.username,
-                "csrf_token": csrf_token,
-            },
-        ),
-    )
 
 
 @router.post("/logout", name="dashboard_logout")

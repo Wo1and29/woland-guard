@@ -1,0 +1,20 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Аудит — Woland Guard{% endblock %}
+{% block dashboard_content %}
+<h1>Audit log</h1>
+<form class="filters" method="get" action="{{ paths.audit }}">
+  <label>Actor type <select name="actor_type"><option value="">all</option><option value="operator"{% if filters.actor_type == 'operator' %} selected{% endif %}>operator</option><option value="local_cli"{% if filters.actor_type == 'local_cli' %} selected{% endif %}>local_cli</option></select></label>
+  <label>Action <input name="action" value="{{ filters.action or '' }}" maxlength="64"></label>
+  <label>Target type <input name="target_type" value="{{ filters.target_type or '' }}" maxlength="32"></label>
+  <label>Target UUID <input name="target_id" value="{{ filters.target_id or '' }}"></label>
+  <label>От даты UTC <input type="date" name="created_from" value="{{ filters.created_from or '' }}"></label>
+  <label>До даты UTC (не включая) <input type="date" name="created_to" value="{{ filters.created_to or '' }}"></label>
+  <label>Сортировка <select name="sort"><option value="created_desc"{% if filters.sort == 'created_desc' %} selected{% endif %}>Новые сначала</option><option value="created_asc"{% if filters.sort == 'created_asc' %} selected{% endif %}>Старые сначала</option></select></label>
+  <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
+  <button type="submit">Применить</button>
+</form>
+{% if items %}<div class="table-wrap"><table><thead><tr><th>Время</th><th>Actor</th><th>Action</th><th>Target</th><th>Request ID</th><th>Details</th></tr></thead><tbody>
+{% for item in items %}<tr><td>{{ item.created_at }}</td><td>{{ item.actor }}</td><td>{{ item.action }}</td><td>{{ item.target }}</td><td>{{ item.request_id }}</td><td>{% if item.details is none %}{{ audit_details_unavailable }}{% elif item.details %}<dl>{% for field, value in item.details %}<dt>{{ field }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>{% else %}—{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% include "components/pagination.html" %}
+{% endblock %}

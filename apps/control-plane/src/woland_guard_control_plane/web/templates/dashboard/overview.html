@@ -1,0 +1,16 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Обзор — Woland Guard{% endblock %}
+{% block dashboard_content %}
+<h1>Обзор</h1>
+<div class="metric-grid">
+  <article><h2>Серверы</h2><p>Всего: {{ overview.servers.total }}</p><p>Активны в конфигурации: {{ overview.servers.active }}</p><p>Отключены в конфигурации: {{ overview.servers.inactive }}</p></article>
+  <article><h2>Активные инциденты</h2><p>New и investigating: {{ overview.incidents.active }}</p><p>Критические среди активных: {{ overview.incidents.critical_active }}</p></article>
+  <article><h2>Очередь уведомлений</h2><p>Pending: {{ overview.notifications.pending }}</p><p>Processing: {{ overview.notifications.processing }}</p><p>Ready: {{ overview.notifications.ready }}</p><p>Expired claims: {{ overview.notifications.expired }}</p><p>Failed: {{ overview.notifications.failed }}</p><p>Delivered, исторически: {{ overview.notifications.delivered }}</p><p>Возраст старейшей pending-записи: {% if overview.notifications.oldest_pending_age_seconds is none %}нет pending-записей{% else %}{{ overview.notifications.oldest_pending_age_seconds|round(1) }} с{% endif %}</p></article>
+</div>
+<h2>Последние инциденты</h2>
+{% if overview.recent_incidents %}
+<div class="table-wrap"><table><thead><tr><th>Создан</th><th>Severity</th><th>Статус</th><th>Инцидент</th><th>Сервер</th></tr></thead><tbody>
+{% for item in overview.recent_incidents %}<tr><td>{{ utc_text(item.created_at) }}</td><td>{{ item.severity }}</td><td>{{ item.status }}</td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a></td><td>{{ item.server_name }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% endblock %}

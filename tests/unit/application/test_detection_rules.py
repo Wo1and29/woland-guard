@@ -9,6 +9,7 @@ from woland_guard_control_plane import cli
 from woland_guard_control_plane.application.detection.rules import (
     DistinctCountCondition,
     FirstSeenCondition,
+    RuleKeyValidationError,
     RuleValidationError,
     SequenceCondition,
     SingleCondition,
@@ -16,9 +17,16 @@ from woland_guard_control_plane.application.detection.rules import (
     canonical_rule,
     load_rules_directory,
     rule_checksum,
+    validate_rule_key,
 )
 
 RULES_DIR = Path(__file__).parents[3] / "detection-rules"
+
+
+def test_public_rule_key_validator_is_the_rule_definition_contract() -> None:
+    assert validate_rule_key("canonical_rule_1") == "canonical_rule_1"
+    with pytest.raises(RuleKeyValidationError, match="invalid rule key"):
+        validate_rule_key("Non_Canonical")
 
 
 def test_eight_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:

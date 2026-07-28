@@ -1,0 +1,24 @@
+{% extends "base_minimal.html" %}
+{% block title %}Woland Guard Dashboard{% endblock %}
+{% block content %}
+<header class="dashboard-header">
+  <div>
+    <a class="brand" href="{{ paths.home }}">Woland Guard</a>
+    <p class="operator">Оператор: {{ operator_username }} · роль: {{ operator_role }}</p>
+  </div>
+  <form method="post" action="{{ paths.logout }}" accept-charset="UTF-8">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button type="submit">Выйти</button>
+  </form>
+</header>
+<nav class="dashboard-nav" aria-label="Основная навигация">
+  <a{% if active_navigation == "overview" %} aria-current="page"{% endif %} href="{{ paths.home }}">Обзор</a>
+  <a{% if active_navigation == "servers" %} aria-current="page"{% endif %} href="{{ paths.servers }}">Серверы</a>
+  <a{% if active_navigation == "incidents" %} aria-current="page"{% endif %} href="{{ paths.incidents }}">Инциденты</a>
+  <a{% if active_navigation == "rules" %} aria-current="page"{% endif %} href="{{ paths.rules }}">Правила</a>
+  {% if can_view_audit %}<a{% if active_navigation == "audit" %} aria-current="page"{% endif %} href="{{ paths.audit }}">Аудит</a>{% endif %}
+</nav>
+<section class="dashboard-content">
+  {% block dashboard_content %}{% endblock %}
+</section>
+{% endblock %}

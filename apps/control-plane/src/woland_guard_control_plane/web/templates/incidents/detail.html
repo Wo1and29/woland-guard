@@ -1,0 +1,14 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Инцидент {{ incident.summary.id }} — Woland Guard{% endblock %}
+{% block dashboard_content %}
+<h1>{{ incident.summary.title }}</h1>
+<dl><dt>ID</dt><dd>{{ incident.summary.id }}</dd><dt>Сервер</dt><dd>{{ incident.summary.server_name }}</dd><dt>Rule</dt><dd>{{ incident.summary.rule_key }} v{{ incident.summary.rule_version }}</dd><dt>Severity</dt><dd>{{ incident.summary.severity }}</dd><dt>Статус</dt><dd>{{ incident.summary.status }}</dd><dt>Первое событие</dt><dd>{{ utc_text(incident.summary.first_seen_at) }}</dd><dt>Последнее событие</dt><dd>{{ utc_text(incident.summary.last_seen_at) }}</dd></dl>
+<h2>Объяснение</h2><p>{{ incident.explanation }}</p><h2>Рекомендация</h2><p>{{ incident.recommendation }}</p>
+<h2>Evidence</h2>
+{% if evidence %}<div class="table-wrap"><table><thead><tr><th>Event UUID</th><th>Тип</th><th>Источник</th><th>Occurred</th><th>Collected</th><th>Linked</th></tr></thead><tbody>
+{% for item in evidence %}<tr><td>{{ item.event_id }}</td><td>{{ item.event_type }}</td><td>{{ item.source }}</td><td>{{ utc_text(item.occurred_at) }}</td><td>{{ utc_text(item.collected_at) }}</td><td>{{ utc_text(item.linked_at) }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% if evidence_next_url %}<p><a href="{{ evidence_next_url }}">Следующая страница evidence</a></p>{% endif %}
+<h2>История статусов</h2>
+{% if incident.history %}<ol>{% for item in incident.history %}<li>{{ utc_text(item.created_at) }}: {{ item.from_status or 'baseline' }} → {{ item.to_status }}{% if item.operator_username %}, {{ item.operator_username }}{% endif %}{% if item.reason %}. Причина: {{ item.reason }}{% endif %}</li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% endblock %}

@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     LargeBinary,
     String,
     UniqueConstraint,
@@ -70,3 +71,20 @@ class AgentApiKey(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+Index(
+    "ix_servers_lower_name_id",
+    func.lower(Server.__table__.c.name),
+    Server.__table__.c.id,
+)
+Index(
+    "ix_servers_lower_name_pattern",
+    func.lower(Server.__table__.c.name).label("lower_name_pattern"),
+    postgresql_ops={"lower_name_pattern": "text_pattern_ops"},
+)
+Index(
+    "ix_servers_lower_hostname_pattern",
+    func.lower(Server.__table__.c.hostname).label("lower_hostname_pattern"),
+    postgresql_ops={"lower_hostname_pattern": "text_pattern_ops"},
+)

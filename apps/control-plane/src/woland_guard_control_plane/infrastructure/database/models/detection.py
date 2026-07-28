@@ -150,6 +150,12 @@ class IncidentEvent(Base):
     __table_args__ = (
         PrimaryKeyConstraint("incident_id", "event_id", name="pk_incident_events"),
         Index("ix_incident_events_event_id", "event_id"),
+        Index(
+            "ix_incident_events_incident_linked_event",
+            "incident_id",
+            "linked_at",
+            "event_id",
+        ),
     )
 
     incident_id: Mapped[UUID] = mapped_column(ForeignKey("incidents.id", ondelete="CASCADE"))

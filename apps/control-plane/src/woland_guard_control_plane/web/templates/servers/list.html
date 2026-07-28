@@ -1,0 +1,20 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Серверы — Woland Guard{% endblock %}
+{% block dashboard_content %}
+<h1>Серверы</h1>
+<p class="notice">Active/inactive — сохранённая конфигурация, а не проверка доступности.</p>
+<form class="filters" method="get" action="{{ paths.servers }}">
+  <label>Префикс имени или hostname <input name="q" value="{{ filters.q or '' }}" maxlength="100"></label>
+  <label>Точный UUID <input name="id" value="{{ filters.id or '' }}"></label>
+  <label>Состояние <select name="state"><option value="all"{% if filters.state == 'all' %} selected{% endif %}>Все</option><option value="active"{% if filters.state == 'active' %} selected{% endif %}>Active</option><option value="inactive"{% if filters.state == 'inactive' %} selected{% endif %}>Inactive</option></select></label>
+  <label>Сортировка <select name="sort"><option value="name_asc"{% if filters.sort == 'name_asc' %} selected{% endif %}>Имя ↑</option><option value="name_desc"{% if filters.sort == 'name_desc' %} selected{% endif %}>Имя ↓</option></select></label>
+  <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
+  <button type="submit">Применить</button>
+</form>
+{% if items %}<div class="card-grid">{% for item in items %}<article>
+  <h2><a href="{{ paths.servers }}/{{ item.id }}">{{ item.name }}</a></h2>
+  <p>Hostname: {{ item.hostname }}</p><p>Состояние конфигурации: {% if item.is_active %}active{% else %}inactive{% endif %}</p>
+  <p>Последнее событие: {{ utc_text(item.last_event_at) }}</p><p>Активных инцидентов: {{ item.active_incident_count }}</p>
+</article>{% endfor %}</div>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% include "components/pagination.html" %}
+{% endblock %}

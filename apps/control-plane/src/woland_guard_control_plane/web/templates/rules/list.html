@@ -1,0 +1,16 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Правила — Woland Guard{% endblock %}
+{% block dashboard_content %}
+<h1>Активные версии правил</h1>
+<form class="filters" method="get" action="{{ paths.rules }}">
+  <label>Префикс rule key <input name="q" value="{{ filters.q or '' }}" maxlength="100"></label>
+  <label>Severity <select name="severity" multiple><option value="low"{% if 'low' in filters.severity %} selected{% endif %}>low</option><option value="medium"{% if 'medium' in filters.severity %} selected{% endif %}>medium</option><option value="high"{% if 'high' in filters.severity %} selected{% endif %}>high</option><option value="critical"{% if 'critical' in filters.severity %} selected{% endif %}>critical</option></select></label>
+  <label>Enabled <select name="enabled"><option value="all"{% if filters.enabled == 'all' %} selected{% endif %}>all</option><option value="yes"{% if filters.enabled == 'yes' %} selected{% endif %}>yes</option><option value="no"{% if filters.enabled == 'no' %} selected{% endif %}>no</option></select></label>
+  <label>Condition <select name="condition"><option value="">all</option>{% for value in ['single', 'threshold', 'distinct_count', 'sequence', 'first_seen'] %}<option value="{{ value }}"{% if filters.condition == value %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+  <label>Сортировка <select name="sort"><option value="rule_key_asc"{% if filters.sort == 'rule_key_asc' %} selected{% endif %}>Rule key ↑</option><option value="rule_key_desc"{% if filters.sort == 'rule_key_desc' %} selected{% endif %}>Rule key ↓</option></select></label>
+  <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
+  <button type="submit">Применить</button>
+</form>
+{% if items %}<div class="card-grid">{% for item in items %}<article><h2>{{ item.title }}</h2><p>{{ item.rule_key }} v{{ item.version }}</p><p>Severity: {{ item.severity }} · {% if item.enabled %}enabled{% else %}disabled{% endif %}</p><p>Condition: {{ item.condition.type }}</p>{% if item.condition.threshold %}<p>Threshold: {{ item.condition.threshold }}, window: {{ item.condition.window_seconds }} s</p>{% endif %}{% if item.condition.distinct_threshold %}<p>Distinct: {{ item.condition.distinct_threshold }}, минимум событий: {{ item.condition.minimum_events }}, window: {{ item.condition.window_seconds }} s</p>{% endif %}{% if item.condition.lookback_seconds %}<p>Lookback: {{ item.condition.lookback_seconds }} s</p>{% endif %}<p>MITRE: {% if item.mitre_attack_ids %}{{ item.mitre_attack_ids|join(', ') }}{% else %}не указано{% endif %}</p><p>{{ item.description }}</p></article>{% endfor %}</div>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% include "components/pagination.html" %}
+{% endblock %}

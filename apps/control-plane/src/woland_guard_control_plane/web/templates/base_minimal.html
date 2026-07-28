@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Woland Guard{% endblock %}</title>
+  <link rel="stylesheet" href="{{ request.scope.root_path }}/static/dashboard.css">
 </head>
-<body>
-  <main>
+<body class="minimal-page">
+  <main class="minimal-shell">
     {% block content %}{% endblock %}
   </main>
 </body>

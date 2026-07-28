@@ -1,12 +1,16 @@
 """Cookie-based Dashboard session authentication dependencies."""
 
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from woland_guard_control_plane.application.rate_limit import FixedWindowRateLimiter
+from woland_guard_control_plane.application.rbac import Permission, role_has_permission
 from woland_guard_control_plane.application.web_sessions import (
     AuthenticatedWebSession,
     InvalidWebSessionError,
@@ -17,6 +21,8 @@ from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.database import get_session
 from woland_guard_control_plane.web.errors import WebError
 from woland_guard_control_plane.web.security import SESSION_COOKIE_NAME
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def get_authenticated_web_session(
@@ -73,3 +79,28 @@ def get_authenticated_web_session_for_mutation(
     except SQLAlchemyError:
         raise WebError(503, "Сервис временно недоступен.") from None
     return authenticated
+
+
+def require_dashboard_permission(
+    permission: Permission,
+) -> Callable[..., AuthenticatedWebSession]:
+    """Authorize a session principal through the one centralized RBAC matrix."""
+
+    def authorize(
+        request: Request,
+        authenticated: Annotated[
+            AuthenticatedWebSession,
+            Depends(get_authenticated_web_session),
+        ],
+    ) -> AuthenticatedWebSession:
+        if not role_has_permission(authenticated.principal.role, permission):
+            limiter = cast(FixedWindowRateLimiter, request.app.state.security_log_limiter)
+            if limiter.consume("dashboard_authorization_denied") is None:
+                logger.warning(
+                    "request_id=%s security_event=dashboard_authorization_denied",
+                    str(request.state.request_id),
+                )
+            raise WebError(403, "Недостаточно прав для Dashboard.")
+        return authenticated
+
+    return authorize
