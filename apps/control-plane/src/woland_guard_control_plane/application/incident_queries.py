@@ -34,6 +34,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     AuditLogEntry,
     Event,
     Incident,
+    IncidentComment,
     IncidentEvent,
     IncidentHistoryEntry,
     Server,
@@ -171,7 +172,6 @@ class DashboardIncidentDetail:
     summary: DashboardIncidentSummary
     explanation: str
     recommendation: str
-    history: tuple[DashboardIncidentHistory, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +182,14 @@ class DashboardEvidence:
     occurred_at: datetime
     collected_at: datetime
     linked_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DashboardIncidentComment:
+    id: UUID
+    body: str
+    operator_username: str
+    created_at: datetime
 
 
 def list_incidents(
@@ -386,7 +394,7 @@ def get_dashboard_incident_detail(
     session: Session,
     incident_id: UUID,
 ) -> DashboardIncidentDetail | None:
-    """Return safe incident fields and bounded workflow history, never correlation."""
+    """Return safe incident fields only, never correlation or an unbounded child list."""
 
     row = (
         session.execute(
@@ -399,39 +407,132 @@ def get_dashboard_incident_detail(
     )
     if row is None:
         return None
-    history_rows = session.execute(
-        select(
-            IncidentHistoryEntry.id,
-            IncidentHistoryEntry.version,
-            IncidentHistoryEntry.entry_type,
-            IncidentHistoryEntry.from_status,
-            IncidentHistoryEntry.to_status,
-            IncidentHistoryEntry.reason,
-            IncidentHistoryEntry.actor_username_snapshot.label("operator_username"),
-            IncidentHistoryEntry.created_at,
-        )
-        .where(IncidentHistoryEntry.incident_id == incident_id)
-        .order_by(IncidentHistoryEntry.version.asc())
-    ).mappings()
-    history = tuple(
-        DashboardIncidentHistory(
-            id=item["id"],
-            version=item["version"],
-            entry_type=item["entry_type"],
-            from_status=item["from_status"],
-            to_status=item["to_status"],
-            reason=item["reason"],
-            operator_username=item["operator_username"],
-            created_at=item["created_at"],
-        )
-        for item in history_rows
-    )
     return DashboardIncidentDetail(
         summary=_dashboard_incident_summary(row),
         explanation=row["explanation"],
         recommendation=row["recommendation"],
-        history=history,
     )
+
+
+def list_dashboard_incident_history(
+    session: Session,
+    *,
+    incident_id: UUID,
+    page_size: int,
+    cursor: str | None,
+) -> DashboardPage[DashboardIncidentHistory]:
+    """Return immutable status history in ascending workflow version order."""
+
+    context = DashboardCursorContext(
+        list_type=DashboardListType.INCIDENT_HISTORY,
+        filters={"incident_id": str(incident_id)},
+        search=None,
+        sort="version_asc",
+        page_size=page_size,
+    )
+    context.validate()
+    statement = select(
+        IncidentHistoryEntry.id,
+        IncidentHistoryEntry.version,
+        IncidentHistoryEntry.entry_type,
+        IncidentHistoryEntry.from_status,
+        IncidentHistoryEntry.to_status,
+        IncidentHistoryEntry.reason,
+        IncidentHistoryEntry.actor_username_snapshot.label("operator_username"),
+        IncidentHistoryEntry.created_at,
+    ).where(IncidentHistoryEntry.incident_id == incident_id)
+    if cursor is not None:
+        (cursor_version,) = decode_dashboard_cursor(cursor, expected=context)
+        cursor_version = cast(int, cursor_version)
+        statement = statement.where(IncidentHistoryEntry.version > cursor_version)
+    rows = (
+        session.execute(statement.order_by(IncidentHistoryEntry.version.asc()).limit(page_size + 1))
+        .mappings()
+        .all()
+    )
+    page_rows = rows[:page_size]
+    items = tuple(
+        DashboardIncidentHistory(
+            id=row["id"],
+            version=row["version"],
+            entry_type=row["entry_type"],
+            from_status=row["from_status"],
+            to_status=row["to_status"],
+            reason=row["reason"],
+            operator_username=row["operator_username"],
+            created_at=row["created_at"],
+        )
+        for row in page_rows
+    )
+    next_cursor = None
+    if len(rows) > page_size and page_rows:
+        next_cursor = encode_dashboard_cursor(context, keys=(page_rows[-1]["version"],))
+    return DashboardPage(items, next_cursor)
+
+
+def list_dashboard_incident_comments(
+    session: Session,
+    *,
+    incident_id: UUID,
+    page_size: int,
+    cursor: str | None,
+) -> DashboardPage[DashboardIncidentComment]:
+    """Return comment text only through its dedicated Dashboard projection."""
+
+    context = DashboardCursorContext(
+        list_type=DashboardListType.INCIDENT_COMMENTS,
+        filters={"incident_id": str(incident_id)},
+        search=None,
+        sort="created_desc",
+        page_size=page_size,
+    )
+    context.validate()
+    statement = select(
+        IncidentComment.id,
+        IncidentComment.body,
+        IncidentComment.actor_username_snapshot.label("operator_username"),
+        IncidentComment.created_at,
+    ).where(IncidentComment.incident_id == incident_id)
+    if cursor is not None:
+        cursor_created_at, cursor_id = decode_dashboard_cursor(cursor, expected=context)
+        cursor_created_at = cast(datetime, cursor_created_at)
+        cursor_id = cast(UUID, cursor_id)
+        statement = statement.where(
+            or_(
+                IncidentComment.created_at < cursor_created_at,
+                and_(
+                    IncidentComment.created_at == cursor_created_at,
+                    IncidentComment.id < cursor_id,
+                ),
+            )
+        )
+    rows = (
+        session.execute(
+            statement.order_by(IncidentComment.created_at.desc(), IncidentComment.id.desc()).limit(
+                page_size + 1
+            )
+        )
+        .mappings()
+        .all()
+    )
+    page_rows = rows[:page_size]
+    items = tuple(
+        DashboardIncidentComment(
+            id=row["id"],
+            body=row["body"],
+            operator_username=row["operator_username"],
+            created_at=row["created_at"],
+        )
+        for row in page_rows
+    )
+    next_cursor = None
+    if len(rows) > page_size and page_rows:
+        last = page_rows[-1]
+        next_cursor = encode_dashboard_cursor(
+            context,
+            keys=(last["created_at"], last["id"]),
+        )
+    return DashboardPage(items, next_cursor)
 
 
 def list_dashboard_evidence(

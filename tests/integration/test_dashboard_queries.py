@@ -12,6 +12,7 @@ from sqlalchemy import insert, select, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
+from tests.integration.conftest import OperatorFactory
 from woland_guard_control_plane.application.audit_queries import (
     AuditDashboardFilters,
     AuditDashboardSort,
@@ -26,6 +27,8 @@ from woland_guard_control_plane.application.incident_queries import (
     IncidentDashboardSort,
     get_dashboard_incident_detail,
     list_dashboard_evidence,
+    list_dashboard_incident_comments,
+    list_dashboard_incident_history,
     list_dashboard_incidents,
 )
 from woland_guard_control_plane.application.rule_queries import (
@@ -45,8 +48,10 @@ from woland_guard_control_plane.infrastructure.database.models import (
     DetectionRuleVersion,
     Event,
     Incident,
+    IncidentComment,
     IncidentEvent,
     IncidentHistoryEntry,
+    OperatorRole,
     Server,
 )
 
@@ -205,7 +210,19 @@ def test_application_query_statement_budgets_are_independent_of_session_touch() 
                 page_size=25,
                 cursor=None,
             )
-            assert len(counts) == 3
+            list_dashboard_incident_history(
+                session,
+                incident_id=incidents.items[0].id,
+                page_size=25,
+                cursor=None,
+            )
+            list_dashboard_incident_comments(
+                session,
+                incident_id=incidents.items[0].id,
+                page_size=25,
+                cursor=None,
+            )
+            assert len(counts) == 4
 
             counts.clear()
             list_active_rules(
@@ -228,6 +245,79 @@ def test_application_query_statement_budgets_are_independent_of_session_touch() 
             assert len(counts) == 1
     finally:
         sqlalchemy_event.remove(engine, "before_cursor_execute", record_statement)
+
+
+def test_comment_and_history_keysets_are_stable_with_equal_sort_values(
+    register_operator: OperatorFactory,
+) -> None:
+    operator = register_operator(role=OperatorRole.ANALYST)
+    incident_id, _ = _create_incident_with_evidence()
+    shared_time = datetime.now(UTC)
+    with get_session_factory().begin() as session:
+        for version in range(2, 31):
+            session.add(
+                IncidentHistoryEntry(
+                    incident_id=incident_id,
+                    version=version,
+                    entry_type="status_transition",
+                    from_status="new",
+                    to_status="investigating",
+                    reason=None,
+                    changed_by_operator_id=operator.operator_id,
+                    actor_username_snapshot=operator.username,
+                    auth_method_type="operator_api_key",
+                    auth_method_id=operator.key_id,
+                    request_id=f"history-{version}",
+                    created_at=shared_time,
+                )
+            )
+        for index in range(30):
+            session.add(
+                IncidentComment(
+                    incident_id=incident_id,
+                    operator_id=operator.operator_id,
+                    actor_username_snapshot=operator.username,
+                    auth_method_type="operator_api_key",
+                    auth_method_id=operator.key_id,
+                    request_id=f"comment-{index}",
+                    body=f"Comment {index}",
+                    created_at=shared_time,
+                )
+            )
+
+    with get_session_factory()() as session:
+        history_first = list_dashboard_incident_history(
+            session,
+            incident_id=incident_id,
+            page_size=25,
+            cursor=None,
+        )
+        assert history_first.next_cursor is not None
+        history_second = list_dashboard_incident_history(
+            session,
+            incident_id=incident_id,
+            page_size=25,
+            cursor=history_first.next_cursor,
+        )
+        comments_first = list_dashboard_incident_comments(
+            session,
+            incident_id=incident_id,
+            page_size=25,
+            cursor=None,
+        )
+        assert comments_first.next_cursor is not None
+        comments_second = list_dashboard_incident_comments(
+            session,
+            incident_id=incident_id,
+            page_size=25,
+            cursor=comments_first.next_cursor,
+        )
+
+    history_versions = [item.version for item in (*history_first.items, *history_second.items)]
+    assert history_versions == list(range(1, 31))
+    comment_ids = [item.id for item in (*comments_first.items, *comments_second.items)]
+    assert len(comment_ids) == 30
+    assert len(set(comment_ids)) == 30
 
 
 def test_representative_query_plans_are_bounded_after_page_selection() -> None:

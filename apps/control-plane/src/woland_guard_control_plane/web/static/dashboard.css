@@ -131,6 +131,29 @@ dd {
   margin-block-start: 1rem;
 }
 
+.mutation-form {
+  margin-block-end: 1.5rem;
+  max-width: 48rem;
+}
+
+.mutation-form textarea {
+  resize: vertical;
+  width: 100%;
+}
+
+.comment-list {
+  padding-inline-start: 1.25rem;
+}
+
+.comment-list li {
+  margin-block-end: 1rem;
+}
+
+.comment-body {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 48rem) {
   .dashboard-header,
   .dashboard-nav,

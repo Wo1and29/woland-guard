@@ -63,6 +63,12 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
         },
     ),
     (
+        "incident.comment_added",
+        AuditActorType.OPERATOR,
+        "incident_comment",
+        {"incident_id": _OPERATOR_ID},
+    ),
+    (
         "operator_web_session.started",
         AuditActorType.OPERATOR,
         "operator_web_session",

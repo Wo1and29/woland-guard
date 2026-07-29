@@ -29,7 +29,7 @@ def test_templates_have_no_unsafe_rendering_or_external_resources() -> None:
         assert forbidden not in combined
 
 
-def test_data_pages_use_shared_layout_and_no_comment_placeholder() -> None:
+def test_data_pages_use_shared_layout() -> None:
     for relative_path in (
         "dashboard/overview.html",
         "servers/list.html",
@@ -41,7 +41,16 @@ def test_data_pages_use_shared_layout_and_no_comment_placeholder() -> None:
     ):
         content = (TEMPLATES / relative_path).read_text(encoding="utf-8")
         assert '{% extends "base_dashboard.html" %}' in content
-        assert "комментар" not in content.casefold()
+
+
+def test_incident_mutation_forms_are_plain_html_and_csrf_protected() -> None:
+    content = (TEMPLATES / "incidents" / "detail.html").read_text(encoding="utf-8")
+    assert 'action="{{ paths.incidents }}/{{ incident.summary.id }}/transitions"' in content
+    assert 'action="{{ paths.incidents }}/{{ incident.summary.id }}/comments"' in content
+    assert content.count('name="_csrf"') == 2
+    assert content.count('name="idempotency_key"') == 2
+    assert content.count('accept-charset="UTF-8"') == 2
+    assert "|safe" not in content
 
 
 def test_evidence_template_contains_only_the_projection_allowlist() -> None:

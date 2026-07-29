@@ -4,9 +4,10 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–6 и подэтап 7A завершены и зафиксированы локально. Текущая реализация:
+Этапы 1–6 и подэтапы 7A–7B завершены и зафиксированы локально. Текущая реализация:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
-создаёт инциденты, а локальные операторы читают их и выполняют идемпотентные status transitions.
+создаёт инциденты, а локальные операторы читают их, выполняют идемпотентные status transitions
+и добавляют append-only комментарии через защищённый Dashboard.
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
@@ -44,13 +45,15 @@ Linux-агент проверен на синтетических journald fixtu
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–7B.
+- ADR с подтверждёнными архитектурными решениями этапов 1–7C.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
 серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки, ограниченный
 разбор URL-encoded форм и logout с атомарным audit. Read-only Dashboard показывает factual
-overview, серверы, инциденты с ограниченной evidence projection и history, активные правила и
-audit для admin. Изменение статусов и комментарии через HTML относятся к 7C.
+overview, серверы, инциденты с ограниченной evidence projection, paginated history и
+append-only comments, активные правила и audit для admin. `analyst` и `admin` выполняют
+разрешённые status transitions и добавляют комментарии через POST с Origin, session-bound
+CSRF и server-generated idempotency key.
 Перед показом rules Dashboard bounded-проверяет все active definitions независимо от фильтров и
 pagination; повреждённое правило закрывает страницу безопасным 503, а не исчезает из выдачи.
 
@@ -338,6 +341,8 @@ Dashboard authentication и sessions описаны в
 [`docs/adr/0007-dashboard-authentication-and-sessions.md`](docs/adr/0007-dashboard-authentication-and-sessions.md).
 Read-only Dashboard и его query projections описаны в
 [`docs/adr/0008-read-only-dashboard.md`](docs/adr/0008-read-only-dashboard.md).
+Incident actions и append-only comments описаны в
+[`docs/adr/0009-dashboard-incident-actions-and-comments.md`](docs/adr/0009-dashboard-incident-actions-and-comments.md).
 
 ## Локальные операторы
 
@@ -388,8 +393,10 @@ origin, точно совпадающий с `WG_WEB_PUBLIC_ORIGIN`. REST API и
 `active`/`inactive` сервера — только сохранённое `Server.is_active`, не online/offline и не
 healthcheck. Последнее событие — отдельный максимум `occurred_at`. Dashboard не показывает
 event payload, attributes, actor, IP, correlation, API keys, cookies или Telegram credentials.
-Evidence содержит только UUID события, event type, source и три UTC timestamp. Комментариев и
-HTML-изменения статуса в 7B нет.
+Evidence содержит только UUID события, event type, source и три UTC timestamp. Этап 7C
+добавляет отдельные POST-only формы status transition и comments. Они используют существующий
+workflow, актуальный RBAC после PostgreSQL row lock и PRG redirect; комментарии не попадают в
+audit details, outbox, Telegram или application logs.
 
 ## Incident workflow и audit
 

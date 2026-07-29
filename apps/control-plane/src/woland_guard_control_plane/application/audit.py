@@ -108,6 +108,12 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
             allowed_auth_methods=frozenset(OperatorAuthMethodType),
             incident_history_policy=IncidentHistoryPolicy.REQUIRED,
         ),
+        "incident.comment_added": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="incident_comment",
+            detail_fields=_fields(incident_id=AuditDetailType.UUID),
+            allowed_auth_methods=frozenset(OperatorAuthMethodType),
+        ),
         "operator_web_session.started": AuditActionSpec(
             actor_type=AuditActorType.OPERATOR,
             target_type="operator_web_session",

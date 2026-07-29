@@ -20,6 +20,7 @@ from woland_guard_control_plane.infrastructure.database.models import OperatorRo
                 Permission.ACCESS_DASHBOARD,
                 Permission.VIEW_INCIDENTS,
                 Permission.TRANSITION_INCIDENTS,
+                Permission.COMMENT_INCIDENTS,
             },
         ),
         (OperatorRole.ADMIN, set(Permission)),

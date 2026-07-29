@@ -9,6 +9,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     DetectionRuleVersion,
     Event,
     Incident,
+    IncidentComment,
     IncidentEvent,
     IncidentHistoryEntry,
     NotificationDestination,
@@ -26,6 +27,7 @@ MODEL_TYPES = (
     DetectionRuleVersion,
     Event,
     Incident,
+    IncidentComment,
     IncidentEvent,
     IncidentHistoryEntry,
     NotificationDestination,
@@ -47,6 +49,7 @@ def test_expected_tables_are_registered() -> None:
         "detection_rule_versions",
         "events",
         "incident_events",
+        "incident_comments",
         "incident_history",
         "incidents",
         "operator_api_keys",
@@ -164,6 +167,38 @@ def test_incident_workflow_metadata_has_versions_and_immutable_record_shapes() -
     assert ("operator_id", "idempotency_key") in idempotency_unique_columns
     assert {"canonical_request_hash", "response_status", "response_body"} <= set(
         idempotency_table.columns.keys()
+    )
+
+
+def test_incident_comment_metadata_is_minimal_and_append_only_ready() -> None:
+    table = Base.metadata.tables["incident_comments"]
+    checks = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    comment_index = next(
+        index for index in table.indexes if index.name == "ix_incident_comments_incident_created_id"
+    )
+
+    assert set(table.columns.keys()) == {
+        "id",
+        "incident_id",
+        "operator_id",
+        "actor_username_snapshot",
+        "auth_method_type",
+        "auth_method_id",
+        "request_id",
+        "body",
+        "created_at",
+    }
+    assert "BETWEEN 1 AND 1000" in checks["ck_incident_comments_body_length"]
+    assert "operator_api_key" in checks["ck_incident_comments_auth_method_type_allowed"]
+    assert "web_session" in checks["ck_incident_comments_auth_method_type_allowed"]
+    assert tuple(column.name for column in comment_index.columns) == (
+        "incident_id",
+        "created_at",
+        "id",
     )
 
 

@@ -1,6 +1,6 @@
 # ADR-0007: Dashboard authentication и server-side sessions
 
-- Статус: принято к реализации в 7A
+- Статус: принято и реализовано в 7A
 - Дата: 2026-07-28
 
 ## Контекст
@@ -61,6 +61,11 @@ Bearer credential и не должен связывать RBAC с одним с�
     находится снаружи FastAPI error boundary, поглощает повторно поднятое уже обработанное
     исключение и не отправляет второй `response.start`. Если body был начат, wrapper только
     безопасно завершает его без exception text и traceback в ASGI-server logs.
+13. Unsafe incident routes этапа 7C используют no-touch preliminary authentication. После
+    Origin, bounded form и session-bound CSRF внутри mutation-транзакции блокируются
+    `operator_web_sessions` и текущая строка `operators`; token binding, lifecycle,
+    `operator.is_active`, актуальные username/role и permission проверяются повторно. Detached
+    preliminary principal не передаётся в business mutation.
 
 ## Границы 7A
 

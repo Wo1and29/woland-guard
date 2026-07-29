@@ -7,6 +7,9 @@ from woland_guard_control_plane.infrastructure.database.models.detection import 
     IncidentStatus,
 )
 from woland_guard_control_plane.infrastructure.database.models.event import Event
+from woland_guard_control_plane.infrastructure.database.models.incident_comment import (
+    IncidentComment,
+)
 from woland_guard_control_plane.infrastructure.database.models.operator import (
     Operator,
     OperatorApiKey,
@@ -43,6 +46,7 @@ __all__ = [
     "DetectionRuleVersion",
     "Event",
     "Incident",
+    "IncidentComment",
     "IncidentEvent",
     "IncidentHistoryEntry",
     "IncidentStatus",

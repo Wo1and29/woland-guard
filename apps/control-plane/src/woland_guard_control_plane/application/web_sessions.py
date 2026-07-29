@@ -20,6 +20,7 @@ from woland_guard_control_plane.application.operator_authentication import (
     AuthenticatedOperatorApiKey,
 )
 from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
+from woland_guard_control_plane.application.rbac import Permission, role_has_permission
 from woland_guard_control_plane.infrastructure.database.models import (
     Operator,
     OperatorAuthMethodType,
@@ -39,6 +40,10 @@ class WebSessionError(ValueError):
 
 class InvalidWebSessionError(WebSessionError):
     """One indistinguishable failure for every unusable session."""
+
+
+class WebSessionPermissionError(WebSessionError):
+    """The current locked operator role cannot perform a requested mutation."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +273,59 @@ def verify_csrf_tokens(
         return False
     digest_matches = compare_digest(sha256(form_raw).digest(), expected_digest)
     return tokens_match and digest_matches
+
+
+def lock_web_session_for_mutation(
+    session: Session,
+    *,
+    authenticated: AuthenticatedWebSession,
+    session_token: str,
+    required_permission: Permission,
+    now: datetime,
+) -> OperatorPrincipal:
+    """Lock and revalidate the session and current operator authorization."""
+
+    current_time = _as_utc(now)
+    digest = web_token_digest(session_token)
+    if digest is None:
+        raise InvalidWebSessionError("invalid web session")
+    row = session.execute(
+        select(OperatorWebSession, Operator)
+        .join(Operator, Operator.id == OperatorWebSession.operator_id)
+        .where(OperatorWebSession.id == authenticated.session_id)
+        .with_for_update(of=(OperatorWebSession, Operator))
+    ).one_or_none()
+    if row is None:
+        raise InvalidWebSessionError("invalid web session")
+    stored, operator = row
+    binding_is_valid = (
+        compare_digest(stored.token_digest, digest)
+        and compare_digest(stored.csrf_token_digest, authenticated.csrf_token_digest)
+        and stored.id == authenticated.session_id
+        and stored.operator_id == authenticated.principal.operator_id
+        and authenticated.principal.auth_method_type is OperatorAuthMethodType.WEB_SESSION
+        and authenticated.principal.auth_method_id == stored.id
+    )
+    lifecycle_is_valid = (
+        stored.revoked_at is None
+        and stored.idle_expires_at > current_time
+        and stored.absolute_expires_at > current_time
+        and operator.id == stored.operator_id
+        and operator.is_active
+    )
+    if not binding_is_valid or not lifecycle_is_valid:
+        raise InvalidWebSessionError("invalid web session")
+
+    current_role = OperatorRole(operator.role)
+    if not role_has_permission(current_role, required_permission):
+        raise WebSessionPermissionError("web session permission is unavailable")
+    return OperatorPrincipal(
+        operator_id=operator.id,
+        username=operator.username,
+        role=current_role,
+        auth_method_type=OperatorAuthMethodType.WEB_SESSION,
+        auth_method_id=stored.id,
+    )
 
 
 def revoke_operator_web_session(

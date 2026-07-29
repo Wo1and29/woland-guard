@@ -27,6 +27,7 @@ pytestmark = pytest.mark.integration
 REVISION_0006 = "20260727_0006"
 REVISION_0007 = "20260727_0007"
 REVISION_0008 = "20260728_0008"
+REVISION_0009 = "20260728_0009"
 
 
 def test_auth_method_constraints_are_closed_in_both_tables() -> None:
@@ -152,12 +153,12 @@ def test_upgrade_preserves_existing_operator_api_key_auth_rows(
                     "target_id": uuid4(),
                 },
             )
-        command.upgrade(config, REVISION_0008)
+        command.upgrade(config, REVISION_0009)
         with get_session_factory()() as session:
             stored = session.get(AuditLogEntry, audit_id)
             assert stored is not None and stored.auth_method_type == "operator_api_key"
     finally:
-        command.upgrade(config, REVISION_0008)
+        command.upgrade(config, REVISION_0009)
 
 
 def test_downgrade_refuses_populated_web_sessions(
@@ -188,7 +189,7 @@ def test_downgrade_refuses_populated_web_sessions(
         )
         connection.execute(text("ALTER TABLE audit_log_entries ENABLE TRIGGER USER"))
     command.downgrade(config, REVISION_0006)
-    command.upgrade(config, REVISION_0008)
+    command.upgrade(config, REVISION_0009)
 
 
 def test_dashboard_query_indexes_upgrade_and_downgrade() -> None:
@@ -204,12 +205,12 @@ def test_dashboard_query_indexes_upgrade_and_downgrade() -> None:
             "ix_servers_lower_name_pattern",
         }
     finally:
-        command.upgrade(config, REVISION_0008)
+        command.upgrade(config, REVISION_0009)
 
 
-def test_current_revision_is_0008() -> None:
+def test_current_revision_is_0009() -> None:
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0008
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0009
     with get_session_factory()() as session:
         assert session.scalar(select(IncidentHistoryEntry).limit(1)) is None
 

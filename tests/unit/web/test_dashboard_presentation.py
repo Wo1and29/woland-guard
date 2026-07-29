@@ -9,7 +9,12 @@ from woland_guard_control_plane.application.audit_queries import AuditDashboardE
 from woland_guard_control_plane.web.presentation import audit_entry_view
 
 
-def _entry(details: object, *, action: str = "incident.status_changed") -> AuditDashboardEntry:
+def _entry(
+    details: object,
+    *,
+    action: str = "incident.status_changed",
+    target_type: str = "incident",
+) -> AuditDashboardEntry:
     return AuditDashboardEntry(
         id=UUID("10000000-0000-4000-8000-000000000001"),
         actor_type="operator",
@@ -17,7 +22,7 @@ def _entry(details: object, *, action: str = "incident.status_changed") -> Audit
         actor_username="synthetic-admin",
         auth_method_type="web_session",
         action=action,
-        target_type="incident",
+        target_type=target_type,
         target_id=UUID("30000000-0000-4000-8000-000000000003"),
         request_id="safe-request",
         details=details,
@@ -39,6 +44,17 @@ def test_valid_audit_details_are_rendered_from_closed_registry() -> None:
     )
     assert view.details is not None
     assert dict(view.details)["to_status"] == "investigating"
+
+
+def test_comment_audit_presents_only_allowlisted_incident_id() -> None:
+    view = audit_entry_view(
+        _entry(
+            {"incident_id": "40000000-0000-4000-8000-000000000004"},
+            action="incident.comment_added",
+            target_type="incident_comment",
+        )
+    )
+    assert view.details == (("incident_id", "40000000-0000-4000-8000-000000000004"),)
 
 
 def test_one_extra_field_hides_all_audit_details_but_keeps_metadata() -> None:

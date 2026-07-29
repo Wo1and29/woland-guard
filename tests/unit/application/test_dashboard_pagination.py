@@ -127,3 +127,40 @@ def test_malformed_ordering_key_type_is_rejected() -> None:
     cursor = base64.urlsafe_b64encode(raw).decode().rstrip("=")
     with pytest.raises(DashboardCursorValidationError):
         decode_dashboard_cursor(cursor, expected=_context())
+
+
+def test_incident_history_cursor_uses_one_positive_integer_version() -> None:
+    context = DashboardCursorContext(
+        DashboardListType.INCIDENT_HISTORY,
+        {"incident_id": "10000000-0000-4000-8000-000000000001"},
+        None,
+        "version_asc",
+        25,
+    )
+    cursor = encode_dashboard_cursor(context, keys=(7,))
+    assert decode_dashboard_cursor(cursor, expected=context) == (7,)
+    with pytest.raises(ValueError):
+        encode_dashboard_cursor(context, keys=(True,))
+
+
+def test_comment_cursor_is_bound_to_its_incident() -> None:
+    created_at = datetime(2026, 7, 29, tzinfo=UTC)
+    row_id = UUID("20000000-0000-4000-8000-000000000002")
+    first = DashboardCursorContext(
+        DashboardListType.INCIDENT_COMMENTS,
+        {"incident_id": "10000000-0000-4000-8000-000000000001"},
+        None,
+        "created_desc",
+        25,
+    )
+    second = DashboardCursorContext(
+        DashboardListType.INCIDENT_COMMENTS,
+        {"incident_id": "30000000-0000-4000-8000-000000000003"},
+        None,
+        "created_desc",
+        25,
+    )
+    cursor = encode_dashboard_cursor(first, keys=(created_at, row_id))
+    assert decode_dashboard_cursor(cursor, expected=first) == (created_at, row_id)
+    with pytest.raises(DashboardCursorValidationError):
+        decode_dashboard_cursor(cursor, expected=second)

@@ -17,7 +17,7 @@ DASHBOARD_PAGE_SIZES = frozenset({25, 50, 100})
 _BASE64URL_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _FIELDS = frozenset({"filters", "keys", "list", "page_size", "search", "sort", "v"})
 
-CursorKey = str | UUID | datetime
+CursorKey = str | int | UUID | datetime
 FilterValue = str | int | bool | None | list[str]
 
 
@@ -27,6 +27,8 @@ class DashboardListType(StrEnum):
     RULES = "rules"
     AUDIT = "audit"
     EVIDENCE = "evidence"
+    INCIDENT_HISTORY = "incident_history"
+    INCIDENT_COMMENTS = "incident_comments"
 
 
 _SORTS: dict[DashboardListType, frozenset[str]] = {
@@ -35,6 +37,8 @@ _SORTS: dict[DashboardListType, frozenset[str]] = {
     DashboardListType.RULES: frozenset({"rule_key_asc", "rule_key_desc"}),
     DashboardListType.AUDIT: frozenset({"created_asc", "created_desc"}),
     DashboardListType.EVIDENCE: frozenset({"linked_asc"}),
+    DashboardListType.INCIDENT_HISTORY: frozenset({"version_asc"}),
+    DashboardListType.INCIDENT_COMMENTS: frozenset({"created_desc"}),
 }
 _KEY_TYPES: dict[DashboardListType, tuple[str, ...]] = {
     DashboardListType.SERVERS: ("text", "uuid"),
@@ -42,6 +46,8 @@ _KEY_TYPES: dict[DashboardListType, tuple[str, ...]] = {
     DashboardListType.RULES: ("text", "uuid"),
     DashboardListType.AUDIT: ("datetime", "uuid"),
     DashboardListType.EVIDENCE: ("datetime", "uuid"),
+    DashboardListType.INCIDENT_HISTORY: ("integer",),
+    DashboardListType.INCIDENT_COMMENTS: ("datetime", "uuid"),
 }
 
 
@@ -161,11 +167,11 @@ def _validate_filters(value: object) -> None:
         raise ValueError("invalid dashboard filters")
 
 
-def _encode_keys(list_type: DashboardListType, keys: tuple[CursorKey, ...]) -> list[str]:
+def _encode_keys(list_type: DashboardListType, keys: tuple[CursorKey, ...]) -> list[str | int]:
     expected_types = _KEY_TYPES[list_type]
     if len(keys) != len(expected_types):
         raise ValueError("invalid dashboard ordering keys")
-    encoded: list[str] = []
+    encoded: list[str | int] = []
     for kind, value in zip(expected_types, keys, strict=True):
         if kind == "text" and type(value) is str:
             encoded.append(value)
@@ -173,6 +179,8 @@ def _encode_keys(list_type: DashboardListType, keys: tuple[CursorKey, ...]) -> l
             encoded.append(str(value))
         elif kind == "datetime" and isinstance(value, datetime):
             encoded.append(_utc_text(value))
+        elif kind == "integer" and type(value) is int and value > 0:
+            encoded.append(value)
         else:
             raise ValueError("invalid dashboard ordering keys")
     return encoded
@@ -184,6 +192,11 @@ def _decode_keys(list_type: DashboardListType, keys: list[Any]) -> tuple[CursorK
         raise DashboardCursorValidationError("invalid dashboard cursor")
     decoded: list[CursorKey] = []
     for kind, value in zip(expected_types, keys, strict=True):
+        if kind == "integer":
+            if type(value) is not int or value <= 0:
+                raise DashboardCursorValidationError("invalid dashboard cursor")
+            decoded.append(value)
+            continue
         if type(value) is not str:
             raise DashboardCursorValidationError("invalid dashboard cursor")
         if kind == "text":

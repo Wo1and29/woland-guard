@@ -104,3 +104,28 @@ def require_dashboard_permission(
         return authenticated
 
     return authorize
+
+
+def require_dashboard_mutation_permission(
+    permission: Permission,
+) -> Callable[..., AuthenticatedWebSession]:
+    """Perform preliminary no-touch authorization before Origin and CSRF checks."""
+
+    def authorize(
+        request: Request,
+        authenticated: Annotated[
+            AuthenticatedWebSession,
+            Depends(get_authenticated_web_session_for_mutation),
+        ],
+    ) -> AuthenticatedWebSession:
+        if not role_has_permission(authenticated.principal.role, permission):
+            limiter = cast(FixedWindowRateLimiter, request.app.state.security_log_limiter)
+            if limiter.consume("dashboard_authorization_denied") is None:
+                logger.warning(
+                    "request_id=%s security_event=dashboard_authorization_denied",
+                    str(request.state.request_id),
+                )
+            raise WebError(403, "Недостаточно прав для Dashboard.")
+        return authenticated
+
+    return authorize

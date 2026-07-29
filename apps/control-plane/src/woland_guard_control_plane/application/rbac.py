@@ -9,6 +9,7 @@ class Permission(StrEnum):
     ACCESS_DASHBOARD = "dashboard:access"
     VIEW_INCIDENTS = "incidents:view"
     TRANSITION_INCIDENTS = "incidents:transition"
+    COMMENT_INCIDENTS = "incidents:comment"
     VIEW_AUDIT_LOG = "audit:view"
     MANAGE_OPERATORS = "operators:manage"
     MANAGE_TELEGRAM_DESTINATIONS = "telegram_destinations:manage"
@@ -21,6 +22,7 @@ ROLE_PERMISSIONS: dict[OperatorRole, frozenset[Permission]] = {
             Permission.ACCESS_DASHBOARD,
             Permission.VIEW_INCIDENTS,
             Permission.TRANSITION_INCIDENTS,
+            Permission.COMMENT_INCIDENTS,
         }
     ),
     OperatorRole.ADMIN: frozenset(Permission),

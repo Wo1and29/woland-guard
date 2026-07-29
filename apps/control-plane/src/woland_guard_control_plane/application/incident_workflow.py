@@ -11,17 +11,21 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from woland_guard_control_plane.application.audit import record_operator_action
+from woland_guard_control_plane.application.operator_idempotency import (
+    acquire_operator_idempotency_lock,
+    load_operator_idempotency_record,
+    store_operator_idempotency_record,
+)
 from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.infrastructure.database.models import (
     HistoryEntryType,
     Incident,
     IncidentHistoryEntry,
     IncidentStatus,
-    OperatorIdempotencyRecord,
 )
 
 IDEMPOTENCY_OPERATION = "incident.status.transition.v1"
@@ -102,6 +106,13 @@ def is_transition_allowed(current_status: IncidentStatus, target_status: Inciden
     return target_status.value in _ALLOWED_TRANSITIONS[current_status.value]
 
 
+def allowed_transition_targets(current_status: IncidentStatus) -> tuple[IncidentStatus, ...]:
+    """Expose the authoritative state machine in stable enum order for HTML forms."""
+
+    allowed = _ALLOWED_TRANSITIONS[current_status.value]
+    return tuple(status for status in IncidentStatus if status.value in allowed)
+
+
 def canonical_transition_hash(incident_id: UUID, transition: NormalizedTransition) -> str:
     canonical = {
         "expected_version": transition.expected_version,
@@ -132,16 +143,15 @@ def transition_incident(
 ) -> TransitionOutcome:
     """Evaluate and persist one completed outcome inside a caller-owned transaction."""
 
-    _acquire_idempotency_lock(
+    acquire_operator_idempotency_lock(
         session,
         operator_id=actor.operator_id,
         idempotency_key=idempotency_key,
     )
-    existing = session.scalar(
-        select(OperatorIdempotencyRecord).where(
-            OperatorIdempotencyRecord.operator_id == actor.operator_id,
-            OperatorIdempotencyRecord.idempotency_key == idempotency_key,
-        )
+    existing = load_operator_idempotency_record(
+        session,
+        operator_id=actor.operator_id,
+        idempotency_key=idempotency_key,
     )
     if existing is not None:
         if existing.canonical_request_hash == canonical_request_hash:
@@ -279,17 +289,6 @@ def _reject_prohibited_reason_characters(value: str) -> None:
         raise TransitionValidationError("reason contains a prohibited Unicode character")
 
 
-def _acquire_idempotency_lock(
-    session: Session,
-    *,
-    operator_id: UUID,
-    idempotency_key: str,
-) -> None:
-    material = f"{operator_id}:{idempotency_key}".encode()
-    lock_key = int.from_bytes(hashlib.sha256(material).digest()[:8], "big", signed=True)
-    session.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
-
-
 def _store_outcome(
     session: Session,
     *,
@@ -301,18 +300,16 @@ def _store_outcome(
     response_body: dict[str, Any],
     conflict_type: str | None = None,
 ) -> TransitionOutcome:
-    session.add(
-        OperatorIdempotencyRecord(
-            operator_id=actor.operator_id,
-            idempotency_key=idempotency_key,
-            operation=IDEMPOTENCY_OPERATION,
-            resource_id=incident_id,
-            canonical_request_hash=canonical_request_hash,
-            response_status=http_status,
-            response_body=response_body,
-        )
+    store_operator_idempotency_record(
+        session,
+        operator_id=actor.operator_id,
+        idempotency_key=idempotency_key,
+        operation=IDEMPOTENCY_OPERATION,
+        resource_id=incident_id,
+        canonical_request_hash=canonical_request_hash,
+        response_status=http_status,
+        response_body=response_body,
     )
-    session.flush()
     return TransitionOutcome(http_status, response_body, conflict_type=conflict_type)
 
 

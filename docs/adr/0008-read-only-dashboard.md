@@ -1,6 +1,6 @@
 # ADR-0008: Read-only Dashboard и безопасные query projections
 
-- Статус: принято к реализации в 7B
+- Статус: принято и реализовано в 7B
 - Дата: 2026-07-28
 
 ## Контекст
@@ -54,7 +54,7 @@
    затем выполняет коррелированные агрегаты в одном SQL statement: таблицы событий и инцидентов
    не агрегируются глобально до page boundary. Фактические budgets: overview — 7; server list —
    1; `get_server_detail` — 1; HTTP server detail вместе с recent incidents — 2 application
-   statements; incident list — 1; incident detail + history + evidence — 3; rules — 2
+   statements; incident list — 1; incident detail + evidence + history + comments — 4; rules — 2
    (all-active validation + page); audit — 1.
 10. Representative PostgreSQL fixtures содержат 1000 серверов, 3500 событий, 2000 инцидентов
     и 2500 evidence links. На PostgreSQL 17 с database collation `en_US.utf8` исходный
@@ -75,7 +75,7 @@ access permission в 7B. Cursor и object identifiers не меняют RBAC.
 
 ## Границы и ограничения
 
-Комментарии, status forms, CSRF mutations и HTMX относятся к 7C. Playwright, HTTPS browser
+Status forms, comments и CSRF mutations реализуются в 7C без HTMX. Playwright, HTTPS browser
 harness и фактическая mobile-viewport проверка относятся к 7D. В 7B responsive CSS проверяется
 статически и через template integration tests; ручной просмотр возможен только в отдельно
 подготовленном HTTPS-окружении. Planner может менять физический plan при других объёмах,

@@ -233,6 +233,7 @@ def reset_rate_limiter(api_app: FastAPI) -> None:
 def _truncate_application_tables() -> None:
     _assert_isolated_test_database_settings()
     immutable_tables = (
+        "incident_comments",
         "incident_history",
         "audit_log_entries",
         "operator_idempotency_records",
@@ -248,7 +249,8 @@ def _truncate_application_tables() -> None:
             connection.execute(
                 text(
                     "TRUNCATE TABLE operator_idempotency_records, audit_log_entries, "
-                    "incident_history, incident_events, incidents, detection_rule_versions, "
+                    "incident_comments, incident_history, incident_events, incidents, "
+                    "detection_rule_versions, "
                     "events, outbox_messages, telegram_destination_configs, "
                     "notification_destinations, agent_api_keys, "
                     "servers, operator_web_sessions, operator_api_keys, "
