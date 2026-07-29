@@ -1,6 +1,7 @@
 {% extends "base_minimal.html" %}
 {% block title %}Woland Guard Dashboard{% endblock %}
 {% block content %}
+<a class="skip-link" href="#dashboard-content">К основному содержанию</a>
 <header class="dashboard-header">
   <div>
     <a class="brand" href="{{ paths.home }}">Woland Guard</a>
@@ -18,7 +19,7 @@
   <a{% if active_navigation == "rules" %} aria-current="page"{% endif %} href="{{ paths.rules }}">Правила</a>
   {% if can_view_audit %}<a{% if active_navigation == "audit" %} aria-current="page"{% endif %} href="{{ paths.audit }}">Аудит</a>{% endif %}
 </nav>
-<section class="dashboard-content">
+<section id="dashboard-content" class="dashboard-content" tabindex="-1">
   {% block dashboard_content %}{% endblock %}
 </section>
 {% endblock %}

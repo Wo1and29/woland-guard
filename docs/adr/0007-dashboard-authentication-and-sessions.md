@@ -53,7 +53,7 @@ Bearer credential и не должен связывать RBAC с одним с�
    web-session history/audit, чтобы не потерять identity provenance.
 10. Dashboard — sub-application, смонтированный на `/dashboard`; его внутренние routes:
     `/login`, `/logout`, `/`. Повторного `/dashboard` prefix внутри нет.
-11. Все HTML responses получают `no-store`, `nosniff`, `no-referrer` и CSP без inline
+11. Все HTML responses получают `no-store`, `nosniff`, `same-origin` и CSP без inline
     script/style и без внешних ресурсов. Logout очищает cookies только после успешного
     revoke+audit commit; при Origin/CSRF/DB ошибке cookies сохраняются.
 12. Единственный unexpected-error handler Dashboard формирует безопасный HTML 500 с

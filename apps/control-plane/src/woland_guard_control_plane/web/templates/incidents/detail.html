@@ -28,7 +28,7 @@
 {% if comments %}<ol class="comment-list">{% for item in comments %}<li><p><strong>{{ item.operator_username }}</strong> · {{ utc_text(item.created_at) }}</p><p class="comment-body">{{ item.body }}</p></li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% if comments_next_url %}<p><a href="{{ comments_next_url }}">Следующая страница комментариев</a></p>{% endif %}
 <h2>Evidence</h2>
-{% if evidence %}<div class="table-wrap"><table><thead><tr><th>Event UUID</th><th>Тип</th><th>Источник</th><th>Occurred</th><th>Collected</th><th>Linked</th></tr></thead><tbody>
+{% if evidence %}<div class="table-wrap" tabindex="0" aria-label="Evidence инцидента"><table><caption class="visually-hidden">Evidence инцидента</caption><thead><tr><th scope="col">Event UUID</th><th scope="col">Тип</th><th scope="col">Источник</th><th scope="col">Occurred</th><th scope="col">Collected</th><th scope="col">Linked</th></tr></thead><tbody>
 {% for item in evidence %}<tr><td>{{ item.event_id }}</td><td>{{ item.event_type }}</td><td>{{ item.source }}</td><td>{{ utc_text(item.occurred_at) }}</td><td>{{ utc_text(item.collected_at) }}</td><td>{{ utc_text(item.linked_at) }}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% if evidence_next_url %}<p><a href="{{ evidence_next_url }}">Следующая страница evidence</a></p>{% endif %}

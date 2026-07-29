@@ -13,7 +13,7 @@
   <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
   <button type="submit">Применить</button>
 </form>
-{% if items %}<div class="table-wrap"><table><thead><tr><th>Создан</th><th>Severity</th><th>Статус</th><th>Инцидент</th><th>Сервер</th><th>Evidence</th></tr></thead><tbody>
+{% if items %}<div class="table-wrap" tabindex="0" aria-label="Список инцидентов"><table><caption class="visually-hidden">Список инцидентов</caption><thead><tr><th scope="col">Создан</th><th scope="col">Severity</th><th scope="col">Статус</th><th scope="col">Инцидент</th><th scope="col">Сервер</th><th scope="col">Evidence</th></tr></thead><tbody>
 {% for item in items %}<tr><td>{{ utc_text(item.created_at) }}</td><td>{{ item.severity }}</td><td>{{ item.status }}</td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a><br><small>{{ item.rule_key }} v{{ item.rule_version }}</small></td><td>{{ item.server_name }}</td><td>{{ item.event_count }}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% include "components/pagination.html" %}

@@ -13,7 +13,7 @@
   <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
   <button type="submit">Применить</button>
 </form>
-{% if items %}<div class="table-wrap"><table><thead><tr><th>Время</th><th>Actor</th><th>Action</th><th>Target</th><th>Request ID</th><th>Details</th></tr></thead><tbody>
+{% if items %}<div class="table-wrap" tabindex="0" aria-label="Audit log"><table><caption class="visually-hidden">Audit log</caption><thead><tr><th scope="col">Время</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Request ID</th><th scope="col">Details</th></tr></thead><tbody>
 {% for item in items %}<tr><td>{{ item.created_at }}</td><td>{{ item.actor }}</td><td>{{ item.action }}</td><td>{{ item.target }}</td><td>{{ item.request_id }}</td><td>{% if item.details is none %}{{ audit_details_unavailable }}{% elif item.details %}<dl>{% for field, value in item.details %}<dt>{{ field }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>{% else %}—{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% include "components/pagination.html" %}

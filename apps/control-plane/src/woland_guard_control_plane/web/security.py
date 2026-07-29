@@ -18,7 +18,7 @@ CSRF_FORM_FIELD = "_csrf"
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "same-origin",
     "Content-Security-Policy": (
         "default-src 'none'; style-src 'self'; img-src 'self'; "
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"

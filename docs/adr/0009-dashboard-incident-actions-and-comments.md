@@ -1,6 +1,6 @@
 # ADR-0009: Dashboard incident actions и append-only comments
 
-- Статус: принято к реализации в 7C
+- Статус: принято и реализовано в 7C
 - Дата: 2026-07-29
 
 ## Контекст

@@ -9,6 +9,8 @@
 }
 
 body {
+  background-color: Canvas;
+  color: CanvasText;
   margin: 0;
 }
 
@@ -19,9 +21,34 @@ a {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible,
+.table-wrap:focus-visible {
   outline: 3px solid currentColor;
   outline-offset: 2px;
+}
+
+.skip-link {
+  background: Canvas;
+  color: CanvasText;
+  inset-inline-start: 1rem;
+  padding: 0.75rem;
+  position: absolute;
+  top: -10rem;
+  z-index: 1;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.visually-hidden {
+  block-size: 1px;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
 }
 
 .minimal-shell {

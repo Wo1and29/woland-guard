@@ -4,7 +4,8 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–6 и подэтапы 7A–7B завершены и зафиксированы локально. Текущая реализация:
+Этапы 1–6 и подэтапы 7A–7C завершены и зафиксированы локально. Этап 7D проходит
+повторное ревью без коммита. Текущая реализация:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их, выполняют идемпотентные status transitions
 и добавляют append-only комментарии через защищённый Dashboard.
@@ -46,6 +47,8 @@ Linux-агент проверен на синтетических journald fixtu
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
 - ADR с подтверждёнными архитектурными решениями этапов 1–7C.
+- изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
+  отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
 серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки, ограниченный
@@ -56,6 +59,29 @@ append-only comments, активные правила и audit для admin. `an
 CSRF и server-generated idempotency key.
 Перед показом rules Dashboard bounded-проверяет все active definitions независимо от фильтров и
 pagination; повреждённое правило закрывает страницу безопасным 503, а не исчезает из выдачи.
+
+## Browser-проверка Dashboard
+
+Browser suite использует только Chromium и запускается явно. Browser binary хранится в
+игнорируемом каталоге `.playwright-browsers`; сертификат, private key, PostgreSQL credentials
+и application process создаются только во временном каталоге вне репозитория.
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = ".playwright-browsers"
+uv run playwright install --no-shell chromium
+$env:WG_RUN_BROWSER_TESTS = "1"
+uv run pytest tests/browser
+```
+
+Harness привязывает HTTPS к `127.0.0.1:0`, строго проверяет временный CA отдельным readiness
+client и передаёт тот же открытый socket публичному API Uvicorn. Непостоянный Playwright
+`BrowserContext` использует `ignore_https_errors=True`; это не является проверкой browser
+CA-chain. HTTP/HTTPS-запросы тестируемых страниц разрешены только к точному origin harness,
+любой WebSocket блокируется. Это не доказывает process-level сетевую изоляцию Chromium.
+
+Screenshots, trace, video, HAR, downloads и storage state по умолчанию отключены. Временный
+review-run со скриншотами разрешается только через `WG_BROWSER_REVIEW_SCREENSHOTS=1`; файлы
+создаются в `.pytest-browser`, просматриваются локально и после просмотра удаляются.
 
 ## Требования
 

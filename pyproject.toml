@@ -9,9 +9,11 @@ dependencies = []
 dev = [
     "httpx2>=2,<3",
     "mypy>=1.15,<2",
+    "playwright==1.61.0",
     "pytest>=8.3,<10",
     "pytest-cov>=6,<8",
     "ruff>=0.11,<1",
+    "trustme==1.2.1",
     "types-PyYAML>=6.0.12,<7",
 ]
 
@@ -36,6 +38,7 @@ addopts = [
 pythonpath = [".", "apps/agent/src", "apps/control-plane/src", "packages/contracts/src"]
 testpaths = ["tests"]
 markers = [
+    "browser: requires explicit Chromium and an isolated HTTPS/PostgreSQL harness",
     "docker: requires the local Docker engine and an isolated Compose project",
     "integration: requires the Docker integration environment",
 ]
