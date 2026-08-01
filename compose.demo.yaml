@@ -1,0 +1,152 @@
+name: woland-guard-demo
+
+services:
+  demo-postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: wg_demo
+      POSTGRES_USER: wg_demo
+      POSTGRES_PASSWORD: ${WG_DEMO_POSTGRES_PASSWORD:?demo PostgreSQL password is required}
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wg_demo -d wg_demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+    restart: "no"
+    volumes:
+      - demo-postgres-data:/var/lib/postgresql/data
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    networks:
+      - demo-backend
+    mem_limit: 1g
+    cpus: 2.0
+    pids_limit: 256
+
+  demo-migrate:
+    build:
+      context: .
+      dockerfile: deploy/docker/control-plane.Dockerfile
+      target: runtime
+      labels:
+        com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+    user: "10001:10001"
+    environment: &demo-application-environment
+      WG_APP_ENV: test
+      WG_POSTGRES_HOST: demo-postgres
+      WG_POSTGRES_PORT: "5432"
+      WG_POSTGRES_DB: wg_demo
+      WG_POSTGRES_USER: wg_demo
+      WG_POSTGRES_PASSWORD: ${WG_DEMO_POSTGRES_PASSWORD:?demo PostgreSQL password is required}
+      WG_WEB_PUBLIC_ORIGIN: https://localhost:8000
+      WG_INGEST_RATE_LIMIT_REQUESTS: "1000"
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    networks:
+      - demo-backend
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  demo-rule-sync:
+    build:
+      context: .
+      dockerfile: deploy/docker/control-plane.Dockerfile
+      target: runtime
+      labels:
+        com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    command:
+      [
+        "woland-guard-admin",
+        "sync-rules",
+        "--rules-dir",
+        "/workspace/detection-rules",
+      ]
+    user: "10001:10001"
+    environment: *demo-application-environment
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    networks:
+      - demo-backend
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  demo-control-plane:
+    build:
+      context: .
+      dockerfile: deploy/docker/control-plane.Dockerfile
+      target: runtime
+      labels:
+        com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    user: "10001:10001"
+    environment: *demo-application-environment
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-migrate:
+        condition: service_completed_successfully
+      demo-rule-sync:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1::8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+    init: true
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+    networks:
+      - demo-backend
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+networks:
+  demo-backend:
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}
+
+volumes:
+  demo-postgres-data:
+    labels:
+      com.woland_guard.demo_owner: ${WG_DEMO_OWNERSHIP:?demo ownership label is required}

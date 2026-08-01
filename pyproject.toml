@@ -40,6 +40,7 @@ testpaths = ["tests"]
 markers = [
     "browser: requires explicit Chromium and an isolated HTTPS/PostgreSQL harness",
     "docker: requires the local Docker engine and an isolated Compose project",
+    "e2e: requires explicit clean-install full-stack verification",
     "integration: requires the Docker integration environment",
 ]
 
@@ -56,7 +57,7 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-src = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "tests"]
+src = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "scripts", "tests"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -67,7 +68,7 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "tests"]
+files = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "scripts", "tests"]
 strict = true
 warn_unreachable = true
 pretty = true

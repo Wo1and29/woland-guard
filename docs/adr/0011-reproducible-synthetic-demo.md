@@ -1,6 +1,6 @@
 # ADR-0011: воспроизводимые синтетические demo-сценарии
 
-- Статус: принято и реализуется в 8A
+- Статус: принято и реализовано в 8A
 - Дата: 2026-07-29
 
 ## Контекст
@@ -134,6 +134,6 @@ catalog validation до HTTP request; `send` выполняет её до чте
 active Incident, baseline history или `incident.created` outbox row для того же server/event ID.
 Distributed exactly-once не заявляется.
 
-8A не доказывает полный пользовательский E2E, не доставляет Telegram, не запускает Compose,
-не создаёт server/destination и не сообщает «инцидент создан» по одному ingestion response.
-Эти проверки принадлежат 8B.
+8A сам по себе не доказывает полный пользовательский E2E, не доставляет Telegram, не запускает
+Compose, не создаёт server/destination и не сообщает «инцидент создан» по одному ingestion
+response. Отдельный 8B verifier использует этот catalog как проверенный источник ожиданий.

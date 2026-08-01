@@ -4,8 +4,8 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–7 завершены и зафиксированы локально. Подэтап 8A с воспроизводимыми синтетическими
-demo-сценариями реализуется и ещё не зафиксирован коммитом. Текущая реализация:
+Этапы 1–7 и подэтап 8A завершены и зафиксированы локально. Подэтап 8B с изолированной
+full-stack demo verification реализован в рабочей копии и ожидает повторного ревью. Текущая реализация:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их, выполняют идемпотентные status transitions
 и добавляют append-only комментарии через защищённый Dashboard.
@@ -46,11 +46,14 @@ Linux-агент проверен на синтетических journald fixtu
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–7 и границей 8A;
+- ADR с подтверждёнными архитектурными решениями этапов 1–8B;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
   boundary demo-сценариев для всех восьми detection rules.
+- отдельная demo-топология с PostgreSQL 17, единственным migration job, rule sync,
+  32-scenario ingestion, настоящим outbox worker, in-process fake Telegram boundary,
+  HTTPS Dashboard smoke и synthetic backup/restore smoke.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
 серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки, ограниченный
@@ -209,8 +212,53 @@ Manifest output и API-key file передаются как абсолютные
 аргументах, manifest или выводе. Sender принимает только явный HTTP/HTTPS loopback origin и
 отправляет только `POST /api/v1/events`. Он сообщает фактические accepted/duplicate/rejected
 counts, но не заявляет создание incident или delivery: пользовательская full-stack verification
-отложена до 8B. Повтор manifest использует at-least-once delivery с идемпотентным ingestion,
+проверяется отдельным 8B verifier. Повтор manifest использует at-least-once delivery с идемпотентным ingestion,
 а не distributed exactly-once.
+
+## Full-stack demo verification 8B
+
+Автоматический verifier использует отдельный `compose.demo.yaml` и уникальные Compose project,
+ownership label, network и PostgreSQL volume. Он применяет миграции одним job, синхронизирует
+ровно восемь enabled version-one rules, отправляет все 32 canonical manifests через публичный
+`POST /api/v1/events`, проверяет точные DB outcomes, запускает настоящий outbox worker с
+demo-only in-process Telegram transport, выполняет один desktop Chromium workflow над той же
+БД, replay и custom-format `pg_dump`/`pg_restore` smoke.
+
+Tracked-only release gate предназначен для уже зафиксированного candidate commit, потому что
+`git archive HEAD` по определению не включает незакоммиченные файлы:
+
+```powershell
+.\scripts\verify-clean-install.ps1
+```
+
+Linux wrapper подготовлен, но native Linux full run пока не подтверждён:
+
+```bash
+sh scripts/verify-clean-install.sh
+```
+
+Оба wrapper создают временный checkout из `git archive HEAD`, отдельные uv environment/cache и
+Playwright browser cache. Dependency acquisition и image build могут потребовать интернет при
+холодном cache. Runtime не вызывает Telegram: fake transport проверяет сформированный request
+и сохраняет только count. Проверка не доказывает реальную Telegram delivery, process-level
+network isolation или production disaster recovery.
+
+Интерактивный synthetic demo использует компактный canonical scenario и запускает Chromium в
+непостоянном context над временным HTTPS harness. Требуется заранее установленный Chromium для
+закреплённого Playwright и новый абсолютный путь для временного credential file:
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = ".playwright-browsers"
+uv run python -m scripts.demo_e2e.human `
+  --project-root (Resolve-Path .).Path `
+  --credential-output C:\wg-demo-private\operators.json
+```
+
+Файл содержит только синтетические operator credentials и удаляется вместе с demo resources
+после Enter/Ctrl+C. На POSIX применяется mode `0600`; на Windows verifier не заявляет
+эквивалентную POSIX ACL-гарантию, поэтому каталог должен быть заранее приватным. Agent key,
+DB password, Telegram token, certificate и private key не выводятся. Не прерывайте Docker
+ресурсы широкими командами: штатный teardown проверяет exact project и ownership metadata.
 
 Тело запроса, где временные метки необходимо заменить текущими UTC-значениями:
 
@@ -397,6 +445,12 @@ Read-only Dashboard и его query projections описаны в
 [`docs/adr/0008-read-only-dashboard.md`](docs/adr/0008-read-only-dashboard.md).
 Incident actions и append-only comments описаны в
 [`docs/adr/0009-dashboard-incident-actions-and-comments.md`](docs/adr/0009-dashboard-incident-actions-and-comments.md).
+Browser verification описана в
+[`docs/adr/0010-dashboard-browser-verification.md`](docs/adr/0010-dashboard-browser-verification.md).
+Canonical demo catalog описан в
+[`docs/adr/0011-reproducible-synthetic-demo.md`](docs/adr/0011-reproducible-synthetic-demo.md).
+Clean-install и full-stack demo verification описаны в
+[`docs/adr/0012-clean-install-and-demo-e2e.md`](docs/adr/0012-clean-install-and-demo-e2e.md).
 
 ## Локальные операторы
 

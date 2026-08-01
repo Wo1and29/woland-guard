@@ -28,8 +28,10 @@ ENV PATH="/workspace/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1
 
 COPY tests tests
+COPY scripts scripts
 COPY deploy deploy
 COPY compose.yaml ./compose.yaml
+COPY compose.demo.yaml ./compose.demo.yaml
 COPY alembic.ini ./alembic.ini
 COPY migrations migrations
 COPY detection-rules detection-rules
