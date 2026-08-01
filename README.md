@@ -4,8 +4,8 @@ Woland Guard — разрабатываемая защитная система 
 читать разрешённые системные события, а control plane — создавать понятные инциденты и
 помогать владельцу сервера реагировать на них.
 
-Этапы 1–6 и подэтапы 7A–7C завершены и зафиксированы локально. Этап 7D проходит
-повторное ревью без коммита. Текущая реализация:
+Этапы 1–7 завершены и зафиксированы локально. Подэтап 8A с воспроизводимыми синтетическими
+demo-сценариями реализуется и ещё не зафиксирован коммитом. Текущая реализация:
 Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
 создаёт инциденты, а локальные операторы читают их, выполняют идемпотентные status transitions
 и добавляют append-only комментарии через защищённый Dashboard.
@@ -46,9 +46,11 @@ Linux-агент проверен на синтетических journald fixtu
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–7C.
+- ADR с подтверждёнными архитектурными решениями этапов 1–7 и границей 8A;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
+- закрытый canonical manifest и loopback-only sender синтетических positive, negative и
+  boundary demo-сценариев для всех восьми detection rules.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
 серверные opaque sessions, строгие `__Host-*` cookies, Origin/CSRF-проверки, ограниченный
@@ -183,6 +185,32 @@ Authorization: Bearer wgak_<public_id>.<secret>
 Content-Type: application/json
 X-Request-ID: local-example-001
 ```
+
+## Синтетические demo-сценарии 8A
+
+Каталог содержит по четыре стабильных сценария для каждого из восьми текущих правил:
+`positive`, `negative`, `boundary_below` и `boundary_exact`. Список формируется только после
+строгой проверки каталога `detection-rules`.
+
+```powershell
+uv run --package woland-guard-control-plane woland-guard-demo list-scenarios
+uv run --package woland-guard-control-plane woland-guard-demo generate `
+  --scenario ssh_bruteforce_by_ip.positive.v1 `
+  --output C:\wg-demo\ssh-bruteforce-positive.json
+uv run --package woland-guard-control-plane woland-guard-demo validate `
+  --manifest C:\wg-demo\ssh-bruteforce-positive.json
+uv run --package woland-guard-control-plane woland-guard-demo send `
+  --manifest C:\wg-demo\ssh-bruteforce-positive.json `
+  --origin http://127.0.0.1:8000 `
+  --api-key-file C:\wg-demo-secrets\agent.key
+```
+
+Manifest output и API-key file передаются как абсолютные пути. Token не допускается в
+аргументах, manifest или выводе. Sender принимает только явный HTTP/HTTPS loopback origin и
+отправляет только `POST /api/v1/events`. Он сообщает фактические accepted/duplicate/rejected
+counts, но не заявляет создание incident или delivery: пользовательская full-stack verification
+отложена до 8B. Повтор manifest использует at-least-once delivery с идемпотентным ingestion,
+а не distributed exactly-once.
 
 Тело запроса, где временные метки необходимо заменить текущими UTC-значениями:
 

@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 woland-guard-admin = "woland_guard_control_plane.cli:main"
+woland-guard-demo = "woland_guard_control_plane.demo.cli:main"
 woland-guard-outbox = "woland_guard_control_plane.outbox_cli:main"
 
 [build-system]
