@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.30"
+  UV_NO_PROGRESS: "1"
+
+jobs:
+  quality:
+    name: Lint, types and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cache uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+      - run: uv sync --locked --all-packages
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - name: Unit tests (PostgreSQL integration tests are skipped without Compose)
+        run: uv run pytest
+
+  integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    env:
+      WG_POSTGRES_PASSWORD: ci-ephemeral-not-a-secret
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL and control plane
+        run: docker compose up -d --wait postgres control-plane
+      - name: Apply migrations
+        run: docker compose exec -T control-plane alembic upgrade head
+      - name: Check for undetected model/migration drift
+        run: docker compose exec -T control-plane alembic check
+      - name: Run integration test suite against real PostgreSQL
+        run: docker compose --profile test run --rm integration-tests
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  docker-build:
+    name: Build runtime image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build control-plane runtime image (no push)
+        run: |
+          docker build --target runtime \
+            -f deploy/docker/control-plane.Dockerfile \
+            -t woland-guard-control-plane:ci .
+
+  dependency-audit:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Export locked dependencies
+        run: uv export --format requirements.txt --no-hashes --all-packages --no-dev -o requirements-audit.txt
+      - name: Audit with pip-audit
+        run: uvx pip-audit -r requirements-audit.txt
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
