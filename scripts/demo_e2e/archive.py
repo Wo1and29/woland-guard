@@ -94,7 +94,16 @@ def extract_tracked_archive(archive_path: Path, destination: Path) -> None:
                 source = bundle.extractfile(item.member)
                 if source is None:
                     raise CleanArchiveError("tracked archive member could not be read")
-                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+                # Without O_BINARY, Windows opens the descriptor in text mode and
+                # os.write() rewrites every "\n" to "\r\n", corrupting tar members
+                # (e.g. git-archived CRLF text) that already contain "\r\n".
+                flags = (
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_BINARY", 0)
+                )
                 descriptor = os.open(output, flags, 0o600)
                 written = 0
                 try:

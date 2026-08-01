@@ -144,7 +144,13 @@ class RecoveryLedgerStore:
         try:
             descriptor = os.open(
                 temporary,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                # Without O_BINARY, Windows text-mode os.write() would rewrite "\n" to
+                # "\r\n" and corrupt the canonical JSON byte length.
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_BINARY", 0),
                 0o600,
             )
             content = _canonical_bytes(self._ledger)
@@ -291,7 +297,9 @@ def _validate_private_parent(path: Path) -> Path:
 
 
 def _read_regular_file(path: Path) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    # Without O_BINARY, Windows text-mode os.read() would rewrite "\r\n" to "\n"
+    # and desynchronize the byte count from the on-disk size checked below.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     descriptor: int | None = None
     try:
         before = path.lstat()

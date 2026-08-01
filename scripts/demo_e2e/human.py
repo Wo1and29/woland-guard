@@ -92,7 +92,14 @@ def write_human_credentials(
         },
     }
     encoded = json.dumps(payload, ensure_ascii=True, sort_keys=True).encode("utf-8")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    # Without O_BINARY, Windows text-mode os.write() would rewrite "\n" to "\r\n".
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
     created_identity: tuple[int, int] | None = None
     try:
         descriptor = os.open(output, flags, 0o600)
