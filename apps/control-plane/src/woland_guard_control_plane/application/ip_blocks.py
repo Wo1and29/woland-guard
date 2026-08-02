@@ -1,10 +1,11 @@
 """Propose, approve, and reject dry-run IP block plans; nothing here executes.
 
 An ``IpBlockPlan`` row only ever records what an operator proposed and what a
-second operator decided about it. No process in the control plane ever runs
-``command_argv`` -- that is the explicit boundary of stage 9C. Execution, if it
-is ever added, is a separate pull-based agent capability (stage 9D) gated by
-its own independent configuration.
+second operator decided about it. No process in this project ever runs
+``command_argv``, and none is planned: ADR-0016 decided against automated
+execution outright, because the only process positioned to run it is the agent,
+which parses untrusted journald input. Applying an approved command stays a
+human action.
 """
 
 from __future__ import annotations
