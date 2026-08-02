@@ -12,6 +12,54 @@ Linux-агент проверен на синтетических journald fixtu
 
 Лицензия пока не выбрана. На текущем этапе проект не позиционируется как open-source.
 
+## Внешний вид
+
+Dashboard — серверный рендеринг (Jinja2), без JavaScript-фреймворка. Скриншоты сняты реальным
+браузером (Chromium) через browser-test-инфраструктуру проекта, интерфейс на них — тот же самый
+код, который увидит любой пользователь. **Данные на скриншотах синтетические**: сгенерированы
+специально для демонстрации в изолированной временной базе, а не сняты с работающего
+production-инстанса — у реального пользователя будут его собственные серверы и инциденты.
+
+<p align="center">
+  <img src="docs/screenshots/overview.png" alt="Обзор: серверы, активные инциденты, очередь уведомлений" width="800">
+</p>
+
+**Инциденты** — фильтры по статусу, severity, точному UUID, префиксу заголовка/rule key:
+
+<p align="center">
+  <img src="docs/screenshots/incidents.png" alt="Список инцидентов с фильтрами" width="800">
+</p>
+
+**Детали инцидента** — объяснение, рекомендация, история статусов, evidence, переход статуса и комментарии:
+
+<p align="center">
+  <img src="docs/screenshots/incident-detail.png" alt="Страница инцидента" width="800">
+</p>
+
+**Серверы**:
+
+<p align="center">
+  <img src="docs/screenshots/servers.png" alt="Список серверов" width="800">
+</p>
+
+**Активные правила детекции** — с MITRE ATT&CK, условиями и порогами:
+
+<p align="center">
+  <img src="docs/screenshots/rules.png" alt="Активные правила детекции" width="800">
+</p>
+
+**Audit log** — каждое действие оператора и системный CLI-вызов с типизированными деталями:
+
+<p align="center">
+  <img src="docs/screenshots/audit-log.png" alt="Audit log" width="800">
+</p>
+
+**Мобильная версия** (390×844):
+
+<p align="center">
+  <img src="docs/screenshots/mobile-incident.png" alt="Мобильная версия страницы инцидента" width="320">
+</p>
+
 ## Что реализовано
 
 - Python 3.12 и uv workspace;
