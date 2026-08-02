@@ -5,10 +5,12 @@ import sqlite3
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
 
+from woland_guard_agent import spool as spool_module
 from woland_guard_agent.spool import (
     EnqueueResult,
     SpoolFullError,
@@ -106,6 +108,29 @@ def test_ready_batch_is_limited_to_one_hundred(tmp_path: Path) -> None:
         )
 
     assert len(spool.ready_batch(limit=100)) == 100
+
+
+def test_batch_keeps_insertion_order_when_the_clock_does_not_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One clock tick must not let the random event_id decide delivery order."""
+
+    monkeypatch.setattr(spool_module, "time", SimpleNamespace(time=lambda: 1_700_000_000.0))
+    spool = SQLiteSpool(tmp_path / "same-tick.sqlite3", max_events=10)
+    spool.initialize()
+    # Descending ids: sorting on event_id would reverse the insertion order.
+    inserted = [UUID(int=number) for number in (5, 4, 3, 2, 1)]
+    for position, event_id in enumerate(inserted):
+        spool.enqueue_with_cursor(
+            source_name="journald",
+            cursor=f"s=same-tick;i={position}",
+            event=make_event(str(event_id)),
+        )
+
+    assert [queued.event.event_id for queued in spool.ready_batch(limit=10)] == inserted
+    assert [summary.event_id for summary in spool.list_events()] == inserted
+    assert {summary.enqueued_at for summary in spool.list_events()} == {1_700_000_000.0}
 
 
 def test_operator_list_never_returns_payload_and_requeue_is_explicit(

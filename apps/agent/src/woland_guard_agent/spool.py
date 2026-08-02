@@ -94,6 +94,11 @@ class SQLiteSpool:
                         CHECK (status IN ('pending', 'quarantined', 'oversized')),
                     last_error TEXT
                 );
+                -- This index serves the delivery WHERE clause only. Because
+                -- next_attempt_at is a range predicate, SQLite sorts ready_batch's
+                -- ORDER BY through a temporary B-tree either way; that was already
+                -- true before rowid replaced event_id as the tiebreaker, and the
+                -- queue stays bounded by spool.max_events.
                 CREATE INDEX IF NOT EXISTS ix_spool_events_delivery
                     ON spool_events (status, next_attempt_at, enqueued_at);
                 CREATE TABLE IF NOT EXISTS source_cursors (
@@ -237,6 +242,15 @@ class SQLiteSpool:
         return None if row is None else str(row[0])
 
     def ready_batch(self, *, limit: int, now: float | None = None) -> list[QueuedEvent]:
+        """Select due events oldest-first; `rowid` breaks `enqueued_at` ties by insert order.
+
+        A coarse wall clock (~15.6 ms per tick on Windows) gives events spooled in the
+        same tick an identical `enqueued_at`, so the tiebreaker decides delivery order.
+        `event_id` is a UUIDv5 of the source cursor and is effectively random, while the
+        implicit `rowid` is the insertion sequence: every insert takes a `rowid` above
+        all rows still present, so coexisting rows always compare in arrival order.
+        """
+
         if not 1 <= limit <= 100:
             raise ValueError("batch limit must be between 1 and 100")
         threshold = time.time() if now is None else now
@@ -246,7 +260,7 @@ class SQLiteSpool:
                 SELECT payload, attempts
                 FROM spool_events
                 WHERE status = 'pending' AND next_attempt_at <= ?
-                ORDER BY enqueued_at, event_id
+                ORDER BY enqueued_at, rowid
                 LIMIT ?
                 """,
                 (threshold, limit),
@@ -327,7 +341,10 @@ class SQLiteSpool:
         status: str | None = None,
         limit: int = 100,
     ) -> list[SpoolEventSummary]:
-        """List queue metadata without reading or returning event payloads."""
+        """List queue metadata without reading or returning event payloads.
+
+        Shares the `ready_batch` ordering so operators see the delivery order.
+        """
 
         if status is not None and status not in {"pending", "quarantined", "oversized"}:
             raise ValueError("unsupported spool status")
@@ -343,7 +360,7 @@ class SQLiteSpool:
         else:
             query += " WHERE status = ?"
             parameters = (status, limit)
-        query += " ORDER BY enqueued_at, event_id LIMIT ?"
+        query += " ORDER BY enqueued_at, rowid LIMIT ?"
         with self._connect() as connection:
             rows = connection.execute(query, parameters).fetchall()
         return [
