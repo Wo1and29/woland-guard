@@ -1,0 +1,63 @@
+# Example reverse proxy in front of the control plane's Docker Compose deployment.
+# Copy to /etc/nginx/sites-available/woland-guard.conf, adjust server_name and certificate
+# paths, then symlink into sites-enabled and reload nginx. This file is a starting point, not
+# a production-hardened config — review rate limits, logging and TLS settings for your host.
+#
+# Production readiness is explicitly NOT guaranteed by the application itself: perimeter rate
+# limiting and TLS termination are deployment responsibilities documented in
+# docs/deployment.md and docs/threat-model.md.
+
+# Perimeter rate limiting: the application's own limiter is process-local and does not protect
+# requests rejected before authentication (see docs/threat-model.md, "DoS через поток событий").
+limit_req_zone $binary_remote_addr zone=woland_guard_ingest:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=woland_guard_dashboard:10m rate=5r/s;
+
+server {
+    listen 80;
+    server_name woland-guard.example.invalid;
+
+    # Redirect everything to HTTPS. WG_WEB_PUBLIC_ORIGIN must match the HTTPS origin exactly.
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name woland-guard.example.invalid;
+
+    ssl_certificate     /etc/letsencrypt/live/woland-guard.example.invalid/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/woland-guard.example.invalid/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # HSTS is only meaningful once you are certain every subdomain in scope is HTTPS-only.
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    client_max_body_size 2m;  # keep above WG_INGEST_MAX_BODY_BYTES / WG_WEB_MAX_FORM_BODY_BYTES
+
+    # Agent ingestion API.
+    location /api/v1/events {
+        limit_req zone=woland_guard_ingest burst=10 nodelay;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Operator REST API and Dashboard.
+    location / {
+        limit_req zone=woland_guard_dashboard burst=20 nodelay;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Dashboard cookies are Secure and require this origin to be exactly
+        # WG_WEB_PUBLIC_ORIGIN — proxying an inconsistent Host will break login.
+    }
+
+    # Health checks do not need to be public; restrict at the network layer if this proxy is
+    # internet-facing.
+    location /health/ {
+        proxy_pass http://127.0.0.1:8000;
+    }
+}

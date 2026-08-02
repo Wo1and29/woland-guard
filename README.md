@@ -571,3 +571,16 @@ journald-правил, а не десять end-to-end правил.
 - readiness проверяет соединение с PostgreSQL, но пока не проверяет актуальность миграции;
 - зависимости Python зафиксированы в `uv.lock`;
 - production deployment не подготовлен.
+
+## Документация
+
+- [docs/architecture.md](docs/architecture.md) — компоненты и поток события от агента до
+  уведомления;
+- [docs/threat-model.md](docs/threat-model.md) — модель угроз;
+- [docs/detection-rules.md](docs/detection-rules.md) — схема YAML-правил и текущий набор из 8;
+- [docs/deployment.md](docs/deployment.md) — развёртывание на VPS, HTTPS, reverse proxy;
+- [docs/agent-installation.md](docs/agent-installation.md) — установка агента на Ubuntu Server 24.04;
+- [docs/demo.md](docs/demo.md) — три уровня demo-режима, от ручного до полного release gate;
+- [docs/adr/](docs/adr/) — архитектурные решения каждого реализованного этапа;
+- [SECURITY.md](SECURITY.md) — как сообщать об уязвимостях;
+- [CONTRIBUTING.md](CONTRIBUTING.md) — как вносить изменения.
