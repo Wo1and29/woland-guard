@@ -2,6 +2,7 @@
 name = "woland-guard-agent"
 version = "0.1.0"
 description = "Woland Guard agent for Ubuntu Server 24.04 LTS"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "httpx2>=2,<3",
