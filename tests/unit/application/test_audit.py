@@ -132,6 +132,36 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
         "notification_destination",
         {"adapter_kind": "telegram", "minimum_severity": "critical"},
     ),
+    (
+        "ip_block_plan.proposed",
+        AuditActorType.OPERATOR,
+        "ip_block_plan",
+        {"incident_id": _OPERATOR_ID, "ip_address": "203.0.113.10"},
+    ),
+    (
+        "ip_block_plan.approved",
+        AuditActorType.OPERATOR,
+        "ip_block_plan",
+        {"ip_address": "2001:db8::10", "proposed_by_operator_id": _OPERATOR_ID},
+    ),
+    (
+        "ip_block_plan.rejected",
+        AuditActorType.OPERATOR,
+        "ip_block_plan",
+        {"ip_address": "203.0.113.10", "proposed_by_operator_id": _OPERATOR_ID},
+    ),
+    (
+        "ip_block_allowlist.created",
+        AuditActorType.LOCAL_CLI,
+        "ip_block_allowlist_entry",
+        {"cidr": "203.0.113.0/24"},
+    ),
+    (
+        "ip_block_allowlist.revoked",
+        AuditActorType.LOCAL_CLI,
+        "ip_block_allowlist_entry",
+        {"cidr": "203.0.113.0/24"},
+    ),
 )
 
 
@@ -238,6 +268,30 @@ def test_registry_contains_exactly_the_supported_actions() -> None:
                 "to_status": "resolved",
                 "to_version": 2,
             },
+        ),
+        (
+            "ip_block_plan.proposed",
+            AuditActorType.OPERATOR,
+            "ip_block_plan",
+            {"incident_id": _OPERATOR_ID, "ip_address": "not-an-address"},
+        ),
+        (
+            "ip_block_plan.proposed",
+            AuditActorType.OPERATOR,
+            "ip_block_plan",
+            {"incident_id": _OPERATOR_ID, "ip_address": "::ffff:203.0.113.5"},
+        ),
+        (
+            "ip_block_allowlist.created",
+            AuditActorType.LOCAL_CLI,
+            "ip_block_allowlist_entry",
+            {"cidr": "203.0.113.5/24"},
+        ),
+        (
+            "ip_block_allowlist.created",
+            AuditActorType.LOCAL_CLI,
+            "ip_block_allowlist_entry",
+            {"cidr": "not-a-network"},
         ),
     ],
 )

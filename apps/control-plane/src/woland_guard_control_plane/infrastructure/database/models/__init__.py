@@ -10,6 +10,10 @@ from woland_guard_control_plane.infrastructure.database.models.event import Even
 from woland_guard_control_plane.infrastructure.database.models.incident_comment import (
     IncidentComment,
 )
+from woland_guard_control_plane.infrastructure.database.models.ip_block import (
+    IpBlockAllowlistEntry,
+    IpBlockPlan,
+)
 from woland_guard_control_plane.infrastructure.database.models.operator import (
     Operator,
     OperatorApiKey,
@@ -58,6 +62,8 @@ __all__ = [
     "IncidentHistoryEntry",
     "IncidentStatus",
     "HistoryEntryType",
+    "IpBlockAllowlistEntry",
+    "IpBlockPlan",
     "NotificationAdapterKind",
     "NotificationDestination",
     "NotificationSeverity",

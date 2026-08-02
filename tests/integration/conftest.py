@@ -249,7 +249,8 @@ def _truncate_application_tables() -> None:
             connection.execute(
                 text(
                     "TRUNCATE TABLE operator_idempotency_records, audit_log_entries, "
-                    "incident_comments, incident_history, incident_events, incidents, "
+                    "incident_comments, incident_history, incident_events, "
+                    "ip_block_plans, ip_block_allowlist_entries, incidents, "
                     "detection_rule_versions, "
                     "events, outbox_messages, telegram_destination_configs, "
                     "telegram_bot_offsets, notification_destinations, agent_api_keys, "

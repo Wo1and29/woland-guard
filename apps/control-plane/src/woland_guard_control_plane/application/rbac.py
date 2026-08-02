@@ -13,6 +13,8 @@ class Permission(StrEnum):
     VIEW_AUDIT_LOG = "audit:view"
     MANAGE_OPERATORS = "operators:manage"
     MANAGE_TELEGRAM_DESTINATIONS = "telegram_destinations:manage"
+    PROPOSE_IP_BLOCK = "ip_block:propose"
+    APPROVE_IP_BLOCK = "ip_block:approve"
 
 
 ROLE_PERMISSIONS: dict[OperatorRole, frozenset[Permission]] = {
@@ -23,6 +25,7 @@ ROLE_PERMISSIONS: dict[OperatorRole, frozenset[Permission]] = {
             Permission.VIEW_INCIDENTS,
             Permission.TRANSITION_INCIDENTS,
             Permission.COMMENT_INCIDENTS,
+            Permission.PROPOSE_IP_BLOCK,
         }
     ),
     OperatorRole.ADMIN: frozenset(Permission),

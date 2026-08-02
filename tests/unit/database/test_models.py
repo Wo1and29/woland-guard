@@ -52,6 +52,8 @@ def test_expected_tables_are_registered() -> None:
         "incident_comments",
         "incident_history",
         "incidents",
+        "ip_block_allowlist_entries",
+        "ip_block_plans",
         "operator_api_keys",
         "operator_idempotency_records",
         "operator_web_sessions",

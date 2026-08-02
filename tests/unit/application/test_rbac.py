@@ -21,6 +21,7 @@ from woland_guard_control_plane.infrastructure.database.models import OperatorRo
                 Permission.VIEW_INCIDENTS,
                 Permission.TRANSITION_INCIDENTS,
                 Permission.COMMENT_INCIDENTS,
+                Permission.PROPOSE_IP_BLOCK,
             },
         ),
         (OperatorRole.ADMIN, set(Permission)),

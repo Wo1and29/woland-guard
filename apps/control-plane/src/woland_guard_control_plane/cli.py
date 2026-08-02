@@ -14,6 +14,13 @@ from woland_guard_control_plane.application.detection.rules import (
     load_rules_directory,
 )
 from woland_guard_control_plane.application.detection.sync import RuleSyncError, sync_rules
+from woland_guard_control_plane.application.ip_blocks import (
+    AllowlistEntrySummary,
+    IpBlockError,
+    add_allowlist_entry,
+    list_allowlist_entries,
+    revoke_allowlist_entry,
+)
 from woland_guard_control_plane.application.notification_destinations import (
     DestinationSummary,
     NotificationDestinationManagementError,
@@ -65,6 +72,11 @@ _DESTINATION_COMMANDS = {
     "enable-notification-destination",
     "disable-notification-destination",
     "update-telegram-destination",
+}
+_IP_ALLOWLIST_COMMANDS = {
+    "add-ip-allowlist-entry",
+    "revoke-ip-allowlist-entry",
+    "list-ip-allowlist-entries",
 }
 
 
@@ -168,6 +180,23 @@ def build_parser() -> argparse.ArgumentParser:
         choices=tuple(severity.value for severity in NotificationSeverity),
     )
     update_destination.add_argument("--change-chat-id", action="store_true")
+
+    add_allowlist = subcommands.add_parser(
+        "add-ip-allowlist-entry",
+        help="add one network that must never be proposed for an IP block",
+    )
+    add_allowlist.add_argument("--cidr", required=True)
+    add_allowlist.add_argument("--label", required=True)
+    add_allowlist.add_argument("--reason", required=True)
+    revoke_allowlist = subcommands.add_parser(
+        "revoke-ip-allowlist-entry",
+        help="revoke one active allowlist entry without deleting its history",
+    )
+    revoke_allowlist.add_argument("--entry-id", type=UUID, required=True)
+    subcommands.add_parser(
+        "list-ip-allowlist-entries",
+        help="show active IP block allowlist entries",
+    )
     return parser
 
 
@@ -186,6 +215,9 @@ def main() -> None:
         return
     if arguments.command in _DESTINATION_COMMANDS:
         _run_destination_command(arguments)
+        return
+    if arguments.command in _IP_ALLOWLIST_COMMANDS:
+        _run_ip_allowlist_command(arguments)
         return
     _run_create_test_agent(arguments)
 
@@ -324,6 +356,51 @@ def _run_telegram_link_command(arguments: argparse.Namespace) -> None:
     print(f"username={link.username}")
     print(f"telegram_user_id={link.telegram_user_id}")
     print(f"revoked={'true' if arguments.command == 'revoke-telegram-operator' else 'false'}")
+
+
+def _run_ip_allowlist_command(arguments: argparse.Namespace) -> None:
+    try:
+        if arguments.command == "list-ip-allowlist-entries":
+            with get_session_factory()() as session:
+                entries = list_allowlist_entries(session)
+            for entry in entries:
+                _print_allowlist_entry(entry)
+            if not entries:
+                print("Активных записей allowlist нет.")
+            return
+        with get_session_factory().begin() as session:
+            if arguments.command == "add-ip-allowlist-entry":
+                entry = add_allowlist_entry(
+                    session,
+                    cidr=arguments.cidr,
+                    label=arguments.label,
+                    reason=arguments.reason,
+                )
+            else:
+                entry = revoke_allowlist_entry(session, entry_id=arguments.entry_id)
+    except (IntegrityError, IpBlockError):
+        print(
+            "Не удалось изменить запись allowlist: проверьте CIDR и аргументы.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+    except SQLAlchemyError:
+        print("Не удалось изменить запись allowlist из-за ошибки базы данных.", file=sys.stderr)
+        raise SystemExit(1) from None
+    _print_allowlist_entry(entry)
+
+
+def _print_allowlist_entry(entry: AllowlistEntrySummary) -> None:
+    print(
+        " ".join(
+            (
+                f"entry_id={entry.entry_id}",
+                f"cidr={entry.cidr}",
+                f"label={entry.label}",
+                f"revoked={'true' if entry.revoked_at is not None else 'false'}",
+            )
+        )
+    )
 
 
 def _print_issued_operator_key(issued: IssuedOperatorApiKey) -> None:

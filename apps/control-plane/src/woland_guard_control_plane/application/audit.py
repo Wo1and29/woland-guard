@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import ip_address, ip_network
 from types import MappingProxyType
 from uuid import UUID
 
@@ -46,6 +47,8 @@ class AuditDetailType(StrEnum):
     BOOLEAN = "boolean"
     NOTIFICATION_ADAPTER_KIND = "notification_adapter_kind"
     NOTIFICATION_SEVERITY = "notification_severity"
+    IP_ADDRESS = "ip_address"
+    IP_NETWORK = "ip_network"
 
 
 class IncidentHistoryPolicy(StrEnum):
@@ -179,6 +182,43 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
                 adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
                 minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
             ),
+        ),
+        "ip_block_plan.proposed": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="ip_block_plan",
+            detail_fields=_fields(
+                incident_id=AuditDetailType.UUID,
+                ip_address=AuditDetailType.IP_ADDRESS,
+            ),
+            allowed_auth_methods=frozenset(OperatorAuthMethodType),
+        ),
+        "ip_block_plan.approved": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="ip_block_plan",
+            detail_fields=_fields(
+                ip_address=AuditDetailType.IP_ADDRESS,
+                proposed_by_operator_id=AuditDetailType.UUID,
+            ),
+            allowed_auth_methods=frozenset(OperatorAuthMethodType),
+        ),
+        "ip_block_plan.rejected": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="ip_block_plan",
+            detail_fields=_fields(
+                ip_address=AuditDetailType.IP_ADDRESS,
+                proposed_by_operator_id=AuditDetailType.UUID,
+            ),
+            allowed_auth_methods=frozenset(OperatorAuthMethodType),
+        ),
+        "ip_block_allowlist.created": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="ip_block_allowlist_entry",
+            detail_fields=_fields(cidr=AuditDetailType.IP_NETWORK),
+        ),
+        "ip_block_allowlist.revoked": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="ip_block_allowlist_entry",
+            detail_fields=_fields(cidr=AuditDetailType.IP_NETWORK),
         ),
     }
 )
@@ -332,6 +372,26 @@ def _validate_detail_value(
         if type(value) is not str or value not in {
             severity.value for severity in NotificationSeverity
         }:
+            raise AuditValidationError("audit detail value is invalid")
+        return value
+    if detail_type is AuditDetailType.IP_ADDRESS:
+        if type(value) is not str:
+            raise AuditValidationError("audit detail value is invalid")
+        try:
+            parsed_address = ip_address(value)
+        except ValueError as error:
+            raise AuditValidationError("audit detail value is invalid") from error
+        if str(parsed_address) != value:
+            raise AuditValidationError("audit detail value is invalid")
+        return value
+    if detail_type is AuditDetailType.IP_NETWORK:
+        if type(value) is not str:
+            raise AuditValidationError("audit detail value is invalid")
+        try:
+            parsed_network = ip_network(value)
+        except ValueError as error:
+            raise AuditValidationError("audit detail value is invalid") from error
+        if str(parsed_network) != value:
             raise AuditValidationError("audit detail value is invalid")
         return value
     if detail_type is AuditDetailType.BOOLEAN:

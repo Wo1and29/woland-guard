@@ -1,5 +1,6 @@
 """Application configuration loaded from environment variables."""
 
+import re
 from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlsplit
@@ -76,6 +77,13 @@ class Settings(BaseSettings):
     telegram_bot_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
     telegram_bot_pending_action_ttl_seconds: int = Field(default=300, ge=10, le=3_600)
 
+    ip_block_enabled: bool = False
+    ip_block_require_second_operator: bool = True
+    ip_block_plan_ttl_seconds: int = Field(default=3_600, ge=60, le=86_400)
+    ip_block_nft_table: str = "woland_guard"
+    ip_block_nft_set_v4: str = "blocked_v4"
+    ip_block_nft_set_v6: str = "blocked_v6"
+
     @model_validator(mode="after")
     def validate_outbox_timings(self) -> "Settings":
         origin = urlsplit(self.web_public_origin)
@@ -120,6 +128,15 @@ class Settings(BaseSettings):
         )
         if bot_timeout_sum > self.telegram_bot_request_timeout_seconds:
             raise ValueError("Telegram bot phase timeouts must fit the request timeout budget")
+        nft_identifiers = (
+            self.ip_block_nft_table,
+            self.ip_block_nft_set_v4,
+            self.ip_block_nft_set_v6,
+        )
+        if any(re.fullmatch(r"[a-z][a-z0-9_]{0,31}", value) is None for value in nft_identifiers):
+            raise ValueError("nftables identifiers must be lowercase and start with a letter")
+        if len({self.ip_block_nft_set_v4, self.ip_block_nft_set_v6}) != 2:
+            raise ValueError("nftables IPv4 and IPv6 set names must be distinct")
         return self
 
 

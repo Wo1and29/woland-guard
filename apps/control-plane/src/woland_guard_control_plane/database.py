@@ -39,6 +39,11 @@ def get_engine() -> Engine:
         build_database_url(settings),
         pool_pre_ping=True,
         connect_args={"connect_timeout": settings.postgres_connect_timeout_seconds},
+        # psycopg3 decodes inet/cidr columns to ipaddress objects by default; every
+        # other identifier in this codebase is a plain str, and the ORM models declare
+        # `Mapped[str]` for these columns, so native decoding is turned off to keep the
+        # declared and runtime types the same.
+        native_inet_types=False,
     )
 
 
