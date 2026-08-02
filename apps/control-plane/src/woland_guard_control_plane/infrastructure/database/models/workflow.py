@@ -44,7 +44,7 @@ class IncidentHistoryEntry(Base):
         ),
         CheckConstraint(
             "(auth_method_type IS NULL AND auth_method_id IS NULL) OR "
-            "(auth_method_type IN ('operator_api_key', 'web_session') "
+            "(auth_method_type IN ('operator_api_key', 'web_session', 'telegram') "
             "AND auth_method_id IS NOT NULL)",
             name="auth_method_type_allowed",
         ),
@@ -112,7 +112,7 @@ class AuditLogEntry(Base):
             "(actor_type = 'local_cli' AND auth_method_type IS NULL "
             "AND auth_method_id IS NULL) OR "
             "(actor_type = 'operator' "
-            "AND auth_method_type IN ('operator_api_key', 'web_session') "
+            "AND auth_method_type IN ('operator_api_key', 'web_session', 'telegram') "
             "AND auth_method_id IS NOT NULL)",
             name="auth_method_type_allowed",
         ),

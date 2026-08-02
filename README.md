@@ -451,6 +451,8 @@ Canonical demo catalog описан в
 [`docs/adr/0011-reproducible-synthetic-demo.md`](docs/adr/0011-reproducible-synthetic-demo.md).
 Clean-install и full-stack demo verification описаны в
 [`docs/adr/0012-clean-install-and-demo-e2e.md`](docs/adr/0012-clean-install-and-demo-e2e.md).
+Входящие Telegram-команды описаны в
+[`docs/adr/0013-inbound-telegram-commands.md`](docs/adr/0013-inbound-telegram-commands.md).
 
 ## Локальные операторы
 
@@ -554,10 +556,43 @@ Nginx source/parser и два правила, которым нужны его �
 Они не считаются end-to-end функциями MVP; текущий Detection Engine содержит восемь
 journald-правил, а не десять end-to-end правил.
 
+## Входящий Telegram-бот
+
+Бот — отдельный процесс и отдельный Compose-сервис профиля `telegram-notifications`. Он читает
+обновления через `getUpdates` тем же fixed-origin клиентом, что и исходящая доставка, и отвечает
+**только связанным операторам и только в приватном чате**.
+
+Связывание выполняет только локальный CLI; одноразовые коды через чат не используются, чтобы
+секрет не попадал в историю Telegram. Несвязанный пользователь получает свой Telegram ID, чтобы
+передать его администратору:
+
+```bash
+docker compose exec control-plane woland-guard-admin link-telegram-operator \
+  --operator-id <operator UUID> --telegram-user-id 123456789
+docker compose exec control-plane woland-guard-admin list-telegram-operators
+docker compose exec control-plane woland-guard-admin revoke-telegram-operator \
+  --link-id <link UUID>
+```
+
+Запуск бота:
+
+```bash
+docker compose --profile telegram-notifications up -d telegram-bot
+```
+
+Доступные команды: `/help` для любого связанного оператора; `/status`, `/servers`, `/incidents` и
+`/critical` требуют права `VIEW_INCIDENTS`. Все ответы собираются из фиксированных строк и явных
+колонок БД, ограничены по длине и не отражают ввод пользователя.
+
+Telegram отвечает `409 Conflict` на второй параллельный `getUpdates` с тем же токеном, поэтому
+сервис запускается **строго в одном экземпляре** и несовместим с установленным webhook. Offset
+хранится в PostgreSQL и подтверждается только после обработки пакета, поэтому перезапуск
+приводит к повтору, а не к потере обновлений.
+
 ## Ограничения MVP
 
-- Telegram поддерживает только исходящие сообщения: polling, webhook, `getUpdates`, команды,
-  callback-кнопки и изменение incident status через Telegram отсутствуют;
+- Telegram-бот только читает: изменение incident status, комментарии и callback-кнопки
+  относятся к следующему подэтапу;
 - нет HTTP API управления серверами и ключами;
 - delivery остаётся at-least-once и допускает повтор после внешнего side effect до acknowledge;
 - rate limiter хранит состояние в памяти одного процесса и не координирует несколько

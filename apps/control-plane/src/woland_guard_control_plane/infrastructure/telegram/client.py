@@ -90,6 +90,53 @@ class TelegramBotApiClient:
         text: str,
         timeout_seconds: float,
     ) -> TelegramHttpResponse:
+        return self._call(
+            token=token,
+            method="sendMessage",
+            payload={"chat_id": chat_id, "text": text},
+            timeout_seconds=timeout_seconds,
+        )
+
+    def get_updates(
+        self,
+        *,
+        token: TelegramToken,
+        offset: int,
+        limit: int,
+        long_poll_seconds: int,
+        allowed_updates: tuple[str, ...],
+        timeout_seconds: float,
+    ) -> TelegramHttpResponse:
+        """Long-poll the confirmed offset for the single allowed inbound consumer."""
+
+        if offset < 0 or not 1 <= limit <= 100 or long_poll_seconds < 0:
+            raise ValueError("Telegram update request parameters are invalid.")
+        if not allowed_updates or any(
+            not value or len(value) > 32 or not value.isascii() for value in allowed_updates
+        ):
+            raise ValueError("Telegram update request parameters are invalid.")
+        return self._call(
+            token=token,
+            method="getUpdates",
+            payload={
+                "offset": offset,
+                "limit": limit,
+                "timeout": long_poll_seconds,
+                "allowed_updates": list(allowed_updates),
+            },
+            timeout_seconds=timeout_seconds,
+        )
+
+    def _call(
+        self,
+        *,
+        token: TelegramToken,
+        method: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> TelegramHttpResponse:
+        """Issue one bounded fixed-origin Bot API call without leaking the token."""
+
         self._timeouts.validate_for(timeout_seconds)
         suppress_sensitive_http_logging()
         timeout = httpx2.Timeout(
@@ -100,7 +147,7 @@ class TelegramBotApiClient:
         )
         transport = self._transport or httpx2.HTTPTransport(retries=0, verify=True)
         encoded_token = quote(token.reveal_for_http(), safe="")
-        url = f"{TELEGRAM_API_ORIGIN}/bot{encoded_token}/sendMessage"
+        url = f"{TELEGRAM_API_ORIGIN}/bot{encoded_token}/{method}"
         try:
             with httpx2.Client(
                 timeout=timeout,
@@ -109,11 +156,7 @@ class TelegramBotApiClient:
                 verify=True,
                 follow_redirects=False,
             ) as client:
-                with client.stream(
-                    "POST",
-                    url,
-                    json={"chat_id": chat_id, "text": text},
-                ) as response:
+                with client.stream("POST", url, json=payload) as response:
                     buffer = bytearray()
                     for chunk in response.iter_bytes():
                         if len(buffer) + len(chunk) > TELEGRAM_RESPONSE_LIMIT_BYTES:

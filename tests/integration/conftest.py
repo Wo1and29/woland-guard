@@ -252,9 +252,9 @@ def _truncate_application_tables() -> None:
                     "incident_comments, incident_history, incident_events, incidents, "
                     "detection_rule_versions, "
                     "events, outbox_messages, telegram_destination_configs, "
-                    "notification_destinations, agent_api_keys, "
-                    "servers, operator_web_sessions, operator_api_keys, "
-                    "operators CASCADE"
+                    "telegram_bot_offsets, notification_destinations, agent_api_keys, "
+                    "servers, operator_web_sessions, operator_telegram_links, "
+                    "operator_api_keys, operators CASCADE"
                 )
             )
             for table_name in immutable_tables:

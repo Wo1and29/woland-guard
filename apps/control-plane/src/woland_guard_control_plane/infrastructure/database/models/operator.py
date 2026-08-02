@@ -32,6 +32,7 @@ class OperatorAuthMethodType(StrEnum):
 
     OPERATOR_API_KEY = "operator_api_key"
     WEB_SESSION = "web_session"
+    TELEGRAM = "telegram"
 
 
 class Operator(Base):

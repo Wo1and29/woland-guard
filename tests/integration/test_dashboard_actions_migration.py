@@ -24,6 +24,14 @@ REVISION_0008 = "20260728_0008"
 REVISION_0009 = "20260728_0009"
 
 
+def _current_revision() -> str | None:
+    """Return the applied revision so refusals can be checked without pinning a value."""
+
+    with get_engine().connect() as connection:
+        revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+    return None if revision is None else str(revision)
+
+
 def test_comment_constraints_and_append_only_triggers(
     register_operator: OperatorFactory,
 ) -> None:
@@ -95,7 +103,7 @@ def test_0009_upgrade_downgrade_upgrade_cycle() -> None:
                 connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0009
             )
     finally:
-        command.upgrade(config, REVISION_0009)
+        command.upgrade(config, "head")
 
 
 def test_0009_downgrade_refuses_populated_comment(
@@ -125,7 +133,7 @@ def test_0009_downgrade_refuses_populated_comment(
         connection.execute(text("DELETE FROM incident_comments"))
         connection.execute(text("ALTER TABLE incident_comments ENABLE TRIGGER USER"))
     command.downgrade(config, REVISION_0008)
-    command.upgrade(config, REVISION_0009)
+    command.upgrade(config, "head")
 
 
 def test_0009_downgrade_refuses_orphan_comment_audit(
@@ -162,11 +170,11 @@ def test_0009_downgrade_refuses_orphan_comment_audit(
         )
 
     config = Config("alembic.ini")
+    revision_before = _current_revision()
     with pytest.raises(DBAPIError, match="cannot downgrade incident comment audit safely"):
         command.downgrade(config, REVISION_0008)
 
-    with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0009
+    assert _current_revision() == revision_before
     with get_session_factory()() as session:
         assert session.get(AuditLogEntry, audit_id) is not None
 
@@ -178,7 +186,7 @@ def test_0009_downgrade_refuses_orphan_comment_audit(
         )
         connection.execute(text("ALTER TABLE audit_log_entries ENABLE TRIGGER USER"))
     command.downgrade(config, REVISION_0008)
-    command.upgrade(config, REVISION_0009)
+    command.upgrade(config, "head")
 
 
 def test_0009_downgrade_refuses_orphan_comment_outcome(
@@ -216,11 +224,11 @@ def test_0009_downgrade_refuses_orphan_comment_outcome(
         )
 
     config = Config("alembic.ini")
+    revision_before = _current_revision()
     with pytest.raises(DBAPIError, match="cannot downgrade incident comment outcomes safely"):
         command.downgrade(config, REVISION_0008)
 
-    with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0009
+    assert _current_revision() == revision_before
     with get_session_factory()() as session:
         assert session.get(OperatorIdempotencyRecord, outcome_id) is not None
 
@@ -232,4 +240,4 @@ def test_0009_downgrade_refuses_orphan_comment_outcome(
         )
         connection.execute(text("ALTER TABLE operator_idempotency_records ENABLE TRIGGER USER"))
     command.downgrade(config, REVISION_0008)
-    command.upgrade(config, REVISION_0009)
+    command.upgrade(config, "head")

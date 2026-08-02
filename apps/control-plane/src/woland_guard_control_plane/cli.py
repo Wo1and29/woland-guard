@@ -32,6 +32,12 @@ from woland_guard_control_plane.application.operators import (
     rotate_operator_api_key,
 )
 from woland_guard_control_plane.application.provisioning import provision_test_server
+from woland_guard_control_plane.application.telegram_identity import (
+    TelegramIdentityError,
+    link_telegram_user,
+    list_telegram_links,
+    revoke_telegram_link,
+)
 from woland_guard_control_plane.database import get_session_factory
 from woland_guard_control_plane.infrastructure.database.models import (
     NotificationSeverity,
@@ -46,6 +52,11 @@ _OPERATOR_COMMANDS = {
     "issue-operator-key",
     "rotate-operator-key",
     "revoke-operator-key",
+}
+_TELEGRAM_LINK_COMMANDS = {
+    "link-telegram-operator",
+    "revoke-telegram-operator",
+    "list-telegram-operators",
 }
 _DESTINATION_COMMANDS = {
     "create-telegram-destination",
@@ -110,6 +121,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     revoke_operator_key.add_argument("--key-id", type=UUID, required=True)
 
+    link_telegram = subcommands.add_parser(
+        "link-telegram-operator",
+        help="bind one Telegram account to an operator for inbound commands",
+    )
+    link_telegram.add_argument("--operator-id", type=UUID, required=True)
+    link_telegram.add_argument("--telegram-user-id", type=int, required=True)
+    revoke_telegram = subcommands.add_parser(
+        "revoke-telegram-operator",
+        help="revoke one Telegram link without deleting its history",
+    )
+    revoke_telegram.add_argument("--link-id", type=UUID, required=True)
+    subcommands.add_parser(
+        "list-telegram-operators",
+        help="show active Telegram links",
+    )
+
     create_destination = subcommands.add_parser(
         "create-telegram-destination",
         help="create a disabled Telegram destination without storing credentials",
@@ -153,6 +180,9 @@ def main() -> None:
         return
     if arguments.command in _OPERATOR_COMMANDS:
         _run_operator_command(arguments)
+        return
+    if arguments.command in _TELEGRAM_LINK_COMMANDS:
+        _run_telegram_link_command(arguments)
         return
     if arguments.command in _DESTINATION_COMMANDS:
         _run_destination_command(arguments)
@@ -255,6 +285,45 @@ def _run_operator_command(arguments: argparse.Namespace) -> None:
     else:
         print(f"key_id={arguments.key_id}")
         print(f"revoked={'true' if revoked else 'already'}")
+
+
+def _run_telegram_link_command(arguments: argparse.Namespace) -> None:
+    try:
+        if arguments.command == "list-telegram-operators":
+            with get_session_factory()() as session:
+                links = list_telegram_links(session)
+            for link in links:
+                print(
+                    f"link_id={link.link_id} operator_id={link.operator_id} "
+                    f"username={link.username} telegram_user_id={link.telegram_user_id}"
+                )
+            if not links:
+                print("Активных связей Telegram нет.")
+            return
+        with get_session_factory().begin() as session:
+            if arguments.command == "link-telegram-operator":
+                link = link_telegram_user(
+                    session,
+                    operator_id=arguments.operator_id,
+                    telegram_user_id=arguments.telegram_user_id,
+                )
+            else:
+                link = revoke_telegram_link(session, link_id=arguments.link_id)
+    except (IntegrityError, TelegramIdentityError):
+        print(
+            "Не удалось изменить связь Telegram: проверьте идентификаторы и аргументы.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+    except SQLAlchemyError:
+        print("Не удалось изменить связь Telegram из-за ошибки базы данных.", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    print(f"link_id={link.link_id}")
+    print(f"operator_id={link.operator_id}")
+    print(f"username={link.username}")
+    print(f"telegram_user_id={link.telegram_user_id}")
+    print(f"revoked={'true' if arguments.command == 'revoke-telegram-operator' else 'false'}")
 
 
 def _print_issued_operator_key(issued: IssuedOperatorApiKey) -> None:

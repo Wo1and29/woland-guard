@@ -28,6 +28,10 @@ from woland_guard_control_plane.infrastructure.database.models.server import Age
 from woland_guard_control_plane.infrastructure.database.models.telegram import (
     TelegramDestinationConfig,
 )
+from woland_guard_control_plane.infrastructure.database.models.telegram_identity import (
+    OperatorTelegramLink,
+    TelegramBotOffset,
+)
 from woland_guard_control_plane.infrastructure.database.models.web_session import (
     OperatorWebSession,
 )
@@ -59,10 +63,12 @@ __all__ = [
     "OperatorAuthMethodType",
     "OperatorIdempotencyRecord",
     "OperatorRole",
+    "OperatorTelegramLink",
     "OperatorWebSession",
     "OutboxErrorCode",
     "OutboxMessage",
     "OutboxStatus",
     "Server",
+    "TelegramBotOffset",
     "TelegramDestinationConfig",
 ]

@@ -81,6 +81,18 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
         {},
     ),
     (
+        "operator_telegram_link.created",
+        AuditActorType.LOCAL_CLI,
+        "operator_telegram_link",
+        {"operator_id": _OPERATOR_ID},
+    ),
+    (
+        "operator_telegram_link.revoked",
+        AuditActorType.LOCAL_CLI,
+        "operator_telegram_link",
+        {"operator_id": _OPERATOR_ID},
+    ),
+    (
         "outbox.failed_requeued",
         AuditActorType.LOCAL_CLI,
         "outbox_message",

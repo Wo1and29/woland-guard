@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
@@ -153,12 +154,12 @@ def test_upgrade_preserves_existing_operator_api_key_auth_rows(
                     "target_id": uuid4(),
                 },
             )
-        command.upgrade(config, REVISION_0009)
+        command.upgrade(config, "head")
         with get_session_factory()() as session:
             stored = session.get(AuditLogEntry, audit_id)
             assert stored is not None and stored.auth_method_type == "operator_api_key"
     finally:
-        command.upgrade(config, REVISION_0009)
+        command.upgrade(config, "head")
 
 
 def test_downgrade_refuses_populated_web_sessions(
@@ -189,7 +190,7 @@ def test_downgrade_refuses_populated_web_sessions(
         )
         connection.execute(text("ALTER TABLE audit_log_entries ENABLE TRIGGER USER"))
     command.downgrade(config, REVISION_0006)
-    command.upgrade(config, REVISION_0009)
+    command.upgrade(config, "head")
 
 
 def test_dashboard_query_indexes_upgrade_and_downgrade() -> None:
@@ -205,12 +206,15 @@ def test_dashboard_query_indexes_upgrade_and_downgrade() -> None:
             "ix_servers_lower_name_pattern",
         }
     finally:
-        command.upgrade(config, REVISION_0009)
+        command.upgrade(config, "head")
 
 
-def test_current_revision_is_0009() -> None:
+def test_current_revision_is_head() -> None:
+    """Assert against the script head so a new migration never breaks this check."""
+
+    head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == REVISION_0009
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == head
     with get_session_factory()() as session:
         assert session.scalar(select(IncidentHistoryEntry).limit(1)) is None
 

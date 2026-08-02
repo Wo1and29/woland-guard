@@ -19,7 +19,7 @@ class IncidentComment(Base):
             name="body_length",
         ),
         CheckConstraint(
-            "auth_method_type IN ('operator_api_key', 'web_session')",
+            "auth_method_type IN ('operator_api_key', 'web_session', 'telegram')",
             name="auth_method_type_allowed",
         ),
         Index(

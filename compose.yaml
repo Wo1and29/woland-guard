@@ -136,6 +136,65 @@ services:
     networks:
       - backend
 
+  telegram-bot:
+    # Telegram rejects a second concurrent getUpdates consumer for the same bot token
+    # with HTTP 409, so this service must stay at exactly one replica and must not be
+    # combined with a configured webhook.
+    profiles: ["telegram-notifications"]
+    build:
+      context: .
+      dockerfile: deploy/docker/control-plane.Dockerfile
+      target: runtime
+    command:
+      [
+        "woland-guard-telegram-bot",
+        "run",
+        "--token-file-name",
+        "${WG_TELEGRAM_BOT_TOKEN_FILE_NAME:-local-bot.token}",
+      ]
+    user: "10001:10001"
+    environment:
+      WG_APP_ENV: ${WG_APP_ENV:-development}
+      WG_POSTGRES_HOST: postgres
+      WG_POSTGRES_PORT: 5432
+      WG_POSTGRES_DB: ${WG_POSTGRES_DB:-woland_guard}
+      WG_POSTGRES_USER: ${WG_POSTGRES_USER:-woland_guard}
+      WG_POSTGRES_PASSWORD: ${WG_POSTGRES_PASSWORD:?Set WG_POSTGRES_PASSWORD in .env}
+      WG_POSTGRES_CONNECT_TIMEOUT_SECONDS: ${WG_POSTGRES_CONNECT_TIMEOUT_SECONDS:-3}
+      WG_TELEGRAM_BOT_LONG_POLL_SECONDS: ${WG_TELEGRAM_BOT_LONG_POLL_SECONDS:-25}
+      WG_TELEGRAM_BOT_CONNECT_TIMEOUT_SECONDS: ${WG_TELEGRAM_BOT_CONNECT_TIMEOUT_SECONDS:-5}
+      WG_TELEGRAM_BOT_READ_TIMEOUT_SECONDS: ${WG_TELEGRAM_BOT_READ_TIMEOUT_SECONDS:-35}
+      WG_TELEGRAM_BOT_WRITE_TIMEOUT_SECONDS: ${WG_TELEGRAM_BOT_WRITE_TIMEOUT_SECONDS:-5}
+      WG_TELEGRAM_BOT_POOL_TIMEOUT_SECONDS: ${WG_TELEGRAM_BOT_POOL_TIMEOUT_SECONDS:-1}
+      WG_TELEGRAM_BOT_REQUEST_TIMEOUT_SECONDS: ${WG_TELEGRAM_BOT_REQUEST_TIMEOUT_SECONDS:-60}
+      WG_TELEGRAM_BOT_IDLE_POLL_SECONDS: ${WG_TELEGRAM_BOT_IDLE_POLL_SECONDS:-1}
+      WG_TELEGRAM_BOT_BATCH_LIMIT: ${WG_TELEGRAM_BOT_BATCH_LIMIT:-25}
+      WG_TELEGRAM_BOT_RESULT_LIMIT: ${WG_TELEGRAM_BOT_RESULT_LIMIT:-10}
+      WG_TELEGRAM_BOT_RATE_LIMIT_REQUESTS: ${WG_TELEGRAM_BOT_RATE_LIMIT_REQUESTS:-20}
+      WG_TELEGRAM_BOT_RATE_LIMIT_WINDOW_SECONDS: ${WG_TELEGRAM_BOT_RATE_LIMIT_WINDOW_SECONDS:-60}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${WG_TELEGRAM_STAGING_DIRECTORY:-./local-secrets/telegram}
+        target: /run/woland-guard-staging/telegram
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /run/secrets/woland-guard/telegram:uid=10001,gid=10001,mode=0700
+      - /tmp
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
   telegram-admin:
     profiles: ["telegram-notifications"]
     build:

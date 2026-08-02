@@ -126,6 +126,16 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
             detail_fields=_fields(),
             allowed_auth_methods=frozenset({OperatorAuthMethodType.WEB_SESSION}),
         ),
+        "operator_telegram_link.created": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="operator_telegram_link",
+            detail_fields=_fields(operator_id=AuditDetailType.UUID),
+        ),
+        "operator_telegram_link.revoked": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="operator_telegram_link",
+            detail_fields=_fields(operator_id=AuditDetailType.UUID),
+        ),
         "outbox.failed_requeued": AuditActionSpec(
             actor_type=AuditActorType.LOCAL_CLI,
             target_type="outbox_message",

@@ -10,6 +10,11 @@ from urllib.parse import quote
 
 import httpx2
 
+_REQUIRED_BODY_KEYS = {
+    "sendMessage": {"chat_id", "text"},
+    "getUpdates": {"offset", "limit", "timeout", "allowed_updates"},
+}
+
 
 class ChunkedBody(httpx2.SyncByteStream):
     def __init__(self, chunks: Iterable[bytes]) -> None:
@@ -27,6 +32,8 @@ class FakeTelegramBotApiTransport(httpx2.BaseTransport):
     response_chunks: tuple[bytes, ...] = (b'{"ok":true,"result":{}}',)
     requests: list[dict[str, Any]] = field(default_factory=list, repr=False)
     expected_tokens: list[str] = field(default_factory=list, repr=False)
+    allowed_methods: tuple[str, ...] = ("sendMessage",)
+    methods: list[str] = field(default_factory=list, repr=False)
 
     def handle_request(self, request: httpx2.Request) -> httpx2.Response:
         assert request.method == "POST"
@@ -36,15 +43,23 @@ class FakeTelegramBotApiTransport(httpx2.BaseTransport):
         assert request.url.query == b""
         raw_path = request.url.raw_path
         assert raw_path.startswith(b"/bot")
-        assert raw_path.endswith(b"/sendMessage")
         assert raw_path.count(b"/") == 2
+        method = raw_path.rsplit(b"/", 1)[1].decode("ascii")
+        assert method in self.allowed_methods
         if self.expected_tokens:
             expected = quote(self.expected_tokens.pop(0), safe="").encode("ascii")
-            assert raw_path == b"/bot" + expected + b"/sendMessage"
+            assert raw_path == b"/bot" + expected + b"/" + method.encode("ascii")
         body = json.loads(request.read())
-        assert set(body) == {"chat_id", "text"}
-        assert type(body["chat_id"]) is int
-        assert type(body["text"]) is str
+        assert set(body) == _REQUIRED_BODY_KEYS[method]
+        if method == "sendMessage":
+            assert type(body["chat_id"]) is int
+            assert type(body["text"]) is str
+        else:
+            assert type(body["offset"]) is int
+            assert type(body["limit"]) is int
+            assert type(body["timeout"]) is int
+            assert type(body["allowed_updates"]) is list
+        self.methods.append(method)
         self.requests.append(body)
         return httpx2.Response(
             self.status_code,

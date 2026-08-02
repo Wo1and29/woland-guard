@@ -63,6 +63,18 @@ class Settings(BaseSettings):
     telegram_write_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
     telegram_pool_timeout_seconds: float = Field(default=1.0, gt=0.0, le=60.0)
 
+    telegram_bot_long_poll_seconds: int = Field(default=25, ge=0, le=50)
+    telegram_bot_connect_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    telegram_bot_read_timeout_seconds: float = Field(default=35.0, gt=0.0, le=120.0)
+    telegram_bot_write_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    telegram_bot_pool_timeout_seconds: float = Field(default=1.0, gt=0.0, le=60.0)
+    telegram_bot_request_timeout_seconds: float = Field(default=60.0, gt=0.0, le=300.0)
+    telegram_bot_idle_poll_seconds: float = Field(default=1.0, ge=0.1, le=60.0)
+    telegram_bot_batch_limit: int = Field(default=25, ge=1, le=100)
+    telegram_bot_result_limit: int = Field(default=10, ge=1, le=50)
+    telegram_bot_rate_limit_requests: int = Field(default=20, ge=1, le=1_000)
+    telegram_bot_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+
     @model_validator(mode="after")
     def validate_outbox_timings(self) -> "Settings":
         origin = urlsplit(self.web_public_origin)
@@ -97,6 +109,16 @@ class Settings(BaseSettings):
         )
         if telegram_timeout_sum > self.outbox_adapter_timeout_seconds:
             raise ValueError("Telegram phase timeouts must fit the adapter timeout budget")
+        if self.telegram_bot_read_timeout_seconds <= self.telegram_bot_long_poll_seconds:
+            raise ValueError("Telegram bot read timeout must exceed the long-poll duration")
+        bot_timeout_sum = (
+            self.telegram_bot_connect_timeout_seconds
+            + self.telegram_bot_read_timeout_seconds
+            + self.telegram_bot_write_timeout_seconds
+            + self.telegram_bot_pool_timeout_seconds
+        )
+        if bot_timeout_sum > self.telegram_bot_request_timeout_seconds:
+            raise ValueError("Telegram bot phase timeouts must fit the request timeout budget")
         return self
 
 

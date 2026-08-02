@@ -57,8 +57,10 @@ def test_expected_tables_are_registered() -> None:
         "operator_web_sessions",
         "operators",
         "notification_destinations",
+        "operator_telegram_links",
         "outbox_messages",
         "servers",
+        "telegram_bot_offsets",
         "telegram_destination_configs",
     }
 

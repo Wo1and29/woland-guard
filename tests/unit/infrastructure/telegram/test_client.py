@@ -43,6 +43,121 @@ def test_request_uses_canonical_origin_path_and_plain_text_body() -> None:
     assert response.status_code == 200
 
 
+def test_get_updates_uses_canonical_origin_and_bounded_parameters() -> None:
+    fake_api = FakeTelegramBotApiTransport(
+        allowed_methods=("getUpdates",),
+        response_chunks=(b'{"ok":true,"result":[]}',),
+    )
+
+    response = _client(fake_api).get_updates(
+        token=TelegramToken(CANARY_TOKEN),
+        offset=41,
+        limit=25,
+        long_poll_seconds=0,
+        allowed_updates=("message",),
+        timeout_seconds=4,
+    )
+
+    assert fake_api.methods == ["getUpdates"]
+    assert fake_api.requests == [
+        {"offset": 41, "limit": 25, "timeout": 0, "allowed_updates": ["message"]}
+    ]
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"offset": -1},
+        {"limit": 0},
+        {"limit": 101},
+        {"long_poll_seconds": -1},
+        {"allowed_updates": ()},
+        {"allowed_updates": ("",)},
+        {"allowed_updates": ("x" * 33,)},
+        {"allowed_updates": ("сообщение",)},
+    ],
+)
+def test_get_updates_rejects_out_of_contract_parameters(overrides: dict[str, object]) -> None:
+    request: dict[str, object] = {
+        "offset": 0,
+        "limit": 25,
+        "long_poll_seconds": 0,
+        "allowed_updates": ("message",),
+    }
+    request.update(overrides)
+    fake_api = FakeTelegramBotApiTransport(allowed_methods=("getUpdates",))
+
+    with pytest.raises(ValueError, match="Telegram update request parameters are invalid"):
+        _client(fake_api).get_updates(
+            token=TelegramToken(CANARY_TOKEN),
+            timeout_seconds=4,
+            **request,  # type: ignore[arg-type]
+        )
+    assert fake_api.requests == []
+
+
+def test_get_updates_response_limit_rejects_oversized_body() -> None:
+    fake_api = FakeTelegramBotApiTransport(
+        allowed_methods=("getUpdates",),
+        response_chunks=(b"x" * 32_768, b"y" * 32_768, b"z"),
+    )
+
+    with pytest.raises(TelegramTransportError):
+        _client(fake_api).get_updates(
+            token=TelegramToken(CANARY_TOKEN),
+            offset=0,
+            limit=25,
+            long_poll_seconds=0,
+            allowed_updates=("message",),
+            timeout_seconds=4,
+        )
+
+
+@pytest.mark.parametrize("root_level", [logging.INFO, logging.DEBUG])
+def test_get_updates_logging_never_exposes_the_token(
+    root_level: int,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    records: list[logging.LogRecord] = []
+    original_factory = logging.getLogRecordFactory()
+
+    def record_factory(*args: object, **kwargs: object) -> logging.LogRecord:
+        record = original_factory(*args, **kwargs)
+        records.append(record)
+        return record
+
+    logging.getLogger().setLevel(root_level)
+    logging.setLogRecordFactory(record_factory)
+    try:
+        _client(
+            FakeTelegramBotApiTransport(
+                allowed_methods=("getUpdates",),
+                response_chunks=(b'{"ok":true,"result":[]}',),
+            )
+        ).get_updates(
+            token=TelegramToken(CANARY_TOKEN),
+            offset=0,
+            limit=25,
+            long_poll_seconds=0,
+            allowed_updates=("message",),
+            timeout_seconds=4,
+        )
+    finally:
+        logging.setLogRecordFactory(original_factory)
+
+    rendered_records = " ".join(
+        f"{record.name} {record.msg!r} {record.args!r} {record.__dict__!r}" for record in records
+    )
+    output = capsys.readouterr()
+    assert CANARY_TOKEN not in rendered_records
+    assert CANARY_TOKEN not in output.out
+    assert CANARY_TOKEN not in output.err
+    assert not any(
+        record.name == "httpx2" or record.name.startswith("httpcore2") for record in records
+    )
+
+
 @pytest.mark.parametrize("root_level", [logging.INFO, logging.DEBUG])
 def test_http_library_logging_never_exposes_canaries(
     root_level: int,
