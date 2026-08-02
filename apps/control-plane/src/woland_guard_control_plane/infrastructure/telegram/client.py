@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Final
+from typing import Any, Final
 from urllib.parse import quote
 
 import httpx2
@@ -16,6 +16,7 @@ from woland_guard_control_plane.infrastructure.telegram.token_file import Telegr
 
 TELEGRAM_API_ORIGIN: Final = "https://api.telegram.org"
 TELEGRAM_RESPONSE_LIMIT_BYTES: Final = 65_536
+CALLBACK_QUERY_ANSWER_TEXT_MAX_CHARS: Final = 200
 
 
 class TelegramTransportError(RuntimeError):
@@ -89,11 +90,41 @@ class TelegramBotApiClient:
         chat_id: int,
         text: str,
         timeout_seconds: float,
+        reply_markup: dict[str, Any] | None = None,
     ) -> TelegramHttpResponse:
+        payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
         return self._call(
             token=token,
             method="sendMessage",
-            payload={"chat_id": chat_id, "text": text},
+            payload=payload,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def answer_callback_query(
+        self,
+        *,
+        token: TelegramToken,
+        callback_query_id: str,
+        text: str,
+        show_alert: bool,
+        timeout_seconds: float,
+    ) -> TelegramHttpResponse:
+        """Answer one callback_query; the reply is visible only to the presser."""
+
+        if not 1 <= len(callback_query_id) <= 128 or not callback_query_id.isascii():
+            raise ValueError("Telegram callback_query_id is invalid.")
+        if len(text) > CALLBACK_QUERY_ANSWER_TEXT_MAX_CHARS:
+            raise ValueError("Telegram callback answer text is too long.")
+        return self._call(
+            token=token,
+            method="answerCallbackQuery",
+            payload={
+                "callback_query_id": callback_query_id,
+                "text": text,
+                "show_alert": show_alert,
+            },
             timeout_seconds=timeout_seconds,
         )
 

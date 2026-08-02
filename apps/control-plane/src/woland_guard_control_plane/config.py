@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     telegram_bot_result_limit: int = Field(default=10, ge=1, le=50)
     telegram_bot_rate_limit_requests: int = Field(default=20, ge=1, le=1_000)
     telegram_bot_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    telegram_bot_pending_action_ttl_seconds: int = Field(default=300, ge=10, le=3_600)
 
     @model_validator(mode="after")
     def validate_outbox_timings(self) -> "Settings":

@@ -62,6 +62,7 @@ def test_expected_tables_are_registered() -> None:
         "servers",
         "telegram_bot_offsets",
         "telegram_destination_configs",
+        "telegram_pending_actions",
     }
 
 

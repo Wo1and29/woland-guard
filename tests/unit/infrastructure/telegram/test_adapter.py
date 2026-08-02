@@ -223,6 +223,7 @@ def test_next_delivery_uses_atomically_rotated_staging_token(tmp_path: Path) -> 
             runtime_directory=runtime,
             enforce_posix_metadata=False,
         ),
+        dashboard_origin="https://localhost:8443",
     )
     configuration = TelegramDeliveryConfiguration.create(
         destination_id=UUID("10000000-0000-4000-8000-000000000001"),

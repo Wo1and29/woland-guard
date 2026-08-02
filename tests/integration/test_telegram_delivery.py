@@ -133,6 +133,7 @@ def test_real_worker_routes_detached_provider_config_to_fake_bot_api(
             runtime_directory=runtime,
             enforce_posix_metadata=False,
         ),
+        dashboard_origin="https://localhost:8443",
     )
     worker = _worker(now, telegram_adapter, load_provider_config=True)
 
@@ -140,7 +141,7 @@ def test_real_worker_routes_detached_provider_config_to_fake_bot_api(
 
     assert result.delivered == 1
     assert len(fake_api.requests) == 1
-    assert set(fake_api.requests[0]) == {"chat_id", "text"}
+    assert {"chat_id", "text"} <= set(fake_api.requests[0])
     message = fake_api.requests[0]["text"]
     assert isinstance(message, str)
     for forbidden in ("actor", "source_ip", "attributes", "correlation", "payload"):
@@ -172,6 +173,7 @@ def test_staging_canary_is_absent_from_database_and_application_logs(
             runtime_directory=runtime,
             enforce_posix_metadata=False,
         ),
+        dashboard_origin="https://localhost:8443",
     )
     worker = _worker(now, adapter, load_provider_config=True)
 
@@ -214,6 +216,7 @@ def test_running_worker_discovers_destination_and_token_without_restart(
             runtime_directory=runtime,
             enforce_posix_metadata=False,
         ),
+        dashboard_origin="https://localhost:8443",
     )
     worker = _worker(now, adapter, load_provider_config=True)
     startup_recovery_finished = Event()

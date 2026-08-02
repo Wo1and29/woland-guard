@@ -73,6 +73,7 @@ def _build_poller(settings: Settings, *, token_file_name: str) -> TelegramBotPol
             window_seconds=settings.telegram_bot_rate_limit_window_seconds,
         ),
         result_limit=settings.telegram_bot_result_limit,
+        pending_action_ttl_seconds=settings.telegram_bot_pending_action_ttl_seconds,
     )
     return TelegramBotPoller(
         session_factory=session_factory,

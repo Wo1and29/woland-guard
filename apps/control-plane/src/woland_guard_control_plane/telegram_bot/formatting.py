@@ -13,11 +13,21 @@ from typing import Final
 
 from woland_guard_control_plane.application.dashboard_overview import DashboardOverview
 from woland_guard_control_plane.application.incident_queries import DashboardIncidentSummary
+from woland_guard_control_plane.application.incident_workflow import TransitionOutcome
 from woland_guard_control_plane.application.server_queries import ServerSummary
+from woland_guard_control_plane.infrastructure.database.models import IncidentStatus
 
 FIELD_MAX_CHARS: Final = 80
 MESSAGE_MAX_CHARS: Final = 3_500
+CALLBACK_ANSWER_MAX_CHARS: Final = 200
 _PLACEHOLDER: Final = "-"
+
+_STATUS_LABELS: Final[dict[str, str]] = {
+    IncidentStatus.NEW.value: "новый",
+    IncidentStatus.INVESTIGATING.value: "в работе",
+    IncidentStatus.RESOLVED.value: "закрыт",
+    IncidentStatus.FALSE_POSITIVE.value: "ложное срабатывание",
+}
 
 HELP_TEXT: Final = (
     "Woland Guard\n"
@@ -40,6 +50,57 @@ UNLINKED_TEMPLATE: Final = (
 FORBIDDEN_TEXT: Final = "Недостаточно прав для этой команды."
 UNKNOWN_COMMAND_TEXT: Final = "Неизвестная команда. Отправьте /help."
 UNAVAILABLE_TEXT: Final = "Данные временно недоступны. Повторите позже."
+
+CALLBACK_UNLINKED_TEXT: Final = "Аккаунт не связан с оператором. Обратитесь к администратору."
+CALLBACK_FORBIDDEN_TEXT: Final = "Недостаточно прав для этого действия."
+CALLBACK_INVALID_TEXT: Final = "Некорректный запрос."
+CALLBACK_RATE_LIMITED_TEXT: Final = "Слишком много запросов. Повторите позже."
+
+REASON_INVALID_TEXT: Final = (
+    "Причина некорректна (1–1000 символов, без управляющих символов). "
+    "Действие отменено — нажмите кнопку ещё раз."
+)
+REASON_EXPIRED_TEXT: Final = "Время ожидания причины истекло. Нажмите кнопку в уведомлении ещё раз."
+
+INCIDENT_NOT_FOUND_TEXT: Final = "Инцидент не найден."
+INCIDENT_STALE_VERSION_TEXT: Final = (
+    "Инцидент уже был изменён. Откройте панель, чтобы увидеть текущий статус."
+)
+INCIDENT_TRANSITION_NOT_ALLOWED_TEXT: Final = "Переход недоступен из текущего статуса инцидента."
+
+
+def format_reason_prompt(target_status: IncidentStatus) -> str:
+    """Ask for the terminal-status reason as a follow-up private message."""
+
+    label = _STATUS_LABELS[target_status.value]
+    return (
+        f"Действие «{label}» требует причины.\n"
+        "Отправьте её одним сообщением (1–1000 символов).\n"
+        "Любая команда, например /help, отменяет действие."
+    )
+
+
+def format_transition_outcome(
+    outcome: TransitionOutcome,
+    *,
+    target_status: IncidentStatus,
+) -> str:
+    """Render one bounded, single-purpose transition result for Telegram."""
+
+    label = _STATUS_LABELS[target_status.value]
+    if outcome.http_status == 200:
+        if outcome.replayed:
+            return f"Уже выполнено ранее: статус «{label}»."
+        return f"Статус изменён: «{label}»."
+    if outcome.http_status == 404:
+        return INCIDENT_NOT_FOUND_TEXT
+    if outcome.conflict_type == "stale_version":
+        return INCIDENT_STALE_VERSION_TEXT
+    if outcome.conflict_type == "transition_not_allowed":
+        return INCIDENT_TRANSITION_NOT_ALLOWED_TEXT
+    if outcome.conflict_type == "idempotency_key_reused":
+        return "Действие уже выполняется. Повторите позже."
+    return "Не удалось изменить статус. Повторите позже."
 
 
 def safe_field(value: object, *, limit: int = FIELD_MAX_CHARS) -> str:

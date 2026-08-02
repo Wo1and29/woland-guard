@@ -30,6 +30,7 @@ def _router() -> TelegramCommandRouter:
         get_session_factory(),
         rate_limiter=FixedWindowRateLimiter(max_requests=100, window_seconds=60),
         result_limit=10,
+        pending_action_ttl_seconds=300,
     )
 
 
@@ -54,7 +55,7 @@ def _link(operator_id: object) -> None:
 
 
 def test_unlinked_sender_receives_only_its_own_identifier() -> None:
-    reply = _router().handle(_message(text="/status"), now=NOW)
+    reply = _router().handle(_message(text="/status"), now=NOW, update_id=1)
 
     assert reply is not None
     assert str(TELEGRAM_USER_ID) in reply
@@ -69,7 +70,7 @@ def test_linked_operator_receives_help_without_data_permission(
     operator = register_operator(role=OperatorRole.VIEWER)
     _link(operator.operator_id)
 
-    assert _router().handle(_message(text="/help"), now=NOW) == formatting.HELP_TEXT
+    assert _router().handle(_message(text="/help"), now=NOW, update_id=1) == formatting.HELP_TEXT
 
 
 @pytest.mark.parametrize("command", ["/status", "/servers", "/incidents", "/critical"])
@@ -80,7 +81,7 @@ def test_linked_operator_reads_safe_aggregates(
     operator = register_operator(role=OperatorRole.ANALYST)
     _link(operator.operator_id)
 
-    reply = _router().handle(_message(text=command), now=NOW)
+    reply = _router().handle(_message(text=command), now=NOW, update_id=1)
 
     assert reply is not None
     assert reply not in {formatting.FORBIDDEN_TEXT, formatting.UNKNOWN_COMMAND_TEXT}
@@ -93,7 +94,7 @@ def test_unknown_command_from_linked_operator_is_reported_safely(
     operator = register_operator(role=OperatorRole.ANALYST)
     _link(operator.operator_id)
 
-    reply = _router().handle(_message(text="/definitelynotacommand"), now=NOW)
+    reply = _router().handle(_message(text="/definitelynotacommand"), now=NOW, update_id=1)
 
     assert reply == formatting.UNKNOWN_COMMAND_TEXT
 
@@ -103,7 +104,7 @@ def test_revoked_operator_loses_access_immediately(
 ) -> None:
     operator = register_operator(role=OperatorRole.ANALYST)
     _link(operator.operator_id)
-    assert _router().handle(_message(text="/status"), now=NOW) is not None
+    assert _router().handle(_message(text="/status"), now=NOW, update_id=1) is not None
 
     with get_session_factory().begin() as session:
         from woland_guard_control_plane.infrastructure.database.models import Operator
@@ -112,7 +113,7 @@ def test_revoked_operator_loses_access_immediately(
         assert stored is not None
         stored.is_active = False
 
-    reply = _router().handle(_message(text="/status"), now=NOW)
+    reply = _router().handle(_message(text="/status"), now=NOW, update_id=1)
     assert reply is not None
     assert "не связан" in reply
 

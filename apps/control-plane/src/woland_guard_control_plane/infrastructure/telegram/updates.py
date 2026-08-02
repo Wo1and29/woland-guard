@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 TELEGRAM_MESSAGE_TEXT_MAX_CHARS: Final = 4_096
 TELEGRAM_UPDATE_BATCH_MAX: Final = 100
 TELEGRAM_USER_ID_MAX: Final = 2**53 - 1
+TELEGRAM_CALLBACK_QUERY_ID_MAX_CHARS: Final = 128
+TELEGRAM_CALLBACK_DATA_MAX_CHARS: Final = 256
 PRIVATE_CHAT_TYPE: Final = "private"
 
 
@@ -56,11 +58,21 @@ class TelegramMessage(_InboundModel):
         return self.chat.type == PRIVATE_CHAT_TYPE
 
 
+class TelegramCallbackQuery(_InboundModel):
+    """One inline-button press; ``data`` is untrusted input, not our own value."""
+
+    id: str = Field(min_length=1, max_length=TELEGRAM_CALLBACK_QUERY_ID_MAX_CHARS)
+    sender: TelegramSender | None = Field(default=None, alias="from")
+    message: TelegramMessage | None = None
+    data: str | None = Field(default=None, max_length=TELEGRAM_CALLBACK_DATA_MAX_CHARS)
+
+
 class TelegramUpdate(_InboundModel):
-    """One update envelope limited to the message kind allowed in 9A."""
+    """One update envelope limited to the message and callback_query kinds."""
 
     update_id: int = Field(ge=0)
     message: TelegramMessage | None = None
+    callback_query: TelegramCallbackQuery | None = None
 
 
 class TelegramUpdateResponse(_InboundModel):

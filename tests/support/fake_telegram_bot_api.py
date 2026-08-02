@@ -13,6 +13,12 @@ import httpx2
 _REQUIRED_BODY_KEYS = {
     "sendMessage": {"chat_id", "text"},
     "getUpdates": {"offset", "limit", "timeout", "allowed_updates"},
+    "answerCallbackQuery": {"callback_query_id", "text", "show_alert"},
+}
+_OPTIONAL_BODY_KEYS = {
+    "sendMessage": {"reply_markup"},
+    "getUpdates": frozenset(),
+    "answerCallbackQuery": frozenset(),
 }
 
 
@@ -50,15 +56,23 @@ class FakeTelegramBotApiTransport(httpx2.BaseTransport):
             expected = quote(self.expected_tokens.pop(0), safe="").encode("ascii")
             assert raw_path == b"/bot" + expected + b"/" + method.encode("ascii")
         body = json.loads(request.read())
-        assert set(body) == _REQUIRED_BODY_KEYS[method]
+        required = _REQUIRED_BODY_KEYS[method]
+        allowed = required | _OPTIONAL_BODY_KEYS[method]
+        assert required <= set(body) <= allowed
         if method == "sendMessage":
             assert type(body["chat_id"]) is int
             assert type(body["text"]) is str
-        else:
+            if "reply_markup" in body:
+                assert isinstance(body["reply_markup"], dict)
+        elif method == "getUpdates":
             assert type(body["offset"]) is int
             assert type(body["limit"]) is int
             assert type(body["timeout"]) is int
             assert type(body["allowed_updates"]) is list
+        else:
+            assert type(body["callback_query_id"]) is str
+            assert type(body["text"]) is str
+            assert type(body["show_alert"]) is bool
         self.methods.append(method)
         self.requests.append(body)
         return httpx2.Response(

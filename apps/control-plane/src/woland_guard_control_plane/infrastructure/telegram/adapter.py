@@ -28,6 +28,7 @@ from woland_guard_control_plane.infrastructure.telegram.client import (
 )
 from woland_guard_control_plane.infrastructure.telegram.message import (
     TelegramMessageError,
+    build_incident_action_keyboard,
     format_incident_created_message,
 )
 from woland_guard_control_plane.infrastructure.telegram.token_file import (
@@ -110,9 +111,11 @@ class TelegramDeliveryAdapter:
         *,
         client: TelegramBotApiClient,
         synchronizer: TelegramTokenSynchronizer,
+        dashboard_origin: str,
     ) -> None:
         self._client = client
         self._synchronizer = synchronizer
+        self._dashboard_origin = dashboard_origin
 
     def deliver(
         self,
@@ -132,6 +135,10 @@ class TelegramDeliveryAdapter:
             return DeliveryResult(DeliveryDisposition.RETRYABLE, error.error_code)
         try:
             text = format_incident_created_message(request.payload)
+            keyboard = build_incident_action_keyboard(
+                incident_id=request.payload.incident_id,
+                dashboard_origin=self._dashboard_origin,
+            )
         except TelegramMessageError:
             return DeliveryResult(
                 DeliveryDisposition.PERMANENT,
@@ -143,6 +150,7 @@ class TelegramDeliveryAdapter:
                 chat_id=configuration.chat_id.reveal(),
                 text=text,
                 timeout_seconds=timeout_seconds,
+                reply_markup=keyboard,
             )
         except TelegramResponseTooLargeError:
             return DeliveryResult(

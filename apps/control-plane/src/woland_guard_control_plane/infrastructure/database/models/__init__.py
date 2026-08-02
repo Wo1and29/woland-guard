@@ -32,6 +32,9 @@ from woland_guard_control_plane.infrastructure.database.models.telegram_identity
     OperatorTelegramLink,
     TelegramBotOffset,
 )
+from woland_guard_control_plane.infrastructure.database.models.telegram_pending_action import (
+    TelegramPendingAction,
+)
 from woland_guard_control_plane.infrastructure.database.models.web_session import (
     OperatorWebSession,
 )
@@ -71,4 +74,5 @@ __all__ = [
     "Server",
     "TelegramBotOffset",
     "TelegramDestinationConfig",
+    "TelegramPendingAction",
 ]

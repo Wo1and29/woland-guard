@@ -145,6 +145,7 @@ def build_demo_worker(
                 transport=transport,
             ),
             synchronizer=InMemoryDemoTokenSynchronizer(token),
+            dashboard_origin=settings.web_public_origin,
         )
     }
     worker = OutboxWorker(

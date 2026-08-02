@@ -23,6 +23,7 @@ from woland_guard_control_plane.infrastructure.telegram.token_file import (
     TelegramTokenSynchronizer,
 )
 from woland_guard_control_plane.infrastructure.telegram.updates import (
+    TelegramCallbackQuery,
     TelegramUpdate,
     TelegramUpdateError,
     parse_update_response,
@@ -35,7 +36,7 @@ from woland_guard_control_plane.telegram_bot.router import TelegramCommandRouter
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_UPDATE_KINDS: Final = ("message",)
+ALLOWED_UPDATE_KINDS: Final = ("message", "callback_query")
 _HTTP_OK: Final = 200
 
 
@@ -167,10 +168,12 @@ class TelegramBotPoller:
         return PollCycleResult(received=len(updates), replied=replied, ignored=ignored)
 
     def _handle_update(self, update: TelegramUpdate, *, token: TelegramToken) -> bool:
+        if update.callback_query is not None:
+            return self._handle_callback_query(update.callback_query, token=token)
         message = update.message
         if message is None:
             return False
-        reply = self._router.handle(message, now=self._clock())
+        reply = self._router.handle(message, now=self._clock(), update_id=update.update_id)
         if reply is None:
             return False
         try:
@@ -182,5 +185,25 @@ class TelegramBotPoller:
             )
         except TelegramTransportError:
             logger.warning("telegram_bot_reply_failed")
+            return False
+        return True
+
+    def _handle_callback_query(
+        self,
+        callback_query: TelegramCallbackQuery,
+        *,
+        token: TelegramToken,
+    ) -> bool:
+        answer = self._router.handle_callback_query(callback_query, now=self._clock())
+        try:
+            self._client.answer_callback_query(
+                token=token,
+                callback_query_id=callback_query.id,
+                text=answer.text,
+                show_alert=answer.show_alert,
+                timeout_seconds=self._settings.request_timeout_seconds,
+            )
+        except TelegramTransportError:
+            logger.warning("telegram_bot_callback_answer_failed")
             return False
         return True
