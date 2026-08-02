@@ -228,7 +228,7 @@ class TelegramCommandRouter:
                     expected_version=action.expected_version,
                     reason=None,
                     idempotency_key=_callback_idempotency_key(callback_query.id),
-                    request_id=f"telegram-cb-{callback_query.id}",
+                    request_id=_callback_request_id(callback_query.id),
                     now=now,
                 )
                 return CallbackAnswer(text, False)
