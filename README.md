@@ -1,14 +1,17 @@
 # Woland Guard
 
-Woland Guard — разрабатываемая защитная система мониторинга Linux-серверов. Агент будет
-читать разрешённые системные события, а control plane — создавать понятные инциденты и
-помогать владельцу сервера реагировать на них.
+*[Read this in English](README.en.md)*
 
-Этапы 1–7 и подэтап 8A завершены и зафиксированы локально. Подэтап 8B с изолированной
-full-stack demo verification реализован в рабочей копии и ожидает повторного ревью. Текущая реализация:
-Linux-агент проверен на синтетических journald fixtures и в Linux test image, control plane
-создаёт инциденты, а локальные операторы читают их, выполняют идемпотентные status transitions
-и добавляют append-only комментарии через защищённый Dashboard.
+Woland Guard — защитная система мониторинга Linux-серверов. Агент читает разрешённые системные
+события, а control plane создаёт понятные инциденты и помогает оператору реагировать на них —
+через защищённый веб-Dashboard или интерактивно через Telegram.
+
+Реализовано и зафиксировано локально: ingestion API с Detection Engine (8 правил, MITRE ATT&CK),
+Linux-агент с durable delivery, RBAC и Dashboard с несколькими ролями, исходящие и входящие
+Telegram-уведомления (команды, кнопки статуса, диалог причины), dry-run-блокировка IP с allowlist
+и подтверждением второго администратора, три уровня demo-инфраструктуры (от ручного показа до
+полного release-гейта) и 16 ADR с обоснованием каждого архитектурного решения — включая
+отдельное решение не автоматизировать исполнение блокировки IP (ADR-0016).
 
 ## Лицензия
 
@@ -96,14 +99,19 @@ production-инстанса — у реального пользователя �
 - transactional outbox, атомарный с новым incident, baseline history и evidence;
 - конкурентный worker с `FOR UPDATE SKIP LOCKED`, claim token, lease recovery и equal jitter;
 - безопасные outbox CLI-команды run/run-once/status/recovery/manual requeue;
-- исходящий Telegram adapter с фиксированным origin, bounded streaming response и без
-  входящих Telegram-команд;
+- исходящий Telegram adapter с фиксированным origin и bounded streaming response;
 - provider-specific Telegram destination config 1:1 и локальное управление без HTTP admin API;
 - on-demand синхронизация bot token из read-only staging в private tmpfs worker;
+- входящий Telegram-бот (long polling, default-deny): read-only команды `/status`, `/servers`,
+  `/incidents`, `/critical`, привязка аккаунта только через локальный CLI;
+- callback-кнопки под уведомлением («Принять в работу», «Ложное срабатывание», «Закрыть»,
+  «Открыть панель») с диалогом обязательной причины для терминальных статусов;
+- dry-run-блокировка IP через Telegram: never-block список, allowlist, план с точным `nft`-argv,
+  подтверждение второго администратора — без исполнения команды в каком-либо виде (ADR-0016);
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- ADR с подтверждёнными архитектурными решениями этапов 1–8B;
+- 16 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
