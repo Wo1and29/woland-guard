@@ -455,6 +455,8 @@ Clean-install и full-stack demo verification описаны в
 [`docs/adr/0013-inbound-telegram-commands.md`](docs/adr/0013-inbound-telegram-commands.md).
 Callback-кнопки инцидента и диалог причины описаны в
 [`docs/adr/0014-telegram-incident-action-buttons.md`](docs/adr/0014-telegram-incident-action-buttons.md).
+Dry-run блокировка IP описана в
+[`docs/adr/0015-dry-run-ip-block-plans.md`](docs/adr/0015-dry-run-ip-block-plans.md).
 
 ## Локальные операторы
 
@@ -605,10 +607,42 @@ Telegram отвечает `409 Conflict` на второй параллельн�
 Telegram гарантирует уникальным, поэтому повторная доставка одного нажатия не создаёт двойной
 переход.
 
+### Блокировка IP (dry-run)
+
+Клавиатура несёт четвёртую кнопку — «Подготовить блокировку IP» (требует `PROPOSE_IP_BLOCK`,
+роли analyst и admin). **Control plane никогда не исполняет команду блокировки** — кнопка только
+создаёт план и показывает точный `nft`-argv, который потребовался бы для его исполнения. Функция
+полностью выключена по умолчанию (`WG_IP_BLOCK_ENABLED=false`).
+
+Адрес берётся из correlation инцидента (`source_ip`), а не из ввода оператора; у инцидента без
+этого поля кнопка отвечает отказом, а не создаёт план. Never-block список (loopback, приватные,
+link-local, multicast, документационные диапазоны) и allowlist проверяются до создания плана;
+allowlist управляется только локальным CLI:
+
+```bash
+docker compose exec control-plane woland-guard-admin add-ip-allowlist-entry \
+  --cidr 203.0.113.0/24 --label "admin-jump-host" --reason "адрес администратора"
+docker compose exec control-plane woland-guard-admin list-ip-allowlist-entries
+docker compose exec control-plane woland-guard-admin revoke-ip-allowlist-entry \
+  --entry-id <entry UUID>
+```
+
+План требует подтверждения **другого** оператора с ролью admin
+(`WG_IP_BLOCK_REQUIRE_SECOND_OPERATOR=true` по умолчанию) — сам аналитик или тот же администратор
+не может подтвердить собственное предложение. Подтверждение заново перепроверяет политику: если
+allowlist изменился с момента предложения, план автоматически отклоняется вместо одобрения. Ответ
+на подтверждение явно утверждает, что блокировка не выполнена — это единственная защита от
+самого опасного недопонимания в этом подэтапе. Подробности решений — в
+[ADR-0015](docs/adr/0015-dry-run-ip-block-plans.md).
+
 ## Ограничения MVP
 
-- через Telegram нельзя добавить комментарий к инциденту или подготовить блокировку IP —
-  это следующие подэтапы;
+- через Telegram нельзя добавить комментарий к инциденту — это следующий подэтап, если будет
+  реализован;
+- блокировка IP — только dry-run: план создаётся и подтверждается, но нигде не исполняется;
+  реальное исполнение через агента — отдельный, не реализованный подэтап 9D;
+- таблицу и set в nftables на сервере администратор создаёт вручную
+  (см. [docs/deployment.md](docs/deployment.md)) — control plane их не создаёт;
 - исходное сообщение с кнопками не редактируется после нажатия, кнопки остаются видимыми;
 - нет HTTP API управления серверами и ключами;
 - delivery остаётся at-least-once и допускает повтор после внешнего side effect до acknowledge;

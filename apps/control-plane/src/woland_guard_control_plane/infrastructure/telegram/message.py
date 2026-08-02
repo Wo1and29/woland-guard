@@ -7,7 +7,11 @@ from uuid import UUID
 
 from woland_guard_control_plane.application.outbox import IncidentCreatedNotificationV1
 from woland_guard_control_plane.infrastructure.database.models import IncidentStatus
-from woland_guard_control_plane.infrastructure.telegram.callbacks import encode_incident_action
+from woland_guard_control_plane.infrastructure.telegram.callbacks import (
+    encode_decide_block,
+    encode_incident_action,
+    encode_propose_block,
+)
 
 TELEGRAM_TEXT_LIMIT = 4096
 _NEWLY_CREATED_INCIDENT_VERSION = 1
@@ -35,6 +39,12 @@ def build_incident_action_keyboard(
     at send time is always 1. A stale button (status already changed elsewhere)
     is rejected by ``transition_incident``'s own optimistic-lock check, not by
     anything client-side.
+
+    The "prepare an IP block" button is unconditional: ``IncidentCreatedNotificationV1``
+    deliberately excludes correlation data (it is a broadcast payload, not scoped to
+    one operator), so this function has no way to know whether the incident actually
+    has a correlated source address. Pressing the button on an incident without one
+    is rejected safely by the router, not filtered out here (ADR-0015).
     """
 
     parsed = urlsplit(dashboard_origin)
@@ -51,13 +61,38 @@ def build_incident_action_keyboard(
         }
         for label, status in _ACTION_BUTTONS
     ]
+    block_row = [
+        {
+            "text": "Подготовить блокировку IP",
+            "callback_data": encode_propose_block(incident_id=incident_id),
+        }
+    ]
     dashboard_row = [
         {
             "text": "Открыть панель",
             "url": f"{dashboard_origin}/dashboard/incidents/{incident_id}",
         }
     ]
-    return {"inline_keyboard": [status_row, dashboard_row]}
+    return {"inline_keyboard": [status_row, block_row, dashboard_row]}
+
+
+def build_block_decision_keyboard(plan_id: UUID) -> dict[str, Any]:
+    """Build the inline keyboard attached to a block-plan follow-up message."""
+
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Подтвердить",
+                    "callback_data": encode_decide_block(plan_id=plan_id, approve=True),
+                },
+                {
+                    "text": "Отклонить",
+                    "callback_data": encode_decide_block(plan_id=plan_id, approve=False),
+                },
+            ]
+        ]
+    }
 
 
 def format_incident_created_message(payload: IncidentCreatedNotificationV1) -> str:

@@ -17,12 +17,23 @@ from woland_guard_control_plane.telegram_bot.offsets import (
     confirm_next_update_id,
     load_next_update_id,
 )
-from woland_guard_control_plane.telegram_bot.router import TelegramCommandRouter
+from woland_guard_control_plane.telegram_bot.router import (
+    IpBlockRuntimeSettings,
+    TelegramCommandRouter,
+)
 
 pytestmark = pytest.mark.integration
 
 NOW = datetime(2026, 8, 2, 12, 0, tzinfo=UTC)
 TELEGRAM_USER_ID = 5_151_515_151
+_IP_BLOCK_SETTINGS = IpBlockRuntimeSettings(
+    enabled=False,
+    require_second_operator=True,
+    plan_ttl_seconds=3_600,
+    nft_table="woland_guard",
+    nft_set_v4="blocked_v4",
+    nft_set_v6="blocked_v6",
+)
 
 
 def _router() -> TelegramCommandRouter:
@@ -31,6 +42,7 @@ def _router() -> TelegramCommandRouter:
         rate_limiter=FixedWindowRateLimiter(max_requests=100, window_seconds=60),
         result_limit=10,
         pending_action_ttl_seconds=300,
+        ip_block_settings=_IP_BLOCK_SETTINGS,
     )
 
 

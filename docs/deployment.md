@@ -66,6 +66,36 @@ Bot token никогда не идёт через `.env`, аргументы CLI
 файл в каталоге `WG_TELEGRAM_STAGING_DIRECTORY` с правами, ограничивающими доступ вне
 контейнера. Подробная процедура — README, «Исходящие Telegram-уведомления».
 
+## Dry-run блокировка IP: подготовка сервера
+
+9C (README, «Блокировка IP (dry-run)») позволяет предлагать и подтверждать план блокировки, но
+**control plane сам план не исполняет** — команда только показывается оператору. Если в будущем
+появится исполнение (подэтап 9D), ему потребуется, чтобы на защищаемом сервере заранее
+существовали таблица и оба set, которые `nft add element` использует:
+
+```bash
+nft add table inet woland_guard
+nft add set inet woland_guard blocked_v4 '{ type ipv4_addr; }'
+nft add set inet woland_guard blocked_v6 '{ type ipv6_addr; }'
+nft add rule inet woland_guard input ip saddr @blocked_v4 drop
+nft add rule inet woland_guard input ip6 saddr @blocked_v6 drop
+```
+
+Имена таблицы и обоих set настраиваются через `WG_IP_BLOCK_NFT_TABLE`/`WG_IP_BLOCK_NFT_SET_V4`/
+`WG_IP_BLOCK_NFT_SET_V6` и должны совпадать с тем, что создано на сервере вручную — это
+осознанное ограничение: изменение firewall хоста без ведома администратора не входит в задачи
+control plane.
+
+Функция выключена по умолчанию (`WG_IP_BLOCK_ENABLED=false`). Прежде чем включать её, добавьте в
+allowlist собственный адрес администратора и любые доверенные диапазоны — control plane не
+хранит IP операторов и не может защитить их от блокировки автоматически (README, «Блокировка IP
+(dry-run)»; ADR-0015):
+
+```bash
+docker compose exec control-plane woland-guard-admin add-ip-allowlist-entry \
+  --cidr <ваш адрес или диапазон>/32 --label admin --reason "адрес администратора"
+```
+
 ## Что оператор обязан настроить сам (не входит в MVP)
 
 - **TLS termination и perimeter rate limiting** — пример выше, но конкретные лимиты и
@@ -76,6 +106,8 @@ Bot token никогда не идёт через `.env`, аргументы CLI
   (`rotate-operator-key`), автоматической по расписанию нет;
 - **firewall хоста** — Docker публикует `control-plane` порт согласно `WG_HTTP_PORT`; ограничьте
   доступ к нему на уровне хоста, если reverse proxy — единственная предполагаемая точка входа;
+- **allowlist блокировки IP и таблица nftables** — прежде чем включать `WG_IP_BLOCK_ENABLED`,
+  добавьте адрес администратора в allowlist и создайте таблицу/set, как описано выше;
 - **обновление зависимостей и базового образа** — CI проверяет известные CVE в Python-зависимостях
   (`dependency-audit` job), но не пересобирает и не деплоит образы автоматически;
 - **мониторинг самого control plane** (аптайм, диск, память) — вне периметра проекта; `/health/

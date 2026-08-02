@@ -11,6 +11,8 @@ from woland_guard_control_plane.application.dashboard_overview import (
     ServerOverviewCounts,
 )
 from woland_guard_control_plane.application.incident_queries import DashboardIncidentSummary
+from woland_guard_control_plane.application.ip_block_policy import BlockTargetRejectionReason
+from woland_guard_control_plane.application.ip_blocks import DecideIpBlockStatus, IpBlockPlanSummary
 from woland_guard_control_plane.application.outbox_worker import QueueStatistics
 from woland_guard_control_plane.application.server_queries import ServerSummary
 from woland_guard_control_plane.telegram_bot import formatting
@@ -18,6 +20,8 @@ from woland_guard_control_plane.telegram_bot import formatting
 MOMENT = datetime(2026, 8, 2, 9, 30, tzinfo=UTC)
 INCIDENT_ID = UUID("11111111-1111-4111-8111-111111111111")
 SERVER_ID = UUID("22222222-2222-4222-8222-222222222222")
+PLAN_ID = UUID("33333333-3333-4333-8333-333333333333")
+OPERATOR_ID = UUID("44444444-4444-4444-8444-444444444444")
 
 
 def _server(**overrides: object) -> ServerSummary:
@@ -152,3 +156,64 @@ def test_whole_reply_is_bounded() -> None:
     rendered = formatting.format_incidents(many, truncated=True, empty_text="пусто")
 
     assert len(rendered) <= formatting.MESSAGE_MAX_CHARS
+
+
+def _plan(**overrides: object) -> IpBlockPlanSummary:
+    values: dict[str, object] = {
+        "plan_id": PLAN_ID,
+        "incident_id": INCIDENT_ID,
+        "server_id": SERVER_ID,
+        "ip_address": "203.0.113.10",
+        "status": "proposed",
+        "command_argv": (
+            "nft",
+            "add",
+            "element",
+            "inet",
+            "woland_guard",
+            "blocked_v4",
+            "{",
+            "203.0.113.10",
+            "}",
+        ),
+        "proposed_by_operator_id": OPERATOR_ID,
+        "proposed_at": MOMENT,
+        "expires_at": MOMENT,
+        "proposal_request_id": "req-1",
+        "decided_by_operator_id": None,
+        "decided_at": None,
+    }
+    values.update(overrides)
+    return IpBlockPlanSummary(**values)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("reason", list(BlockTargetRejectionReason))
+def test_every_block_rejection_reason_has_a_fixed_safe_text(
+    reason: BlockTargetRejectionReason,
+) -> None:
+    rendered = formatting.format_block_rejection(reason)
+
+    assert rendered
+    assert "\n" not in rendered
+
+
+def test_block_proposal_message_discloses_the_command_and_address() -> None:
+    rendered = formatting.format_block_proposal_message(_plan())
+
+    assert "203.0.113.10" in rendered
+    assert str(INCIDENT_ID) in rendered
+    assert "nft add element inet woland_guard blocked_v4 { 203.0.113.10 }" in rendered
+    assert len(rendered) <= formatting.MESSAGE_MAX_CHARS
+
+
+@pytest.mark.parametrize("status", list(DecideIpBlockStatus))
+def test_every_decide_outcome_has_a_fixed_safe_text(status: DecideIpBlockStatus) -> None:
+    rendered = formatting.format_block_decision_outcome(status)
+
+    assert rendered
+
+
+def test_approved_outcome_explicitly_states_nothing_was_executed() -> None:
+    rendered = formatting.format_block_decision_outcome(DecideIpBlockStatus.APPROVED)
+
+    assert "НЕ выполнена" in rendered

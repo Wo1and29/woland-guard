@@ -23,7 +23,10 @@ from woland_guard_control_plane.infrastructure.telegram.token_file import (
 )
 from woland_guard_control_plane.infrastructure.telegram.updates import TelegramUpdateError
 from woland_guard_control_plane.telegram_bot.poller import PollerSettings, TelegramBotPoller
-from woland_guard_control_plane.telegram_bot.router import TelegramCommandRouter
+from woland_guard_control_plane.telegram_bot.router import (
+    IpBlockRuntimeSettings,
+    TelegramCommandRouter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +77,14 @@ def _build_poller(settings: Settings, *, token_file_name: str) -> TelegramBotPol
         ),
         result_limit=settings.telegram_bot_result_limit,
         pending_action_ttl_seconds=settings.telegram_bot_pending_action_ttl_seconds,
+        ip_block_settings=IpBlockRuntimeSettings(
+            enabled=settings.ip_block_enabled,
+            require_second_operator=settings.ip_block_require_second_operator,
+            plan_ttl_seconds=settings.ip_block_plan_ttl_seconds,
+            nft_table=settings.ip_block_nft_table,
+            nft_set_v4=settings.ip_block_nft_set_v4,
+            nft_set_v6=settings.ip_block_nft_set_v6,
+        ),
     )
     return TelegramBotPoller(
         session_factory=session_factory,

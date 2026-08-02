@@ -7,7 +7,11 @@ import pytest
 
 from woland_guard_control_plane.application.outbox import IncidentCreatedNotificationV1
 from woland_guard_control_plane.infrastructure.database.models import IncidentStatus
-from woland_guard_control_plane.infrastructure.telegram.callbacks import parse_incident_action
+from woland_guard_control_plane.infrastructure.telegram.callbacks import (
+    ProposeBlockCallback,
+    parse_block_action,
+    parse_incident_action,
+)
 from woland_guard_control_plane.infrastructure.telegram.message import (
     TelegramMessageError,
     build_incident_action_keyboard,
@@ -49,7 +53,7 @@ def test_keyboard_encodes_all_three_status_buttons_at_version_one() -> None:
         dashboard_origin="https://guard.example.invalid",
     )
 
-    status_row, dashboard_row = keyboard["inline_keyboard"]
+    status_row, block_row, dashboard_row = keyboard["inline_keyboard"]
     decoded_statuses = {
         parse_incident_action(button["callback_data"]).target_status for button in status_row
     }
@@ -62,6 +66,10 @@ def test_keyboard_encodes_all_three_status_buttons_at_version_one() -> None:
         decoded = parse_incident_action(button["callback_data"])
         assert decoded.incident_id == INCIDENT_ID
         assert decoded.expected_version == 1
+
+    assert len(block_row) == 1
+    decoded_block = parse_block_action(block_row[0]["callback_data"])
+    assert decoded_block == ProposeBlockCallback(incident_id=INCIDENT_ID)
 
     assert len(dashboard_row) == 1
     assert (

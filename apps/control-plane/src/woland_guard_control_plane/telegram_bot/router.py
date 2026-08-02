@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final
+from typing import Any, Final
 from uuid import UUID
 
 from sqlalchemy import select
@@ -33,6 +33,13 @@ from woland_guard_control_plane.application.incident_workflow import (
     normalize_reason,
     transition_incident,
 )
+from woland_guard_control_plane.application.ip_blocks import (
+    DecideIpBlockStatus,
+    ProposeIpBlockStatus,
+    approve_ip_block,
+    propose_ip_block,
+    reject_ip_block,
+)
 from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.application.rate_limit import FixedWindowRateLimiter
 from woland_guard_control_plane.application.rbac import Permission, role_has_permission
@@ -45,7 +52,12 @@ from woland_guard_control_plane.application.telegram_identity import authenticat
 from woland_guard_control_plane.infrastructure.database.models import Incident, IncidentStatus
 from woland_guard_control_plane.infrastructure.telegram.callbacks import (
     CallbackDataError,
-    parse_incident_action,
+    DecideBlockCallback,
+    ProposeBlockCallback,
+    parse_callback_data,
+)
+from woland_guard_control_plane.infrastructure.telegram.message import (
+    build_block_decision_keyboard,
 )
 from woland_guard_control_plane.infrastructure.telegram.updates import (
     TelegramCallbackQuery,
@@ -63,17 +75,38 @@ _ACTIVE_STATUSES: Final = ("new", "investigating")
 
 
 @dataclass(frozen=True, slots=True)
+class IpBlockRuntimeSettings:
+    """Bounded runtime configuration for the propose/approve/reject flow."""
+
+    enabled: bool
+    require_second_operator: bool
+    plan_ttl_seconds: int
+    nft_table: str
+    nft_set_v4: str
+    nft_set_v6: str
+
+
+@dataclass(frozen=True, slots=True)
 class CallbackAnswer:
-    """One bounded answerCallbackQuery reply, visible only to the presser."""
+    """One bounded answerCallbackQuery reply, visible only to the presser.
+
+    ``follow_up_text``/``follow_up_keyboard`` are set only for a propose-block
+    result: ``answerCallbackQuery`` is capped at 200 characters and cannot carry
+    a keyboard, so the plan's details and its approve/reject buttons are sent as
+    a separate message in the same chat.
+    """
 
     text: str
     show_alert: bool
+    follow_up_text: str | None = None
+    follow_up_keyboard: dict[str, Any] | None = None
 
 
 class TelegramCommandRouter:
     """Route one private-chat update from a linked operator to a bounded reply."""
 
     __slots__ = (
+        "_ip_block_settings",
         "_pending_action_ttl_seconds",
         "_rate_limiter",
         "_result_limit",
@@ -87,6 +120,7 @@ class TelegramCommandRouter:
         rate_limiter: FixedWindowRateLimiter,
         result_limit: int,
         pending_action_ttl_seconds: int,
+        ip_block_settings: IpBlockRuntimeSettings,
     ) -> None:
         if not 1 <= result_limit <= _QUERY_PAGE_SIZE:
             raise ValueError("telegram result limit must fit one query page")
@@ -96,6 +130,7 @@ class TelegramCommandRouter:
         self._rate_limiter = rate_limiter
         self._result_limit = result_limit
         self._pending_action_ttl_seconds = pending_action_ttl_seconds
+        self._ip_block_settings = ip_block_settings
 
     def handle(self, message: TelegramMessage, *, now: datetime, update_id: int) -> str | None:
         """Return the reply text, or None when the message must be ignored silently."""
@@ -163,11 +198,16 @@ class TelegramCommandRouter:
         if sender is None or sender.is_bot or callback_query.data is None:
             return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
         try:
-            action = parse_incident_action(callback_query.data)
+            action = parse_callback_data(callback_query.data)
         except CallbackDataError:
             return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
         if self._rate_limiter.consume(str(sender.id)) is not None:
             return CallbackAnswer(formatting.CALLBACK_RATE_LIMITED_TEXT, True)
+
+        if isinstance(action, ProposeBlockCallback):
+            return self._handle_propose_block(action, callback_query, sender_id=sender.id, now=now)
+        if isinstance(action, DecideBlockCallback):
+            return self._handle_decide_block(action, callback_query, sender_id=sender.id, now=now)
 
         with self._session_factory.begin() as session:
             principal = authenticate_telegram_user(
@@ -214,6 +254,120 @@ class TelegramCommandRouter:
                 now=now,
             )
             return CallbackAnswer(formatting.format_reason_prompt(action.target_status), True)
+
+    def _handle_propose_block(
+        self,
+        action: ProposeBlockCallback,
+        callback_query: TelegramCallbackQuery,
+        *,
+        sender_id: int,
+        now: datetime,
+    ) -> CallbackAnswer:
+        """Propose blocking one incident's correlated source address.
+
+        The plan's details can only be delivered as a follow-up message, which
+        needs a chat to send it to -- ``callback_query.message`` is optional in
+        the Bot API contract, so a callback that somehow arrives without one is
+        rejected rather than silently dropping the plan's details.
+        """
+
+        if not self._ip_block_settings.enabled:
+            return CallbackAnswer(formatting.IP_BLOCK_DISABLED_TEXT, True)
+        if callback_query.message is None:
+            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+
+        with self._session_factory.begin() as session:
+            principal = authenticate_telegram_user(session, telegram_user_id=sender_id, now=now)
+            if principal is None:
+                return CallbackAnswer(formatting.CALLBACK_UNLINKED_TEXT, True)
+            if not role_has_permission(principal.role, Permission.PROPOSE_IP_BLOCK):
+                return CallbackAnswer(formatting.CALLBACK_FORBIDDEN_TEXT, True)
+            result = propose_ip_block(
+                session,
+                actor=principal,
+                incident_id=action.incident_id,
+                request_id=_callback_request_id(callback_query.id),
+                plan_ttl_seconds=self._ip_block_settings.plan_ttl_seconds,
+                nft_table=self._ip_block_settings.nft_table,
+                nft_set_v4=self._ip_block_settings.nft_set_v4,
+                nft_set_v6=self._ip_block_settings.nft_set_v6,
+                now=now,
+            )
+
+        if result.status is ProposeIpBlockStatus.INCIDENT_NOT_FOUND:
+            return CallbackAnswer(formatting.INCIDENT_NOT_FOUND_TEXT, True)
+        if result.status is ProposeIpBlockStatus.NO_SOURCE_ADDRESS:
+            return CallbackAnswer(formatting.IP_BLOCK_NO_SOURCE_ADDRESS_TEXT, True)
+        if result.status is ProposeIpBlockStatus.REJECTED:
+            if result.rejection_reason is None:
+                return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+            return CallbackAnswer(formatting.format_block_rejection(result.rejection_reason), True)
+
+        if result.plan is None:
+            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+        ack_text = (
+            formatting.IP_BLOCK_PROPOSED_TEXT
+            if result.status is ProposeIpBlockStatus.CREATED
+            else formatting.IP_BLOCK_REUSED_TEXT
+        )
+        return CallbackAnswer(
+            ack_text,
+            False,
+            follow_up_text=formatting.format_block_proposal_message(result.plan),
+            follow_up_keyboard=build_block_decision_keyboard(result.plan.plan_id),
+        )
+
+    def _handle_decide_block(
+        self,
+        action: DecideBlockCallback,
+        callback_query: TelegramCallbackQuery,
+        *,
+        sender_id: int,
+        now: datetime,
+    ) -> CallbackAnswer:
+        """Approve or reject one still-live plan.
+
+        Approving requires ``APPROVE_IP_BLOCK`` (admin only); rejecting only
+        requires ``PROPOSE_IP_BLOCK`` -- walking back your own or a colleague's
+        proposal is the safe direction and does not need a second admin (ADR-0015).
+        """
+
+        if not self._ip_block_settings.enabled:
+            return CallbackAnswer(formatting.IP_BLOCK_DISABLED_TEXT, True)
+        required_permission = (
+            Permission.APPROVE_IP_BLOCK if action.approve else Permission.PROPOSE_IP_BLOCK
+        )
+        request_id = _callback_request_id(callback_query.id)
+
+        with self._session_factory.begin() as session:
+            principal = authenticate_telegram_user(session, telegram_user_id=sender_id, now=now)
+            if principal is None:
+                return CallbackAnswer(formatting.CALLBACK_UNLINKED_TEXT, True)
+            if not role_has_permission(principal.role, required_permission):
+                return CallbackAnswer(formatting.CALLBACK_FORBIDDEN_TEXT, True)
+            if action.approve:
+                result = approve_ip_block(
+                    session,
+                    actor=principal,
+                    plan_id=action.plan_id,
+                    request_id=request_id,
+                    require_second_operator=self._ip_block_settings.require_second_operator,
+                    now=now,
+                )
+            else:
+                result = reject_ip_block(
+                    session,
+                    actor=principal,
+                    plan_id=action.plan_id,
+                    request_id=request_id,
+                    now=now,
+                )
+
+        show_alert = result.status not in (
+            DecideIpBlockStatus.APPROVED,
+            DecideIpBlockStatus.REJECTED,
+        )
+        return CallbackAnswer(formatting.format_block_decision_outcome(result.status), show_alert)
 
     def _apply_transition(
         self,
@@ -339,6 +493,18 @@ def _callback_idempotency_key(callback_query_id: str) -> str:
 
     digest = hashlib.sha256(callback_query_id.encode("utf-8")).hexdigest()
     return f"tg-cb-{digest}"
+
+
+def _callback_request_id(callback_query_id: str) -> str:
+    """Hash the provider id to fit the 64-character ``request_id`` column width.
+
+    ``callback_query.id`` is bounded at 128 characters by the inbound Bot API
+    contract, wider than the ``request_id`` columns it is recorded into -- a
+    plain ``f"telegram-cb-{callback_query_id}"`` could overflow them. The
+    64-character hex digest fits exactly.
+    """
+
+    return hashlib.sha256(callback_query_id.encode("utf-8")).hexdigest()
 
 
 def _parse_command(text: str) -> str | None:

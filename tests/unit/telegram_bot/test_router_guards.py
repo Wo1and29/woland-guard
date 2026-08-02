@@ -19,10 +19,22 @@ from woland_guard_control_plane.infrastructure.telegram.updates import (
     TelegramCallbackQuery,
     TelegramMessage,
 )
-from woland_guard_control_plane.telegram_bot.router import TelegramCommandRouter, _parse_command
+from woland_guard_control_plane.telegram_bot.router import (
+    IpBlockRuntimeSettings,
+    TelegramCommandRouter,
+    _parse_command,
+)
 
 NOW = datetime(2026, 8, 2, 12, 0, tzinfo=UTC)
 _PENDING_ACTION_TTL_SECONDS = 300
+_IP_BLOCK_SETTINGS = IpBlockRuntimeSettings(
+    enabled=False,
+    require_second_operator=True,
+    plan_ttl_seconds=3_600,
+    nft_table="woland_guard",
+    nft_set_v4="blocked_v4",
+    nft_set_v6="blocked_v6",
+)
 
 
 class _ExplodingSessionFactory:
@@ -41,6 +53,7 @@ def _router(*, max_requests: int = 100) -> TelegramCommandRouter:
         rate_limiter=FixedWindowRateLimiter(max_requests=max_requests, window_seconds=60),
         result_limit=10,
         pending_action_ttl_seconds=_PENDING_ACTION_TTL_SECONDS,
+        ip_block_settings=_IP_BLOCK_SETTINGS,
     )
 
 
@@ -96,6 +109,7 @@ def test_rate_limited_sender_is_ignored_without_a_reply() -> None:
         rate_limiter=limiter,
         result_limit=10,
         pending_action_ttl_seconds=_PENDING_ACTION_TTL_SECONDS,
+        ip_block_settings=_IP_BLOCK_SETTINGS,
     )
     assert limiter.consume("4242") is None
 
@@ -110,6 +124,7 @@ def test_result_limit_must_fit_one_query_page() -> None:
             rate_limiter=limiter,
             result_limit=26,
             pending_action_ttl_seconds=_PENDING_ACTION_TTL_SECONDS,
+            ip_block_settings=_IP_BLOCK_SETTINGS,
         )
 
 
@@ -121,6 +136,7 @@ def test_pending_action_ttl_must_be_positive() -> None:
             rate_limiter=limiter,
             result_limit=10,
             pending_action_ttl_seconds=0,
+            ip_block_settings=_IP_BLOCK_SETTINGS,
         )
 
 
@@ -170,6 +186,7 @@ def test_rate_limited_callback_sender_still_gets_an_answer() -> None:
         rate_limiter=limiter,
         result_limit=10,
         pending_action_ttl_seconds=_PENDING_ACTION_TTL_SECONDS,
+        ip_block_settings=_IP_BLOCK_SETTINGS,
     )
     assert limiter.consume("4242") is None
 

@@ -25,6 +25,9 @@ _ACTION_CODES: Final[dict[IncidentStatus, str]] = {
 _STATUS_BY_CODE: Final[dict[str, IncidentStatus]] = {
     code: status for status, code in _ACTION_CODES.items()
 }
+_PROPOSE_BLOCK_CODE: Final = "bp"
+_APPROVE_BLOCK_CODE: Final = "ba"
+_REJECT_BLOCK_CODE: Final = "br"
 
 
 class CallbackDataError(ValueError):
@@ -38,6 +41,24 @@ class IncidentActionCallback:
     incident_id: UUID
     target_status: IncidentStatus
     expected_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ProposeBlockCallback:
+    """One request to propose blocking an incident's correlated source address."""
+
+    incident_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class DecideBlockCallback:
+    """One request to approve or reject an existing, still-live block plan."""
+
+    plan_id: UUID
+    approve: bool
+
+
+CallbackAction = IncidentActionCallback | ProposeBlockCallback | DecideBlockCallback
 
 
 def encode_incident_action(
@@ -93,3 +114,66 @@ def parse_incident_action(value: str) -> IncidentActionCallback:
         target_status=target_status,
         expected_version=expected_version,
     )
+
+
+def encode_propose_block(*, incident_id: UUID) -> str:
+    """Build one bounded callback_data value for the "propose an IP block" button."""
+
+    value = f"{_SCHEMA_VERSION}:{_PROPOSE_BLOCK_CODE}:{incident_id}"
+    if len(value.encode("ascii")) > CALLBACK_DATA_MAX_BYTES:
+        raise CallbackDataError("block proposal callback exceeds the Telegram size limit")
+    return value
+
+
+def encode_decide_block(*, plan_id: UUID, approve: bool) -> str:
+    """Build one bounded callback_data value for an approve/reject decision button."""
+
+    code = _APPROVE_BLOCK_CODE if approve else _REJECT_BLOCK_CODE
+    value = f"{_SCHEMA_VERSION}:{code}:{plan_id}"
+    if len(value.encode("ascii")) > CALLBACK_DATA_MAX_BYTES:
+        raise CallbackDataError("block decision callback exceeds the Telegram size limit")
+    return value
+
+
+def parse_block_action(value: str) -> ProposeBlockCallback | DecideBlockCallback:
+    """Parse one propose/approve/reject callback_data value as untrusted input."""
+
+    if len(value.encode("utf-8")) > CALLBACK_DATA_MAX_BYTES:
+        raise CallbackDataError("block action callback exceeds the Telegram size limit")
+    parts = value.split(":")
+    if len(parts) != 3:
+        raise CallbackDataError("block action callback shape is invalid")
+    schema_version, code, raw_id = parts
+    if schema_version != _SCHEMA_VERSION:
+        raise CallbackDataError("block action callback schema version is unsupported")
+    try:
+        parsed_id = UUID(raw_id)
+    except ValueError:
+        raise CallbackDataError("block action callback identifier is invalid") from None
+    if str(parsed_id) != raw_id:
+        raise CallbackDataError("block action callback identifier is not canonical")
+    if code == _PROPOSE_BLOCK_CODE:
+        return ProposeBlockCallback(incident_id=parsed_id)
+    if code == _APPROVE_BLOCK_CODE:
+        return DecideBlockCallback(plan_id=parsed_id, approve=True)
+    if code == _REJECT_BLOCK_CODE:
+        return DecideBlockCallback(plan_id=parsed_id, approve=False)
+    raise CallbackDataError("block action callback action code is unknown")
+
+
+def parse_callback_data(value: str) -> CallbackAction:
+    """Dispatch one callback_data value to its closed parser by action code.
+
+    The two callback families use a different number of colon-separated parts
+    (four for an incident status transition, three for a block proposal or
+    decision), so the code segment alone -- read without assuming the rest of
+    the shape is well-formed -- is enough to route to the right strict parser.
+    """
+
+    parts = value.split(":", 2)
+    code = parts[1] if len(parts) >= 2 else ""
+    if code in _STATUS_BY_CODE:
+        return parse_incident_action(value)
+    if code in (_PROPOSE_BLOCK_CODE, _APPROVE_BLOCK_CODE, _REJECT_BLOCK_CODE):
+        return parse_block_action(value)
+    raise CallbackDataError("callback action code is unknown")

@@ -206,4 +206,24 @@ class TelegramBotPoller:
         except TelegramTransportError:
             logger.warning("telegram_bot_callback_answer_failed")
             return False
+        if answer.follow_up_text is None:
+            return True
+        # answerCallbackQuery is capped at 200 characters and cannot carry a
+        # keyboard, so a block-plan proposal's details and its decision buttons
+        # are delivered as a separate message in the same chat instead.
+        message = callback_query.message
+        if message is None:
+            logger.warning("telegram_bot_callback_follow_up_missing_chat")
+            return False
+        try:
+            self._client.send_message(
+                token=token,
+                chat_id=message.chat.id,
+                text=answer.follow_up_text,
+                timeout_seconds=self._settings.request_timeout_seconds,
+                reply_markup=answer.follow_up_keyboard,
+            )
+        except TelegramTransportError:
+            logger.warning("telegram_bot_callback_follow_up_failed")
+            return False
         return True
