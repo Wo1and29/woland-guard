@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from ipaddress import ip_address, ip_network
+from ipaddress import IPv6Address, ip_address, ip_network
 from types import MappingProxyType
 from uuid import UUID
 
@@ -381,6 +381,8 @@ def _validate_detail_value(
             parsed_address = ip_address(value)
         except ValueError as error:
             raise AuditValidationError("audit detail value is invalid") from error
+        if isinstance(parsed_address, IPv6Address) and parsed_address.ipv4_mapped is not None:
+            raise AuditValidationError("audit detail value is invalid")
         if str(parsed_address) != value:
             raise AuditValidationError("audit detail value is invalid")
         return value

@@ -86,7 +86,7 @@ def classify_block_target(session: Session, *, raw_address: str) -> BlockTargetD
     parsed = _parse_canonical_address(raw_address)
     if parsed is None:
         return BlockTargetDecision(False, None, BlockTargetRejectionReason.NOT_AN_ADDRESS)
-    if _has_scope_id(parsed) or str(parsed) != raw_address:
+    if _has_scope_id(parsed) or _is_ipv4_mapped(parsed) or str(parsed) != raw_address:
         return BlockTargetDecision(False, None, BlockTargetRejectionReason.NOT_CANONICAL)
     if _is_never_block(parsed):
         return BlockTargetDecision(False, parsed, BlockTargetRejectionReason.NEVER_BLOCK)
@@ -128,6 +128,14 @@ def _parse_canonical_address(raw_address: str) -> BlockableAddress | None:
 
 def _has_scope_id(address: BlockableAddress) -> bool:
     return isinstance(address, IPv6Address) and address.scope_id is not None
+
+
+def _is_ipv4_mapped(address: BlockableAddress) -> bool:
+    """Reject IPv4-mapped IPv6 addresses without relying on ``str()``'s choice
+    of hex vs. dotted-quad form for the trailing 32 bits, which has changed
+    between CPython patch releases within the same 3.12 line."""
+
+    return isinstance(address, IPv6Address) and address.ipv4_mapped is not None
 
 
 def _is_never_block(address: BlockableAddress) -> bool:
