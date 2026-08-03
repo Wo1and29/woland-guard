@@ -52,6 +52,7 @@ def _incident(**overrides: object) -> DashboardIncidentSummary:
         "severity": "high",
         "status": "new",
         "title": "Перебор SSH-паролей с одного IP",
+        "title_en": "SSH password brute force from one IP",
         "first_seen_at": MOMENT,
         "last_seen_at": MOMENT,
         "event_count": 8,

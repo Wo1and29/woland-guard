@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: ssh_bruteforce_by_ip
-version: 1
+version: 2
 enabled: true
 severity: high
 title: Перебор SSH-паролей с одного IP
+title_en: SSH password brute force from one IP
 description: Восемь неудачных SSH-аутентификаций с одного адреса за пять минут.
+description_en: Eight failed SSH authentications from one address within five minutes.
 explanation: Серия неудачных входов может соответствовать подбору учётных данных.
+explanation_en: A run of failed logins is consistent with credential guessing.
 recommendation: Проверьте адрес, затронутые учётные записи и настройки SSH-доступа.
+recommendation_en: Review the address, the affected accounts and the SSH access settings.
 mitre_attack_ids: [T1110]
 condition:
   type: threshold

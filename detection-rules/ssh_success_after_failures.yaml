@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: ssh_success_after_failures
-version: 1
+version: 2
 enabled: true
 severity: critical
 title: Успешный SSH-вход после неудачных попыток
+title_en: Successful SSH login after failed attempts
 description: Успешному входу предшествуют минимум три ошибки для той же корреляции.
+description_en: A successful login is preceded by at least three failures for the same correlation.
 explanation: Успех после серии ошибок может означать компрометацию учётных данных.
+explanation_en: Success after a run of failures can mean the credentials were compromised.
 recommendation: Срочно проверьте пользователя, адрес источника и активность после входа.
+recommendation_en: Urgently review the user, the source address and the activity after the login.
 mitre_attack_ids: [T1110, T1078]
 condition:
   type: sequence

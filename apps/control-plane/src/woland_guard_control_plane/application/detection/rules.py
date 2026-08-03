@@ -26,6 +26,10 @@ _MITRE_PATTERN = r"^T[0-9]{4}(?:\.[0-9]{3})?$"
 RuleKey = Annotated[str, Field(pattern=_RULE_KEY_PATTERN, max_length=100)]
 _RULE_KEY_ADAPTER = TypeAdapter(RuleKey)
 
+# Optional on the model so stored definitions keep validating, but mandatory for
+# every rule file on disk: a new rule must never ship without its translation.
+_REQUIRED_TRANSLATED_FIELDS = ("title_en", "description_en", "explanation_en", "recommendation_en")
+
 
 class RuleValidationError(ValueError):
     """A safe aggregate error for an invalid rules directory."""
@@ -123,7 +127,15 @@ Condition = Annotated[
 
 
 class RuleDefinition(StrictModel):
-    """Versioned immutable rule definition stored as an incident snapshot."""
+    """Versioned immutable rule definition stored as an incident snapshot.
+
+    The ``*_en`` prose fields are optional here on purpose, even though every
+    rule file on disk is required to carry them (see ``load_rules_directory``).
+    Stored definitions are re-validated through this model on every detection
+    cycle and on every Rules page render, so a definition written before the
+    English prose existed must keep validating; making these required would
+    stop detection entirely on any database whose rules have not been re-synced.
+    """
 
     schema_version: Literal[1]
     rule_key: RuleKey
@@ -134,6 +146,10 @@ class RuleDefinition(StrictModel):
     description: str = Field(min_length=1, max_length=2_000)
     explanation: str = Field(min_length=1, max_length=4_000)
     recommendation: str = Field(min_length=1, max_length=4_000)
+    title_en: str | None = Field(default=None, min_length=1, max_length=255)
+    description_en: str | None = Field(default=None, min_length=1, max_length=2_000)
+    explanation_en: str | None = Field(default=None, min_length=1, max_length=4_000)
+    recommendation_en: str | None = Field(default=None, min_length=1, max_length=4_000)
     mitre_attack_ids: tuple[Annotated[str, Field(pattern=_MITRE_PATTERN)], ...] = Field(
         default_factory=tuple
     )
@@ -176,9 +192,12 @@ def load_rules_directory(path: Path) -> tuple[RuleDefinition, ...]:
     for file_path in files:
         try:
             document = yaml.safe_load(file_path.read_text(encoding="utf-8"))
-            rules.append(RuleDefinition.model_validate(document))
+            rule = RuleDefinition.model_validate(document)
         except (OSError, UnicodeError, yaml.YAMLError, ValidationError) as error:
             raise RuleValidationError(f"invalid rule file: {file_path.name}") from error
+        if any(getattr(rule, name) is None for name in _REQUIRED_TRANSLATED_FIELDS):
+            raise RuleValidationError(f"rule file is missing English prose: {file_path.name}")
+        rules.append(rule)
 
     rule_keys = [rule.rule_key for rule in rules]
     if len(rule_keys) != len(set(rule_keys)):

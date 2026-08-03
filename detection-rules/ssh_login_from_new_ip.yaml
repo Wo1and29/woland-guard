@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: ssh_login_from_new_ip
-version: 1
+version: 2
 enabled: true
 severity: medium
 title: SSH-вход пользователя с нового IP
+title_en: SSH login from a new IP address
 description: Пользователь успешно вошёл с адреса, не встречавшегося за тридцать дней.
+description_en: A user signed in from an address not seen in the past thirty days.
 explanation: Новый адрес может быть легитимным изменением или использованием чужих учётных данных.
+explanation_en: A new address may be a legitimate change or the use of stolen credentials.
 recommendation: Подтвердите вход у владельца аккаунта и проверьте последующую активность.
+recommendation_en: Confirm the login with the account owner and review the activity that followed.
 mitre_attack_ids: [T1078, T1021.004]
 condition:
   type: first_seen

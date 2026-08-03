@@ -71,12 +71,15 @@ def test_catalog_validation_rejects_changed_metadata_without_reflection() -> Non
     assert "catalog-validation-canary" not in str(captured.value)
 
 
-def test_catalog_metadata_is_derived_from_exact_version_one_yaml_rules() -> None:
+def test_catalog_metadata_is_derived_from_the_exact_enabled_yaml_rules() -> None:
     rules = {rule.rule_key: rule for rule in load_rules_directory(RULES_DIRECTORY)}
 
     assert len(rules) == 8
     assert set(rules) == EXPECTED_RULE_KEYS
-    assert {rule.version for rule in rules.values()} == {1}
+    # Deliberately not pinned to a literal version: expected outcomes are derived
+    # from each rule's condition at manifest build time and re-verified by the
+    # exact-rebuild test, so a prose-only rule bump must not break the catalog.
+    assert all(rule.enabled for rule in rules.values())
     assert {rule.condition.type for rule in rules.values()} == {
         "single",
         "threshold",

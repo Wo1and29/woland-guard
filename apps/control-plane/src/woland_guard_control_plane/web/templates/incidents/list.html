@@ -14,7 +14,7 @@
   <button type="submit">{{ t(lang, 'common.apply') }}</button>
 </form>
 {% if items %}<div class="table-wrap" tabindex="0" aria-label="{{ t(lang, 'incidents.list_label') }}"><table><caption class="visually-hidden">{{ t(lang, 'incidents.list_label') }}</caption><thead><tr><th scope="col">{{ t(lang, 'th.created') }}</th><th scope="col">{{ t(lang, 'th.severity') }}</th><th scope="col">{{ t(lang, 'th.status') }}</th><th scope="col">{{ t(lang, 'th.incident') }}</th><th scope="col">{{ t(lang, 'th.server') }}</th><th scope="col">{{ t(lang, 'th.evidence') }}</th></tr></thead><tbody>
-{% for item in items %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a><br><small>{{ item.rule_key }} v{{ item.rule_version }}</small></td><td>{{ item.server_name }}</td><td>{{ item.event_count }}</td></tr>{% endfor %}
+{% for item in items %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ localized(lang, item.title, item.title_en) }}</a><br><small>{{ item.rule_key }} v{{ item.rule_version }}</small></td><td>{{ item.server_name }}</td><td>{{ item.event_count }}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% include "components/pagination.html" %}
 {% endblock %}

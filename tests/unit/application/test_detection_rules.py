@@ -51,7 +51,12 @@ def test_eight_default_rules_are_strict_and_cover_exactly_five_condition_types()
         SequenceCondition,
         FirstSeenCondition,
     }
-    assert all(rule.schema_version == 1 and rule.version == 1 for rule in rules)
+    assert all(rule.schema_version == 1 for rule in rules)
+    assert all(rule.version > 0 for rule in rules)
+    assert all(
+        rule.title_en and rule.description_en and rule.explanation_en and rule.recommendation_en
+        for rule in rules
+    )
 
 
 def test_rule_checksum_is_stable_sha256_of_canonical_json() -> None:
@@ -100,12 +105,32 @@ def test_all_files_are_validated_before_callers_can_sync_any_rule(tmp_path: Path
 def test_two_versions_of_same_rule_key_in_one_directory_are_rejected(tmp_path: Path) -> None:
     """A deployment set contains at most one requested version for each stable rule key."""
 
-    version_one = (RULES_DIR / "ssh_root_login_success.yaml").read_text(encoding="utf-8")
-    version_two = version_one.replace("\nversion: 1\n", "\nversion: 2\n", 1)
-    (tmp_path / "root-v1.yaml").write_text(version_one, encoding="utf-8")
-    (tmp_path / "root-v2.yaml").write_text(version_two, encoding="utf-8")
+    shipped = (RULES_DIR / "ssh_root_login_success.yaml").read_text(encoding="utf-8")
+    current = next(line for line in shipped.splitlines() if line.startswith("version: "))
+    successor = f"version: {int(current.removeprefix('version: ')) + 1}"
+    (tmp_path / "root-current.yaml").write_text(shipped, encoding="utf-8")
+    (tmp_path / "root-next.yaml").write_text(
+        shipped.replace(f"\n{current}\n", f"\n{successor}\n", 1), encoding="utf-8"
+    )
 
     with pytest.raises(RuleValidationError, match="duplicate rule keys"):
+        load_rules_directory(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["title_en", "description_en", "explanation_en", "recommendation_en"],
+)
+def test_rule_file_without_english_prose_is_rejected(tmp_path: Path, field: str) -> None:
+    """A rule may not ship untranslated: the Dashboard renders it in both languages."""
+
+    shipped = (RULES_DIR / "ssh_root_login_success.yaml").read_text(encoding="utf-8")
+    without_translation = "\n".join(
+        line for line in shipped.splitlines() if not line.startswith(f"{field}: ")
+    )
+    (tmp_path / "untranslated.yaml").write_text(without_translation + "\n", encoding="utf-8")
+
+    with pytest.raises(RuleValidationError, match="missing English prose"):
         load_rules_directory(tmp_path)
 
 

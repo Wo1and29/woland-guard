@@ -428,6 +428,6 @@ def _load_exact_rule_catalog() -> dict[str, RuleDefinition]:
     by_key = {rule.rule_key: rule for rule in rules}
     if len(rules) != 8 or frozenset(by_key) != EXPECTED_RULE_KEYS:
         raise DemoManifestError("demo catalog requires the exact eight shipped detection rules")
-    if any(rule.version != 1 or not rule.enabled for rule in rules):
-        raise DemoManifestError("demo catalog requires enabled version-one detection rules")
+    if any(not rule.enabled for rule in rules):
+        raise DemoManifestError("demo catalog requires the shipped detection rules to be enabled")
     return by_key

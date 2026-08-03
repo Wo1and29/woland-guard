@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: sudo_auth_failures
-version: 1
+version: 2
 enabled: true
 severity: medium
 title: Повторные ошибки аутентификации sudo
+title_en: Repeated sudo authentication failures
 description: Пять ошибок sudo для пользователя за десять минут.
+description_en: Five sudo failures for one user within ten minutes.
 explanation: События могут указывать на ошибочные действия или попытку повышения привилегий.
+explanation_en: The events may indicate user error or an attempt to escalate privileges.
 recommendation: Проверьте пользователя и команды вокруг периода события; MITRE указан как контекст, а не доказательство атаки.
+recommendation_en: Review the user and the commands around the event window; the MITRE reference is context, not proof of an attack.
 mitre_attack_ids: [T1548.003]
 condition:
   type: threshold

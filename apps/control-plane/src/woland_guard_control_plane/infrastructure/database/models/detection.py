@@ -123,6 +123,12 @@ class Incident(Base):
     title: Mapped[str] = mapped_column(String(255))
     explanation: Mapped[str] = mapped_column(String(4_000))
     recommendation: Mapped[str] = mapped_column(String(4_000))
+    # Nullable because incidents detected before the rules carried English prose
+    # genuinely have no translation; the Dashboard falls back to the Russian
+    # column rather than inventing text for historical rows.
+    title_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    explanation_en: Mapped[str | None] = mapped_column(String(4_000), nullable=True)
+    recommendation_en: Mapped[str | None] = mapped_column(String(4_000), nullable=True)
     correlation: Mapped[dict[str, Any]] = mapped_column(JSONB)
     correlation_hash: Mapped[str] = mapped_column(CHAR(64))
     rule_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)

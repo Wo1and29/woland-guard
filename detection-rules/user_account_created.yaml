@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: user_account_created
-version: 1
+version: 2
 enabled: true
 severity: high
 title: Создана локальная учётная запись
+title_en: Local user account created
 description: На сервере создан новый локальный пользователь.
+description_en: A new local user was created on the server.
 explanation: Создание учётной записи меняет поверхность доступа и требует подтверждения.
+explanation_en: Creating an account changes the access surface and needs to be confirmed.
 recommendation: Проверьте инициатора, назначение аккаунта и его группы.
+recommendation_en: Review who created it, what the account is for and which groups it belongs to.
 mitre_attack_ids: [T1136.001]
 condition:
   type: single

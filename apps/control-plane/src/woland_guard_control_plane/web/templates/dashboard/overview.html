@@ -10,7 +10,7 @@
 <h2>{{ t(lang, 'overview.recent_incidents') }}</h2>
 {% if overview.recent_incidents %}
 <div class="table-wrap" tabindex="0" aria-label="{{ t(lang, 'overview.recent_incidents') }}"><table><caption class="visually-hidden">{{ t(lang, 'overview.recent_incidents') }}</caption><thead><tr><th scope="col">{{ t(lang, 'th.created') }}</th><th scope="col">{{ t(lang, 'th.severity') }}</th><th scope="col">{{ t(lang, 'th.status') }}</th><th scope="col">{{ t(lang, 'th.incident') }}</th><th scope="col">{{ t(lang, 'th.server') }}</th></tr></thead><tbody>
-{% for item in overview.recent_incidents %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a></td><td>{{ item.server_name }}</td></tr>{% endfor %}
+{% for item in overview.recent_incidents %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ localized(lang, item.title, item.title_en) }}</a></td><td>{{ item.server_name }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% else %}{% include "components/empty_state.html" %}{% endif %}
 {% endblock %}

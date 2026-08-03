@@ -103,6 +103,8 @@ class RuleSummary:
     severity: str
     title: str
     description: str
+    title_en: str | None
+    description_en: str | None
     mitre_attack_ids: tuple[str, ...]
     condition: RuleConditionSummary
 
@@ -259,6 +261,8 @@ def _validated_summary(row: RowMapping | Mapping[str, Any]) -> RuleSummary:
         severity=definition.severity.value,
         title=definition.title,
         description=definition.description,
+        title_en=definition.title_en,
+        description_en=definition.description_en,
         mitre_attack_ids=definition.mitre_attack_ids,
         condition=_condition_summary(definition),
     )

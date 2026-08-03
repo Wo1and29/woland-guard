@@ -22,7 +22,7 @@ from woland_guard_control_plane.application.rule_queries import (
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.web.errors import WebError
 from woland_guard_control_plane.web.form_body import BoundedFormBodyMiddleware
-from woland_guard_control_plane.web.i18n import normalize_language, t
+from woland_guard_control_plane.web.i18n import localized, normalize_language, t
 from woland_guard_control_plane.web.presentation import utc_text
 from woland_guard_control_plane.web.router import web_router
 from woland_guard_control_plane.web.security import (
@@ -51,6 +51,7 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
         autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
     )
     environment.globals.update(
+        localized=localized,
         t=t,
         utc_text=utc_text,
     )

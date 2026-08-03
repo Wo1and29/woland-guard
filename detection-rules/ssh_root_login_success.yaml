@@ -1,12 +1,16 @@
 schema_version: 1
 rule_key: ssh_root_login_success
-version: 1
+version: 2
 enabled: true
 severity: high
 title: Успешный SSH-вход root
+title_en: Successful root SSH login
 description: Зафиксирован прямой успешный SSH-вход пользователя root.
+description_en: A direct successful SSH login by the root user was recorded.
 explanation: Прямой удалённый вход root увеличивает риск использования привилегированной сессии.
+explanation_en: A direct remote root login raises the risk of a privileged session being abused.
 recommendation: Подтвердите необходимость входа и рассмотрите запрет прямого SSH-доступа root.
+recommendation_en: Confirm the login was required and consider disabling direct root SSH access.
 mitre_attack_ids: [T1078.001, T1021.004]
 condition:
   type: single

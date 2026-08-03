@@ -147,6 +147,7 @@ class DashboardIncidentSummary:
     severity: str
     status: str
     title: str
+    title_en: str | None
     first_seen_at: datetime
     last_seen_at: datetime
     event_count: int
@@ -172,6 +173,8 @@ class DashboardIncidentDetail:
     summary: DashboardIncidentSummary
     explanation: str
     recommendation: str
+    explanation_en: str | None
+    recommendation_en: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -399,7 +402,12 @@ def get_dashboard_incident_detail(
     row = (
         session.execute(
             _dashboard_incident_statement()
-            .add_columns(Incident.explanation, Incident.recommendation)
+            .add_columns(
+                Incident.explanation,
+                Incident.recommendation,
+                Incident.explanation_en,
+                Incident.recommendation_en,
+            )
             .where(Incident.id == incident_id)
         )
         .mappings()
@@ -411,6 +419,8 @@ def get_dashboard_incident_detail(
         summary=_dashboard_incident_summary(row),
         explanation=row["explanation"],
         recommendation=row["recommendation"],
+        explanation_en=row["explanation_en"],
+        recommendation_en=row["recommendation_en"],
     )
 
 
@@ -625,6 +635,7 @@ def _dashboard_incident_statement() -> Select[Any]:
         Incident.severity,
         Incident.status,
         Incident.title,
+        Incident.title_en,
         Incident.first_seen_at,
         Incident.last_seen_at,
         Incident.event_count,
@@ -656,6 +667,9 @@ def _dashboard_incident_conditions(
             or_(
                 func.lower(Incident.rule_key).like(parameter, escape=LIKE_ESCAPE_CHARACTER),
                 func.lower(Incident.title).like(parameter, escape=LIKE_ESCAPE_CHARACTER),
+                # Matched too, so the prefix filter still works for an operator
+                # who is reading the Dashboard in English.
+                func.lower(Incident.title_en).like(parameter, escape=LIKE_ESCAPE_CHARACTER),
             )
         )
     return conditions
@@ -673,6 +687,7 @@ def _dashboard_incident_summary(
         severity=row["severity"],
         status=row["status"],
         title=row["title"],
+        title_en=row["title_en"],
         first_seen_at=row["first_seen_at"],
         last_seen_at=row["last_seen_at"],
         event_count=row["event_count"],

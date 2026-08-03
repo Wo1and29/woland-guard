@@ -318,6 +318,20 @@ def current_language(request: Request) -> Language:
     return normalize_language(request.cookies.get(LANG_COOKIE_NAME))
 
 
+def localized(lang: str, russian: str, english: str | None) -> str:
+    """Pick operator-authored prose (rule titles, incident text) for one language.
+
+    Unlike `t`, this renders content that lives in the detection rules rather
+    than in this catalog. `english` is optional because incidents detected
+    before the rules carried English prose have no translation; those fall back
+    to the Russian text instead of rendering an empty cell.
+    """
+
+    if normalize_language(lang) == "en" and english:
+        return english
+    return russian
+
+
 def t(lang: str, key: str) -> str:
     """Look up one UI string; an unknown key renders as itself, never raises."""
 

@@ -1,9 +1,9 @@
 {% extends "base_dashboard.html" %}
 {% block title %}{{ t(lang, 'incident.title_word') }} {{ incident.summary.id }} — Woland Guard{% endblock %}
 {% block dashboard_content %}
-<h1>{{ incident.summary.title }}</h1>
+<h1>{{ localized(lang, incident.summary.title, incident.summary.title_en) }}</h1>
 <dl><dt>{{ t(lang, 'dl.id') }}</dt><dd>{{ incident.summary.id }}</dd><dt>{{ t(lang, 'th.server') }}</dt><dd>{{ incident.summary.server_name }}</dd><dt>{{ t(lang, 'dl.rule') }}</dt><dd>{{ incident.summary.rule_key }} v{{ incident.summary.rule_version }}</dd><dt>{{ t(lang, 'th.severity') }}</dt><dd><span class="pill" data-severity="{{ incident.summary.severity }}">{{ incident.summary.severity }}</span></dd><dt>{{ t(lang, 'th.status') }}</dt><dd><span class="pill" data-status="{{ incident.summary.status }}">{{ incident.summary.status }}</span></dd><dt>{{ t(lang, 'dl.first_seen') }}</dt><dd>{{ utc_text(incident.summary.first_seen_at, lang) }}</dd><dt>{{ t(lang, 'dl.last_seen') }}</dt><dd>{{ utc_text(incident.summary.last_seen_at, lang) }}</dd></dl>
-<h2>{{ t(lang, 'incident.explanation') }}</h2><p>{{ incident.explanation }}</p><h2>{{ t(lang, 'incident.recommendation') }}</h2><p>{{ incident.recommendation }}</p>
+<h2>{{ t(lang, 'incident.explanation') }}</h2><p>{{ localized(lang, incident.explanation, incident.explanation_en) }}</p><h2>{{ t(lang, 'incident.recommendation') }}</h2><p>{{ localized(lang, incident.recommendation, incident.recommendation_en) }}</p>
 <h2>{{ t(lang, 'incident.actions') }}</h2>
 {% if status_targets %}
 <form class="mutation-form" method="post" action="{{ paths.incidents }}/{{ incident.summary.id }}/transitions" accept-charset="UTF-8">

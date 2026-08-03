@@ -310,9 +310,7 @@ def incident_transition(
     except InvalidWebSessionError:
         raise WebError(401, t(current_language(request), "err.login_required")) from None
     except WebSessionPermissionError:
-        raise WebError(
-            403, t(current_language(request), "err.insufficient_permissions")
-        ) from None
+        raise WebError(403, t(current_language(request), "err.insufficient_permissions")) from None
     except SQLAlchemyError:
         raise WebError(
             503, t(current_language(request), "err.incident_mutation_unavailable")
@@ -366,9 +364,7 @@ def incident_comment(
     except InvalidWebSessionError:
         raise WebError(401, t(current_language(request), "err.login_required")) from None
     except WebSessionPermissionError:
-        raise WebError(
-            403, t(current_language(request), "err.insufficient_permissions")
-        ) from None
+        raise WebError(403, t(current_language(request), "err.insufficient_permissions")) from None
     except SQLAlchemyError:
         raise WebError(503, t(current_language(request), "err.comment_unavailable")) from None
     return _mutation_outcome_response(request, incident_id, outcome.http_status, outcome.replayed)
