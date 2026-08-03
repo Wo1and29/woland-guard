@@ -16,8 +16,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     AuditActorType,
     OperatorAuthMethodType,
 )
-
-AUDIT_DETAILS_UNAVAILABLE = "Детали недоступны"
+from woland_guard_control_plane.web.i18n import DEFAULT_LANGUAGE, Language, t
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,15 +30,17 @@ class AuditEntryView:
     details: tuple[tuple[str, str], ...] | None
 
 
-def utc_text(value: datetime | None) -> str:
+def utc_text(value: datetime | None, lang: Language = DEFAULT_LANGUAGE) -> str:
     if value is None:
-        return "Нет данных"
+        return t(lang, "presentation.no_data")
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("dashboard timestamps require timezone")
     return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def audit_entry_view(entry: AuditDashboardEntry) -> AuditEntryView:
+def audit_entry_view(
+    entry: AuditDashboardEntry, lang: Language = DEFAULT_LANGUAGE
+) -> AuditEntryView:
     """Revalidate details; a corrupt row keeps metadata but loses all detail values."""
 
     details: tuple[tuple[str, str], ...] | None = None
@@ -62,22 +63,26 @@ def audit_entry_view(entry: AuditDashboardEntry) -> AuditEntryView:
             details=dict(entry.details),
         )
         spec = AUDIT_ACTION_REGISTRY[entry.action]
-        details = tuple((field, _display_scalar(validated[field])) for field in spec.detail_fields)
+        details = tuple(
+            (field, _display_scalar(validated[field], lang)) for field in spec.detail_fields
+        )
     except (AuditValidationError, KeyError, ValueError):
         details = None
-    actor = entry.actor_username or ("Локальный CLI" if entry.actor_type == "local_cli" else "—")
+    actor = entry.actor_username or (
+        t(lang, "presentation.local_cli") if entry.actor_type == "local_cli" else "—"
+    )
     return AuditEntryView(
         id=str(entry.id),
         actor=actor,
         action=entry.action,
         target=f"{entry.target_type}:{entry.target_id}",
         request_id=entry.request_id or "—",
-        created_at=utc_text(entry.created_at),
+        created_at=utc_text(entry.created_at, lang),
         details=details,
     )
 
 
-def _display_scalar(value: str | int | bool) -> str:
+def _display_scalar(value: str | int | bool, lang: Language) -> str:
     if type(value) is bool:
-        return "да" if value else "нет"
+        return t(lang, "presentation.yes") if value else t(lang, "presentation.no")
     return str(value)

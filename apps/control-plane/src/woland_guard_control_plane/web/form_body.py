@@ -7,9 +7,12 @@ from collections.abc import Awaitable, Callable, Collection
 from email.message import Message
 from urllib.parse import parse_qsl
 
+from starlette.requests import Request
 from starlette.responses import HTMLResponse
 from starlette.types import Message as AsgiMessage
 from starlette.types import Receive, Scope, Send
+
+from woland_guard_control_plane.web.i18n import current_language, t
 
 _HEX_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
@@ -40,8 +43,9 @@ class BoundedFormBodyMiddleware:
             _validate_form_headers(scope, max_body_bytes=self._max_body_bytes)
             body = await _read_bounded_body(receive, max_body_bytes=self._max_body_bytes)
         except BoundedFormError as error:
+            lang = current_language(Request(scope))
             response = HTMLResponse(
-                _safe_error_document(error.status_code),
+                _safe_error_document(error.status_code, lang),
                 status_code=error.status_code,
             )
             await response(scope, receive, send)
@@ -169,10 +173,11 @@ async def _read_bounded_body(receive: Receive, *, max_body_bytes: int) -> bytes:
             return b"".join(chunks)
 
 
-def _safe_error_document(status_code: int) -> str:
+def _safe_error_document(status_code: int, lang: str) -> str:
+    error_word = t(lang, "errors.error_word")
     return (
-        '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
-        f"<title>Ошибка {status_code}</title></head>"
-        f"<body><main><h1>Ошибка {status_code}</h1>"
-        "<p>Запрос не может быть обработан.</p></main></body></html>"
+        f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
+        f"<title>{error_word} {status_code}</title></head>"
+        f"<body><main><h1>{error_word} {status_code}</h1>"
+        f"<p>{t(lang, 'errors.request_cannot_be_processed')}</p></main></body></html>"
     )

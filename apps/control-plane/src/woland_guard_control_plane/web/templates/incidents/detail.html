@@ -1,38 +1,38 @@
 {% extends "base_dashboard.html" %}
-{% block title %}Инцидент {{ incident.summary.id }} — Woland Guard{% endblock %}
+{% block title %}{{ t(lang, 'incident.title_word') }} {{ incident.summary.id }} — Woland Guard{% endblock %}
 {% block dashboard_content %}
 <h1>{{ incident.summary.title }}</h1>
-<dl><dt>ID</dt><dd>{{ incident.summary.id }}</dd><dt>Сервер</dt><dd>{{ incident.summary.server_name }}</dd><dt>Rule</dt><dd>{{ incident.summary.rule_key }} v{{ incident.summary.rule_version }}</dd><dt>Severity</dt><dd>{{ incident.summary.severity }}</dd><dt>Статус</dt><dd>{{ incident.summary.status }}</dd><dt>Первое событие</dt><dd>{{ utc_text(incident.summary.first_seen_at) }}</dd><dt>Последнее событие</dt><dd>{{ utc_text(incident.summary.last_seen_at) }}</dd></dl>
-<h2>Объяснение</h2><p>{{ incident.explanation }}</p><h2>Рекомендация</h2><p>{{ incident.recommendation }}</p>
-<h2>Действия</h2>
+<dl><dt>{{ t(lang, 'dl.id') }}</dt><dd>{{ incident.summary.id }}</dd><dt>{{ t(lang, 'th.server') }}</dt><dd>{{ incident.summary.server_name }}</dd><dt>{{ t(lang, 'dl.rule') }}</dt><dd>{{ incident.summary.rule_key }} v{{ incident.summary.rule_version }}</dd><dt>{{ t(lang, 'th.severity') }}</dt><dd><span class="pill" data-severity="{{ incident.summary.severity }}">{{ incident.summary.severity }}</span></dd><dt>{{ t(lang, 'th.status') }}</dt><dd><span class="pill" data-status="{{ incident.summary.status }}">{{ incident.summary.status }}</span></dd><dt>{{ t(lang, 'dl.first_seen') }}</dt><dd>{{ utc_text(incident.summary.first_seen_at, lang) }}</dd><dt>{{ t(lang, 'dl.last_seen') }}</dt><dd>{{ utc_text(incident.summary.last_seen_at, lang) }}</dd></dl>
+<h2>{{ t(lang, 'incident.explanation') }}</h2><p>{{ incident.explanation }}</p><h2>{{ t(lang, 'incident.recommendation') }}</h2><p>{{ incident.recommendation }}</p>
+<h2>{{ t(lang, 'incident.actions') }}</h2>
 {% if status_targets %}
 <form class="mutation-form" method="post" action="{{ paths.incidents }}/{{ incident.summary.id }}/transitions" accept-charset="UTF-8">
   <input type="hidden" name="_csrf" value="{{ csrf_token }}">
   <input type="hidden" name="expected_version" value="{{ incident.summary.version }}">
   <input type="hidden" name="idempotency_key" value="{{ status_idempotency_key }}">
-  <label>Новый статус <select name="status">{% for status in status_targets %}<option value="{{ status.value }}">{{ status.value }}</option>{% endfor %}</select></label>
-  <label>Причина <textarea name="reason" maxlength="1000" rows="4"></textarea></label>
-  <p><small>Для resolved и false_positive причина обязательна.</small></p>
-  <button type="submit">Изменить статус</button>
+  <label>{{ t(lang, 'form.new_status') }} <select name="status">{% for status in status_targets %}<option value="{{ status.value }}">{{ status.value }}</option>{% endfor %}</select></label>
+  <label>{{ t(lang, 'form.reason') }} <textarea name="reason" maxlength="1000" rows="4"></textarea></label>
+  <p><small>{{ t(lang, 'form.reason_required_note') }}</small></p>
+  <button type="submit">{{ t(lang, 'form.change_status') }}</button>
 </form>
-{% else %}<p>Статус терминальный; переходы недоступны.</p>{% endif %}
-<h2>Добавить комментарий</h2>
-<p><small>Не вставляйте пароли, токены и другие секреты. Комментарий сохраняется без возможности редактирования.</small></p>
+{% else %}<p>{{ t(lang, 'incident.terminal_status') }}</p>{% endif %}
+<h2>{{ t(lang, 'incident.add_comment') }}</h2>
+<p><small>{{ t(lang, 'incident.comment_notice') }}</small></p>
 <form class="mutation-form" method="post" action="{{ paths.incidents }}/{{ incident.summary.id }}/comments" accept-charset="UTF-8">
   <input type="hidden" name="_csrf" value="{{ csrf_token }}">
   <input type="hidden" name="idempotency_key" value="{{ comment_idempotency_key }}">
-  <label>Комментарий <textarea name="comment" maxlength="1000" rows="6" required></textarea></label>
-  <button type="submit">Сохранить комментарий</button>
+  <label>{{ t(lang, 'form.comment_label') }} <textarea name="comment" maxlength="1000" rows="6" required></textarea></label>
+  <button type="submit">{{ t(lang, 'form.save_comment') }}</button>
 </form>
-<h2>Комментарии</h2>
-{% if comments %}<ol class="comment-list">{% for item in comments %}<li><p><strong>{{ item.operator_username }}</strong> · {{ utc_text(item.created_at) }}</p><p class="comment-body">{{ item.body }}</p></li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
-{% if comments_next_url %}<p><a href="{{ comments_next_url }}">Следующая страница комментариев</a></p>{% endif %}
-<h2>Evidence</h2>
-{% if evidence %}<div class="table-wrap" tabindex="0" aria-label="Evidence инцидента"><table><caption class="visually-hidden">Evidence инцидента</caption><thead><tr><th scope="col">Event UUID</th><th scope="col">Тип</th><th scope="col">Источник</th><th scope="col">Occurred</th><th scope="col">Collected</th><th scope="col">Linked</th></tr></thead><tbody>
-{% for item in evidence %}<tr><td>{{ item.event_id }}</td><td>{{ item.event_type }}</td><td>{{ item.source }}</td><td>{{ utc_text(item.occurred_at) }}</td><td>{{ utc_text(item.collected_at) }}</td><td>{{ utc_text(item.linked_at) }}</td></tr>{% endfor %}
+<h2>{{ t(lang, 'incident.comments') }}</h2>
+{% if comments %}<ol class="comment-list">{% for item in comments %}<li><p><strong>{{ item.operator_username }}</strong> · {{ utc_text(item.created_at, lang) }}</p><p class="comment-body">{{ item.body }}</p></li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% if comments_next_url %}<p><a href="{{ comments_next_url }}">{{ t(lang, 'incident.next_comments_page') }}</a></p>{% endif %}
+<h2>{{ t(lang, 'incident.evidence') }}</h2>
+{% if evidence %}<div class="table-wrap" tabindex="0" aria-label="{{ t(lang, 'incident.evidence_label') }}"><table><caption class="visually-hidden">{{ t(lang, 'incident.evidence_label') }}</caption><thead><tr><th scope="col">{{ t(lang, 'th.event_uuid') }}</th><th scope="col">{{ t(lang, 'th.type') }}</th><th scope="col">{{ t(lang, 'th.source') }}</th><th scope="col">{{ t(lang, 'th.occurred') }}</th><th scope="col">{{ t(lang, 'th.collected') }}</th><th scope="col">{{ t(lang, 'th.linked') }}</th></tr></thead><tbody>
+{% for item in evidence %}<tr><td>{{ item.event_id }}</td><td>{{ item.event_type }}</td><td>{{ item.source }}</td><td>{{ utc_text(item.occurred_at, lang) }}</td><td>{{ utc_text(item.collected_at, lang) }}</td><td>{{ utc_text(item.linked_at, lang) }}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
-{% if evidence_next_url %}<p><a href="{{ evidence_next_url }}">Следующая страница evidence</a></p>{% endif %}
-<h2>История статусов</h2>
-{% if history %}<ol>{% for item in history %}<li>{{ utc_text(item.created_at) }}: {{ item.from_status or 'baseline' }} → {{ item.to_status }}{% if item.operator_username %}, {{ item.operator_username }}{% endif %}{% if item.reason %}. Причина: {{ item.reason }}{% endif %}</li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
-{% if history_next_url %}<p><a href="{{ history_next_url }}">Следующая страница истории</a></p>{% endif %}
+{% if evidence_next_url %}<p><a href="{{ evidence_next_url }}">{{ t(lang, 'incident.next_evidence_page') }}</a></p>{% endif %}
+<h2>{{ t(lang, 'incident.status_history') }}</h2>
+{% if history %}<ol>{% for item in history %}<li>{{ utc_text(item.created_at, lang) }}: {% if item.from_status %}<span class="pill" data-status="{{ item.from_status }}">{{ item.from_status }}</span>{% else %}<span class="pill">{{ t(lang, 'incident.baseline') }}</span>{% endif %} → <span class="pill" data-status="{{ item.to_status }}">{{ item.to_status }}</span>{% if item.operator_username %}, {{ item.operator_username }}{% endif %}{% if item.reason %}. {{ t(lang, 'incident.reason_prefix') }} {{ item.reason }}{% endif %}</li>{% endfor %}</ol>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% if history_next_url %}<p><a href="{{ history_next_url }}">{{ t(lang, 'incident.next_history_page') }}</a></p>{% endif %}
 {% endblock %}

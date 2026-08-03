@@ -1,20 +1,20 @@
 {% extends "base_dashboard.html" %}
-{% block title %}Инциденты — Woland Guard{% endblock %}
+{% block title %}{{ t(lang, 'incidents.title') }}{% endblock %}
 {% block dashboard_content %}
-<h1>Инциденты</h1>
+<h1>{{ t(lang, 'nav.incidents') }}</h1>
 <form class="filters" method="get" action="{{ paths.incidents }}">
-  <label>Префикс title/rule key <input name="q" value="{{ filters.q or '' }}" maxlength="100"></label>
-  <label>Точный incident UUID <input name="id" value="{{ filters.id or '' }}"></label>
-  <label>Точный server UUID <input name="server_id" value="{{ filters.server_id or '' }}"></label>
-  <label>Rule key <input name="rule_key" value="{{ filters.rule_key or '' }}" maxlength="100"></label>
-  <label>Статусы <select name="status" multiple><option value="new"{% if 'new' in filters.status %} selected{% endif %}>new</option><option value="investigating"{% if 'investigating' in filters.status %} selected{% endif %}>investigating</option><option value="resolved"{% if 'resolved' in filters.status %} selected{% endif %}>resolved</option><option value="false_positive"{% if 'false_positive' in filters.status %} selected{% endif %}>false_positive</option></select></label>
-  <label>Severity <select name="severity" multiple><option value="low"{% if 'low' in filters.severity %} selected{% endif %}>low</option><option value="medium"{% if 'medium' in filters.severity %} selected{% endif %}>medium</option><option value="high"{% if 'high' in filters.severity %} selected{% endif %}>high</option><option value="critical"{% if 'critical' in filters.severity %} selected{% endif %}>critical</option></select></label>
-  <label>Сортировка <select name="sort"><option value="created_desc"{% if filters.sort == 'created_desc' %} selected{% endif %}>Новые сначала</option><option value="created_asc"{% if filters.sort == 'created_asc' %} selected{% endif %}>Старые сначала</option></select></label>
-  <label>Размер <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
-  <button type="submit">Применить</button>
+  <label>{{ t(lang, 'filter.q_title_rule') }} <input name="q" value="{{ filters.q or '' }}" maxlength="100"></label>
+  <label>{{ t(lang, 'filter.incident_uuid') }} <input name="id" value="{{ filters.id or '' }}"></label>
+  <label>{{ t(lang, 'filter.server_uuid') }} <input name="server_id" value="{{ filters.server_id or '' }}"></label>
+  <label>{{ t(lang, 'filter.rule_key') }} <input name="rule_key" value="{{ filters.rule_key or '' }}" maxlength="100"></label>
+  <label>{{ t(lang, 'filter.statuses') }} <select name="status" multiple><option value="new"{% if 'new' in filters.status %} selected{% endif %}>new</option><option value="investigating"{% if 'investigating' in filters.status %} selected{% endif %}>investigating</option><option value="resolved"{% if 'resolved' in filters.status %} selected{% endif %}>resolved</option><option value="false_positive"{% if 'false_positive' in filters.status %} selected{% endif %}>false_positive</option></select></label>
+  <label>{{ t(lang, 'filter.severity') }} <select name="severity" multiple><option value="low"{% if 'low' in filters.severity %} selected{% endif %}>low</option><option value="medium"{% if 'medium' in filters.severity %} selected{% endif %}>medium</option><option value="high"{% if 'high' in filters.severity %} selected{% endif %}>high</option><option value="critical"{% if 'critical' in filters.severity %} selected{% endif %}>critical</option></select></label>
+  <label>{{ t(lang, 'filter.sort') }} <select name="sort"><option value="created_desc"{% if filters.sort == 'created_desc' %} selected{% endif %}>{{ t(lang, 'sort.created_desc') }}</option><option value="created_asc"{% if filters.sort == 'created_asc' %} selected{% endif %}>{{ t(lang, 'sort.created_asc') }}</option></select></label>
+  <label>{{ t(lang, 'filter.page_size') }} <select name="page_size"><option{% if filters.page_size == 25 %} selected{% endif %}>25</option><option{% if filters.page_size == 50 %} selected{% endif %}>50</option><option{% if filters.page_size == 100 %} selected{% endif %}>100</option></select></label>
+  <button type="submit">{{ t(lang, 'common.apply') }}</button>
 </form>
-{% if items %}<div class="table-wrap" tabindex="0" aria-label="Список инцидентов"><table><caption class="visually-hidden">Список инцидентов</caption><thead><tr><th scope="col">Создан</th><th scope="col">Severity</th><th scope="col">Статус</th><th scope="col">Инцидент</th><th scope="col">Сервер</th><th scope="col">Evidence</th></tr></thead><tbody>
-{% for item in items %}<tr><td>{{ utc_text(item.created_at) }}</td><td>{{ item.severity }}</td><td>{{ item.status }}</td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a><br><small>{{ item.rule_key }} v{{ item.rule_version }}</small></td><td>{{ item.server_name }}</td><td>{{ item.event_count }}</td></tr>{% endfor %}
+{% if items %}<div class="table-wrap" tabindex="0" aria-label="{{ t(lang, 'incidents.list_label') }}"><table><caption class="visually-hidden">{{ t(lang, 'incidents.list_label') }}</caption><thead><tr><th scope="col">{{ t(lang, 'th.created') }}</th><th scope="col">{{ t(lang, 'th.severity') }}</th><th scope="col">{{ t(lang, 'th.status') }}</th><th scope="col">{{ t(lang, 'th.incident') }}</th><th scope="col">{{ t(lang, 'th.server') }}</th><th scope="col">{{ t(lang, 'th.evidence') }}</th></tr></thead><tbody>
+{% for item in items %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a><br><small>{{ item.rule_key }} v{{ item.rule_version }}</small></td><td>{{ item.server_name }}</td><td>{{ item.event_count }}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% include "components/pagination.html" %}
 {% endblock %}

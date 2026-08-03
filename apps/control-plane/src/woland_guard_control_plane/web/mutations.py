@@ -14,6 +14,7 @@ from woland_guard_control_plane.application.web_sessions import (
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.web.errors import WebError
 from woland_guard_control_plane.web.form_body import BoundedFormError, parse_bounded_form
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.security import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
@@ -39,10 +40,10 @@ def parse_dashboard_mutation_form(
         require_exact_origin(request.scope, settings.web_public_origin)
     except OriginValidationError:
         _log_security_event(request, "dashboard_origin_rejected")
-        raise WebError(403, "Запрос отклонён.") from None
+        raise WebError(403, t(current_language(request), "err.request_rejected")) from None
     body = getattr(request.state, "bounded_form_body", None)
     if type(body) is not bytes:
-        raise WebError(400, "Некорректная форма.")
+        raise WebError(400, t(current_language(request), "err.invalid_form"))
     try:
         return parse_bounded_form(
             body,
@@ -51,7 +52,9 @@ def parse_dashboard_mutation_form(
             max_fields=len(allowed_fields),
         )
     except BoundedFormError as error:
-        raise WebError(error.status_code, "Некорректная форма.") from None
+        raise WebError(
+            error.status_code, t(current_language(request), "err.invalid_form")
+        ) from None
 
 
 def require_dashboard_csrf(
@@ -70,7 +73,7 @@ def require_dashboard_csrf(
         expected_digest=authenticated.csrf_token_digest,
     ):
         _log_security_event(request, "dashboard_csrf_rejected")
-        raise WebError(403, "Запрос отклонён.")
+        raise WebError(403, t(current_language(request), "err.request_rejected"))
 
 
 def _log_security_event(request: Request, event: str) -> None:

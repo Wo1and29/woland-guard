@@ -25,6 +25,7 @@ from woland_guard_control_plane.application.web_sessions import AuthenticatedWeb
 from woland_guard_control_plane.database import get_session
 from woland_guard_control_plane.web.dependencies import require_dashboard_permission
 from woland_guard_control_plane.web.errors import WebError
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.routes.common import (
     dashboard_context,
     page_url,
@@ -69,9 +70,9 @@ def rules_list(
             cursor=cursor,
         )
     except DashboardQueryValidationError:
-        raise WebError(422, "Некорректные параметры поиска.") from None
+        raise WebError(422, t(current_language(request), "err.invalid_search_params")) from None
     except DashboardCursorValidationError:
-        raise WebError(400, "Некорректный cursor.") from None
+        raise WebError(400, t(current_language(request), "err.invalid_cursor")) from None
     context = dashboard_context(request, authenticated, active_navigation="rules")
     parameters = {
         "severity": list(normalized_severities),

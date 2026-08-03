@@ -15,9 +15,17 @@ from woland_guard_control_plane.application.web_sessions import (
     verify_csrf_tokens,
 )
 from woland_guard_control_plane.web.errors import WebError
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.security import CSRF_COOKIE_NAME
 
 QueryValue = str | int | Sequence[str]
+
+
+def current_url(request: Request) -> str:
+    """The path the user is actually looking at, for post-toggle redirects."""
+
+    suffix = f"?{request.url.query}" if request.url.query else ""
+    return f"{request.url.path}{suffix}"
 
 
 def dashboard_context(
@@ -34,18 +42,22 @@ def dashboard_context(
         form_token=csrf_token,
         expected_digest=authenticated.csrf_token_digest,
     ):
-        raise WebError(401, "Требуется повторный вход.")
+        raise WebError(401, t(current_language(request), "err.reauth_required"))
     principal = authenticated.principal
+    next_url = current_url(request)
     return {
         "active_navigation": active_navigation,
         "can_view_audit": role_has_permission(principal.role, Permission.VIEW_AUDIT_LOG),
         "csrf_token": csrf_token,
+        "lang": current_language(request),
         "operator_role": principal.role.value,
         "operator_username": principal.username,
         "paths": {
             "audit": external_path(request, "/audit"),
             "home": external_path(request, "/"),
             "incidents": external_path(request, "/incidents"),
+            "lang_en": page_url(request, "/lang/en", {"next": next_url}),
+            "lang_ru": page_url(request, "/lang/ru", {"next": next_url}),
             "logout": external_path(request, "/logout"),
             "rules": external_path(request, "/rules"),
             "servers": external_path(request, "/servers"),

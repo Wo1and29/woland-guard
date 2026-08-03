@@ -57,6 +57,7 @@ from woland_guard_control_plane.web.dependencies import (
     require_dashboard_permission,
 )
 from woland_guard_control_plane.web.errors import WebError
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.mutations import (
     parse_dashboard_mutation_form,
     require_dashboard_csrf,
@@ -114,9 +115,9 @@ def incidents_list(
             cursor=cursor,
         )
     except DashboardQueryValidationError:
-        raise WebError(422, "Некорректные параметры поиска.") from None
+        raise WebError(422, t(current_language(request), "err.invalid_search_params")) from None
     except DashboardCursorValidationError:
-        raise WebError(400, "Некорректный cursor.") from None
+        raise WebError(400, t(current_language(request), "err.invalid_cursor")) from None
     context = dashboard_context(request, authenticated, active_navigation="incidents")
     parameters = {
         "status": [status.value for status in statuses or []],
@@ -163,7 +164,7 @@ def incident_detail(
         _page_size(comment_page_size)
         detail = get_dashboard_incident_detail(session, incident_id)
         if detail is None:
-            raise WebError(404, "Инцидент не найден.")
+            raise WebError(404, t(current_language(request), "err.incident_not_found"))
         evidence = list_dashboard_evidence(
             session,
             incident_id=incident_id,
@@ -183,9 +184,11 @@ def incident_detail(
             cursor=comment_cursor,
         )
     except DashboardQueryValidationError:
-        raise WebError(422, "Некорректный размер страницы evidence.") from None
+        raise WebError(
+            422, t(current_language(request), "err.invalid_evidence_page_size")
+        ) from None
     except DashboardCursorValidationError:
-        raise WebError(400, "Некорректный evidence cursor.") from None
+        raise WebError(400, t(current_language(request), "err.invalid_evidence_cursor")) from None
     context = dashboard_context(request, authenticated, active_navigation="incidents")
     base_parameters = {
         "evidence_page_size": evidence_page_size,
@@ -283,7 +286,7 @@ def incident_transition(
             reason=None if form["reason"] == "" else form["reason"],
         )
     except (TransitionValidationError, ValueError):
-        raise WebError(422, "Некорректные данные перехода.") from None
+        raise WebError(422, t(current_language(request), "err.invalid_transition_data")) from None
     request_hash = canonical_transition_hash(incident_id, normalized)
     token = request.cookies.get(SESSION_COOKIE_NAME, "")
     try:
@@ -305,11 +308,15 @@ def incident_transition(
                 request_id=_request_id(request),
             )
     except InvalidWebSessionError:
-        raise WebError(401, "Требуется вход.") from None
+        raise WebError(401, t(current_language(request), "err.login_required")) from None
     except WebSessionPermissionError:
-        raise WebError(403, "Недостаточно прав для Dashboard.") from None
+        raise WebError(
+            403, t(current_language(request), "err.insufficient_permissions")
+        ) from None
     except SQLAlchemyError:
-        raise WebError(503, "Изменение инцидента временно недоступно.") from None
+        raise WebError(
+            503, t(current_language(request), "err.incident_mutation_unavailable")
+        ) from None
     return _mutation_outcome_response(request, incident_id, outcome.http_status, outcome.replayed)
 
 
@@ -335,7 +342,7 @@ def incident_comment(
         idempotency_key = validate_idempotency_key(form["idempotency_key"])
         normalized = normalize_comment(form["comment"])
     except (CommentValidationError, TransitionValidationError):
-        raise WebError(422, "Некорректный комментарий.") from None
+        raise WebError(422, t(current_language(request), "err.invalid_comment")) from None
     request_hash = canonical_comment_hash(incident_id, normalized)
     token = request.cookies.get(SESSION_COOKIE_NAME, "")
     try:
@@ -357,11 +364,13 @@ def incident_comment(
                 request_id=_request_id(request),
             )
     except InvalidWebSessionError:
-        raise WebError(401, "Требуется вход.") from None
+        raise WebError(401, t(current_language(request), "err.login_required")) from None
     except WebSessionPermissionError:
-        raise WebError(403, "Недостаточно прав для Dashboard.") from None
+        raise WebError(
+            403, t(current_language(request), "err.insufficient_permissions")
+        ) from None
     except SQLAlchemyError:
-        raise WebError(503, "Комментарий временно недоступен.") from None
+        raise WebError(503, t(current_language(request), "err.comment_unavailable")) from None
     return _mutation_outcome_response(request, incident_id, outcome.http_status, outcome.replayed)
 
 
@@ -392,11 +401,11 @@ def _mutation_outcome_response(
     replayed: bool,
 ) -> RedirectResponse:
     if http_status == 404:
-        raise WebError(404, "Инцидент не найден.")
+        raise WebError(404, t(current_language(request), "err.incident_not_found"))
     if http_status == 409:
-        raise WebError(409, "Операция конфликтует с текущим состоянием инцидента.")
+        raise WebError(409, t(current_language(request), "err.incident_conflict"))
     if http_status != 200:
-        raise WebError(500, "Внутренняя ошибка.")
+        raise WebError(500, t(current_language(request), "err.internal_error"))
     response = RedirectResponse(
         external_path(request, f"/incidents/{incident_id}"),
         status_code=303,

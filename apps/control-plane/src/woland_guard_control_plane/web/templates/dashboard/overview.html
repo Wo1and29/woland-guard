@@ -1,16 +1,16 @@
 {% extends "base_dashboard.html" %}
-{% block title %}Обзор — Woland Guard{% endblock %}
+{% block title %}{{ t(lang, 'overview.title') }}{% endblock %}
 {% block dashboard_content %}
-<h1>Обзор</h1>
+<h1>{{ t(lang, 'nav.overview') }}</h1>
 <div class="metric-grid">
-  <article><h2>Серверы</h2><p>Всего: {{ overview.servers.total }}</p><p>Активны в конфигурации: {{ overview.servers.active }}</p><p>Отключены в конфигурации: {{ overview.servers.inactive }}</p></article>
-  <article><h2>Активные инциденты</h2><p>New и investigating: {{ overview.incidents.active }}</p><p>Критические среди активных: {{ overview.incidents.critical_active }}</p></article>
-  <article><h2>Очередь уведомлений</h2><p>Pending: {{ overview.notifications.pending }}</p><p>Processing: {{ overview.notifications.processing }}</p><p>Ready: {{ overview.notifications.ready }}</p><p>Expired claims: {{ overview.notifications.expired }}</p><p>Failed: {{ overview.notifications.failed }}</p><p>Delivered, исторически: {{ overview.notifications.delivered }}</p><p>Возраст старейшей pending-записи: {% if overview.notifications.oldest_pending_age_seconds is none %}нет pending-записей{% else %}{{ overview.notifications.oldest_pending_age_seconds|round(1) }} с{% endif %}</p></article>
+  <article><h2>{{ t(lang, 'overview.servers_card') }}</h2><p>{{ t(lang, 'overview.total') }} {{ overview.servers.total }}</p><p>{{ t(lang, 'overview.active_config') }} {{ overview.servers.active }}</p><p>{{ t(lang, 'overview.inactive_config') }} {{ overview.servers.inactive }}</p></article>
+  <article><h2>{{ t(lang, 'overview.active_incidents_card') }}</h2><p>{{ t(lang, 'overview.new_and_investigating') }} {{ overview.incidents.active }}</p><p>{{ t(lang, 'overview.critical_active') }} {{ overview.incidents.critical_active }}</p></article>
+  <article><h2>{{ t(lang, 'overview.notifications_card') }}</h2><p>{{ t(lang, 'overview.pending') }} {{ overview.notifications.pending }}</p><p>{{ t(lang, 'overview.processing') }} {{ overview.notifications.processing }}</p><p>{{ t(lang, 'overview.ready') }} {{ overview.notifications.ready }}</p><p>{{ t(lang, 'overview.expired') }} {{ overview.notifications.expired }}</p><p>{{ t(lang, 'overview.failed') }} {{ overview.notifications.failed }}</p><p>{{ t(lang, 'overview.delivered') }} {{ overview.notifications.delivered }}</p><p>{{ t(lang, 'overview.oldest_pending_age') }} {% if overview.notifications.oldest_pending_age_seconds is none %}{{ t(lang, 'overview.no_pending') }}{% else %}{{ overview.notifications.oldest_pending_age_seconds|round(1) }} {{ t(lang, 'overview.seconds_suffix') }}{% endif %}</p></article>
 </div>
-<h2>Последние инциденты</h2>
+<h2>{{ t(lang, 'overview.recent_incidents') }}</h2>
 {% if overview.recent_incidents %}
-<div class="table-wrap" tabindex="0" aria-label="Последние инциденты"><table><caption class="visually-hidden">Последние инциденты</caption><thead><tr><th scope="col">Создан</th><th scope="col">Severity</th><th scope="col">Статус</th><th scope="col">Инцидент</th><th scope="col">Сервер</th></tr></thead><tbody>
-{% for item in overview.recent_incidents %}<tr><td>{{ utc_text(item.created_at) }}</td><td>{{ item.severity }}</td><td>{{ item.status }}</td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a></td><td>{{ item.server_name }}</td></tr>{% endfor %}
+<div class="table-wrap" tabindex="0" aria-label="{{ t(lang, 'overview.recent_incidents') }}"><table><caption class="visually-hidden">{{ t(lang, 'overview.recent_incidents') }}</caption><thead><tr><th scope="col">{{ t(lang, 'th.created') }}</th><th scope="col">{{ t(lang, 'th.severity') }}</th><th scope="col">{{ t(lang, 'th.status') }}</th><th scope="col">{{ t(lang, 'th.incident') }}</th><th scope="col">{{ t(lang, 'th.server') }}</th></tr></thead><tbody>
+{% for item in overview.recent_incidents %}<tr><td>{{ utc_text(item.created_at, lang) }}</td><td><span class="pill" data-severity="{{ item.severity }}">{{ item.severity }}</span></td><td><span class="pill" data-status="{{ item.status }}">{{ item.status }}</span></td><td><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a></td><td>{{ item.server_name }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% else %}{% include "components/empty_state.html" %}{% endif %}
 {% endblock %}

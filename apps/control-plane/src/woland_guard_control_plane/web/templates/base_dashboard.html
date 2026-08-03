@@ -1,23 +1,30 @@
 {% extends "base_minimal.html" %}
 {% block title %}Woland Guard Dashboard{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+{% block lang_switch %}
+<nav class="lang-switch" aria-label="Language / Язык">
+  <a{% if lang == 'ru' %} aria-current="true"{% endif %} href="{{ paths.lang_ru }}">RU</a>
+  <a{% if lang == 'en' %} aria-current="true"{% endif %} href="{{ paths.lang_en }}">EN</a>
+</nav>
+{% endblock %}
 {% block content %}
-<a class="skip-link" href="#dashboard-content">К основному содержанию</a>
+<a class="skip-link" href="#dashboard-content">{{ t(lang, 'common.skip_to_content') }}</a>
 <header class="dashboard-header">
   <div>
     <a class="brand" href="{{ paths.home }}">Woland Guard</a>
-    <p class="operator">Оператор: {{ operator_username }} · роль: {{ operator_role }}</p>
+    <p class="operator">{{ t(lang, 'common.operator_label') }} {{ operator_username }} · {{ t(lang, 'common.role_label') }} {{ operator_role }}</p>
   </div>
   <form method="post" action="{{ paths.logout }}" accept-charset="UTF-8">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <button type="submit">Выйти</button>
+    <button type="submit">{{ t(lang, 'common.logout') }}</button>
   </form>
 </header>
-<nav class="dashboard-nav" aria-label="Основная навигация">
-  <a{% if active_navigation == "overview" %} aria-current="page"{% endif %} href="{{ paths.home }}">Обзор</a>
-  <a{% if active_navigation == "servers" %} aria-current="page"{% endif %} href="{{ paths.servers }}">Серверы</a>
-  <a{% if active_navigation == "incidents" %} aria-current="page"{% endif %} href="{{ paths.incidents }}">Инциденты</a>
-  <a{% if active_navigation == "rules" %} aria-current="page"{% endif %} href="{{ paths.rules }}">Правила</a>
-  {% if can_view_audit %}<a{% if active_navigation == "audit" %} aria-current="page"{% endif %} href="{{ paths.audit }}">Аудит</a>{% endif %}
+<nav class="dashboard-nav" aria-label="{{ t(lang, 'common.nav_label') }}">
+  <a{% if active_navigation == "overview" %} aria-current="page"{% endif %} href="{{ paths.home }}">{{ t(lang, 'nav.overview') }}</a>
+  <a{% if active_navigation == "servers" %} aria-current="page"{% endif %} href="{{ paths.servers }}">{{ t(lang, 'nav.servers') }}</a>
+  <a{% if active_navigation == "incidents" %} aria-current="page"{% endif %} href="{{ paths.incidents }}">{{ t(lang, 'nav.incidents') }}</a>
+  <a{% if active_navigation == "rules" %} aria-current="page"{% endif %} href="{{ paths.rules }}">{{ t(lang, 'nav.rules') }}</a>
+  {% if can_view_audit %}<a{% if active_navigation == "audit" %} aria-current="page"{% endif %} href="{{ paths.audit }}">{{ t(lang, 'nav.audit') }}</a>{% endif %}
 </nav>
 <section id="dashboard-content" class="dashboard-content" tabindex="-1">
   {% block dashboard_content %}{% endblock %}

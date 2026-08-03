@@ -1,9 +1,9 @@
 {% extends "base_dashboard.html" %}
-{% block title %}Сервер {{ server.name }} — Woland Guard{% endblock %}
+{% block title %}{{ t(lang, 'server.detail_title_word') }} {{ server.name }} — Woland Guard{% endblock %}
 {% block dashboard_content %}
 <h1>{{ server.name }}</h1>
-<dl><dt>Hostname</dt><dd>{{ server.hostname }}</dd><dt>Описание</dt><dd>{{ server.description or '—' }}</dd><dt>Состояние конфигурации</dt><dd>{% if server.is_active %}active{% else %}inactive{% endif %}</dd><dt>Последнее событие</dt><dd>{{ utc_text(server.last_event_at) }}</dd><dt>Инциденты всего</dt><dd>{{ server.incident_count }}</dd><dt>Активные</dt><dd>{{ server.active_incident_count }}</dd><dt>Критические активные</dt><dd>{{ server.critical_active_incident_count }}</dd></dl>
-<p class="notice">Состояние конфигурации и время события не являются healthcheck или online/offline статусом.</p>
-<h2>Последние инциденты</h2>
-{% if incidents %}<ul>{% for item in incidents %}<li><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a> — {{ item.status }}, {{ utc_text(item.created_at) }}</li>{% endfor %}</ul>{% else %}{% include "components/empty_state.html" %}{% endif %}
+<dl><dt>{{ t(lang, 'server.hostname_dl') }}</dt><dd>{{ server.hostname }}</dd><dt>{{ t(lang, 'server.description') }}</dt><dd>{{ server.description or '—' }}</dd><dt>{{ t(lang, 'server.config_state_dl') }}</dt><dd>{% if server.is_active %}<span class="pill" data-state="active">active</span>{% else %}<span class="pill" data-state="inactive">inactive</span>{% endif %}</dd><dt>{{ t(lang, 'dl.last_seen') }}</dt><dd>{{ utc_text(server.last_event_at, lang) }}</dd><dt>{{ t(lang, 'server.total_incidents') }}</dt><dd>{{ server.incident_count }}</dd><dt>{{ t(lang, 'server.active_dl') }}</dt><dd>{{ server.active_incident_count }}</dd><dt>{{ t(lang, 'server.critical_active_dl') }}</dt><dd>{{ server.critical_active_incident_count }}</dd></dl>
+<p class="notice">{{ t(lang, 'server.notice2') }}</p>
+<h2>{{ t(lang, 'overview.recent_incidents') }}</h2>
+{% if incidents %}<ul>{% for item in incidents %}<li><a href="{{ paths.incidents }}/{{ item.id }}">{{ item.title }}</a> — <span class="pill" data-status="{{ item.status }}">{{ item.status }}</span>, {{ utc_text(item.created_at, lang) }}</li>{% endfor %}</ul>{% else %}{% include "components/empty_state.html" %}{% endif %}
 {% endblock %}

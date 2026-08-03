@@ -22,9 +22,11 @@ from woland_guard_control_plane.application.rule_queries import (
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.web.errors import WebError
 from woland_guard_control_plane.web.form_body import BoundedFormBodyMiddleware
-from woland_guard_control_plane.web.presentation import AUDIT_DETAILS_UNAVAILABLE, utc_text
+from woland_guard_control_plane.web.i18n import normalize_language, t
+from woland_guard_control_plane.web.presentation import utc_text
 from woland_guard_control_plane.web.router import web_router
 from woland_guard_control_plane.web.security import (
+    LANG_COOKIE_NAME,
     DashboardSecurityHeadersMiddleware,
     log_unexpected_dashboard_error,
 )
@@ -49,7 +51,7 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
         autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
     )
     environment.globals.update(
-        audit_details_unavailable=AUDIT_DETAILS_UNAVAILABLE,
+        t=t,
         utc_text=utc_text,
     )
     application.state.templates = Jinja2Templates(env=environment)
@@ -82,7 +84,7 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
         request: Request,
         _error: RequestValidationError,
     ) -> HTMLResponse:
-        return _render_error(request, 422, "Некорректные параметры запроса.")
+        return _render_error(request, 422, t(_lang(request), "err.invalid_request_params"))
 
     @application.exception_handler(StarletteHTTPException)
     async def http_error_handler(
@@ -90,10 +92,10 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
         error: StarletteHTTPException,
     ) -> HTMLResponse:
         if error.status_code == 404:
-            return _render_error(request, 404, "Страница не найдена.")
+            return _render_error(request, 404, t(_lang(request), "err.page_not_found"))
         if error.status_code == 405:
-            return _render_error(request, 405, "Метод не разрешён.")
-        return _render_error(request, 500, "Внутренняя ошибка.")
+            return _render_error(request, 405, t(_lang(request), "err.method_not_allowed"))
+        return _render_error(request, 500, t(_lang(request), "err.internal_error"))
 
     @application.exception_handler(StoredRuleDefinitionError)
     async def stored_rule_error_handler(
@@ -105,7 +107,7 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
             str(getattr(request.state, "request_id", "unavailable")),
             error.rule_version_id,
         )
-        return _render_error(request, 503, "Данные правил временно недоступны.")
+        return _render_error(request, 503, t(_lang(request), "err.rules_unavailable"))
 
     @application.exception_handler(ActiveRuleSetLimitError)
     async def active_rule_limit_error_handler(
@@ -116,16 +118,16 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
             "request_id=%s event=dashboard_active_rule_validation_limit_exceeded",
             str(getattr(request.state, "request_id", "unavailable")),
         )
-        return _render_error(request, 503, "Данные правил временно недоступны.")
+        return _render_error(request, 503, t(_lang(request), "err.rules_unavailable"))
 
     @application.exception_handler(SQLAlchemyError)
     async def database_error_handler(request: Request, _error: SQLAlchemyError) -> HTMLResponse:
-        return _render_error(request, 503, "Сервис временно недоступен.")
+        return _render_error(request, 503, t(_lang(request), "err.service_unavailable"))
 
     @application.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, _error: Exception) -> HTMLResponse:
         log_unexpected_dashboard_error(request.scope)
-        return _render_error(request, 500, "Внутренняя ошибка.")
+        return _render_error(request, 500, t(_lang(request), "err.internal_error"))
 
     return DashboardSecurityHeadersMiddleware(
         application,
@@ -136,13 +138,18 @@ def create_dashboard_app(settings: Settings) -> DashboardSecurityHeadersMiddlewa
     )
 
 
+def _lang(request: Request) -> str:
+    return normalize_language(request.cookies.get(LANG_COOKIE_NAME))
+
+
 def _render_error(request: Request, status_code: int, detail: str) -> HTMLResponse:
     templates = request.app.state.templates
     template_name = f"errors/{status_code}.html"
+    lang = _lang(request)
     if not (_TEMPLATES / template_name).is_file():
         template_name = "errors/500.html"
         status_code = 500
-        detail = "Внутренняя ошибка."
+        detail = t(lang, "err.internal_error")
     return cast(
         HTMLResponse,
         templates.TemplateResponse(
@@ -150,6 +157,7 @@ def _render_error(request: Request, status_code: int, detail: str) -> HTMLRespon
             name=template_name,
             context={
                 "detail": detail,
+                "lang": lang,
                 "request_id": str(getattr(request.state, "request_id", "unavailable")),
             },
             status_code=status_code,

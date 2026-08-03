@@ -25,6 +25,7 @@ from woland_guard_control_plane.application.web_sessions import AuthenticatedWeb
 from woland_guard_control_plane.database import get_session
 from woland_guard_control_plane.web.dependencies import require_dashboard_permission
 from woland_guard_control_plane.web.errors import WebError
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.presentation import audit_entry_view
 from woland_guard_control_plane.web.routes.common import (
     dashboard_context,
@@ -90,10 +91,11 @@ def audit_list(
             cursor=cursor,
         )
     except DashboardQueryValidationError:
-        raise WebError(422, "Некорректные audit filters.") from None
+        raise WebError(422, t(current_language(request), "err.invalid_audit_filters")) from None
     except DashboardCursorValidationError:
-        raise WebError(400, "Некорректный cursor.") from None
+        raise WebError(400, t(current_language(request), "err.invalid_cursor")) from None
     context = dashboard_context(request, authenticated, active_navigation="audit")
+    lang = current_language(request)
     parameters = {
         "actor_type": normalized_actor_type,
         "action": normalized_action,
@@ -107,7 +109,7 @@ def audit_list(
     context.update(
         {
             "filters": parameters,
-            "items": tuple(audit_entry_view(entry) for entry in page.items),
+            "items": tuple(audit_entry_view(entry, lang) for entry in page.items),
             "next_url": None
             if page.next_cursor is None
             else page_url(request, "/audit", {**parameters, "cursor": page.next_cursor}),

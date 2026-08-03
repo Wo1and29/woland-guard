@@ -20,6 +20,7 @@ from woland_guard_control_plane.application.web_sessions import (
 from woland_guard_control_plane.config import Settings
 from woland_guard_control_plane.database import get_session
 from woland_guard_control_plane.web.errors import WebError
+from woland_guard_control_plane.web.i18n import current_language, t
 from woland_guard_control_plane.web.security import SESSION_COOKIE_NAME
 
 logger = logging.getLogger("uvicorn.error")
@@ -33,7 +34,7 @@ def get_authenticated_web_session(
 
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if token is None:
-        raise WebError(401, "Требуется вход.")
+        raise WebError(401, t(current_language(request), "err.login_required"))
     settings = request.app.state.settings
     if not isinstance(settings, Settings):
         raise RuntimeError("dashboard settings are not configured")
@@ -47,9 +48,9 @@ def get_authenticated_web_session(
                 touch_interval_seconds=settings.web_session_touch_interval_seconds,
             )
     except InvalidWebSessionError:
-        raise WebError(401, "Требуется вход.") from None
+        raise WebError(401, t(current_language(request), "err.login_required")) from None
     except SQLAlchemyError:
-        raise WebError(503, "Сервис временно недоступен.") from None
+        raise WebError(503, t(current_language(request), "err.service_unavailable")) from None
     return authenticated
 
 
@@ -61,7 +62,7 @@ def get_authenticated_web_session_for_mutation(
 
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if token is None:
-        raise WebError(401, "Требуется вход.")
+        raise WebError(401, t(current_language(request), "err.login_required"))
     settings = request.app.state.settings
     if not isinstance(settings, Settings):
         raise RuntimeError("dashboard settings are not configured")
@@ -75,9 +76,9 @@ def get_authenticated_web_session_for_mutation(
                 touch_interval_seconds=settings.web_session_touch_interval_seconds,
             )
     except InvalidWebSessionError:
-        raise WebError(401, "Требуется вход.") from None
+        raise WebError(401, t(current_language(request), "err.login_required")) from None
     except SQLAlchemyError:
-        raise WebError(503, "Сервис временно недоступен.") from None
+        raise WebError(503, t(current_language(request), "err.service_unavailable")) from None
     return authenticated
 
 
@@ -100,7 +101,7 @@ def require_dashboard_permission(
                     "request_id=%s security_event=dashboard_authorization_denied",
                     str(request.state.request_id),
                 )
-            raise WebError(403, "Недостаточно прав для Dashboard.")
+            raise WebError(403, t(current_language(request), "err.insufficient_permissions"))
         return authenticated
 
     return authorize
@@ -125,7 +126,7 @@ def require_dashboard_mutation_permission(
                     "request_id=%s security_event=dashboard_authorization_denied",
                     str(request.state.request_id),
                 )
-            raise WebError(403, "Недостаточно прав для Dashboard.")
+            raise WebError(403, t(current_language(request), "err.insufficient_permissions"))
         return authenticated
 
     return authorize

@@ -35,9 +35,11 @@ from woland_guard_control_plane.web.dependencies import (
 )
 from woland_guard_control_plane.web.errors import WebError
 from woland_guard_control_plane.web.form_body import BoundedFormError, parse_bounded_form
+from woland_guard_control_plane.web.i18n import normalize_language, t
 from woland_guard_control_plane.web.security import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
+    LANG_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     OriginValidationError,
     delete_secure_cookie,
@@ -59,7 +61,10 @@ def login_page(request: Request) -> HTMLResponse:
         request.app.state.templates.TemplateResponse(
             request=request,
             name="auth/login.html",
-            context={"csrf_token": token},
+            context={
+                "csrf_token": token,
+                "lang": normalize_language(request.cookies.get(LANG_COOKIE_NAME)),
+            },
         ),
     )
     set_secure_cookie(response, name=CSRF_COOKIE_NAME, value=token, max_age=600)
@@ -73,6 +78,7 @@ def login(
 ) -> Response:
     """Exchange one valid operator API key for opaque session cookies."""
 
+    lang = normalize_language(request.cookies.get(LANG_COOKIE_NAME))
     settings = _settings(request)
     _require_origin(request, settings)
     form = _form(
@@ -86,13 +92,13 @@ def login(
         form_token=form[CSRF_FORM_FIELD],
         expected_digest=None,
     ):
-        raise WebError(403, "Запрос отклонён.")
+        raise WebError(403, t(lang, "err.request_rejected"))
 
     limiter = cast(LoginRateLimiter, request.app.state.login_rate_limiter)
     decision = limiter.consume(form["credential"])
     if decision is not None:
         _log_security_event(request, "dashboard_login_rate_limited", scope=decision.scope)
-        response = _error_response(request, 429, "Слишком много попыток входа.")
+        response = _error_response(request, 429, t(lang, "err.too_many_login_attempts"))
         response.headers["Retry-After"] = str(decision.retry_after_seconds)
         return response
 
@@ -108,7 +114,7 @@ def login(
                 authenticated.principal.role,
                 Permission.ACCESS_DASHBOARD,
             ):
-                raise WebError(403, "Недостаточно прав для Dashboard.")
+                raise WebError(403, t(lang, "err.insufficient_permissions"))
             issued = create_operator_web_session(
                 session,
                 authenticated=authenticated,
@@ -120,9 +126,9 @@ def login(
             authenticated.key.last_used_at = now
     except InvalidOperatorCredentialsError:
         _log_security_event(request, "dashboard_login_failed")
-        raise WebError(401, "Неверные учётные данные.") from None
+        raise WebError(401, t(lang, "err.invalid_credentials")) from None
     except SQLAlchemyError:
-        raise WebError(503, "Сервис входа временно недоступен.") from None
+        raise WebError(503, t(lang, "err.login_service_unavailable")) from None
 
     max_age = max(1, ceil((issued.absolute_expires_at - now).total_seconds()))
     success_response = RedirectResponse(_external_path(request, "/"), status_code=303)
@@ -152,6 +158,7 @@ def logout(
 ) -> RedirectResponse:
     """Commit session revoke/audit before clearing either browser cookie."""
 
+    lang = normalize_language(request.cookies.get(LANG_COOKIE_NAME))
     settings = _settings(request)
     _require_origin(request, settings)
     form = _form(
@@ -165,7 +172,7 @@ def logout(
         form_token=form[CSRF_FORM_FIELD],
         expected_digest=authenticated.csrf_token_digest,
     ):
-        raise WebError(403, "Запрос отклонён.")
+        raise WebError(403, t(lang, "err.request_rejected"))
     try:
         with session.begin():
             revoke_operator_web_session(
@@ -175,9 +182,9 @@ def logout(
                 now=datetime.now(UTC),
             )
     except InvalidWebSessionError:
-        raise WebError(401, "Требуется вход.") from None
+        raise WebError(401, t(lang, "err.login_required")) from None
     except SQLAlchemyError:
-        raise WebError(503, "Выход временно недоступен.") from None
+        raise WebError(503, t(lang, "err.logout_unavailable")) from None
 
     response = RedirectResponse(_external_path(request, "/login"), status_code=303)
     delete_secure_cookie(response, name=SESSION_COOKIE_NAME)
@@ -191,9 +198,10 @@ def _form(
     allowed: set[str],
     required: set[str],
 ) -> dict[str, str]:
+    lang = normalize_language(request.cookies.get(LANG_COOKIE_NAME))
     body = getattr(request.state, "bounded_form_body", None)
     if type(body) is not bytes:
-        raise WebError(400, "Некорректная форма.")
+        raise WebError(400, t(lang, "err.invalid_form"))
     try:
         return parse_bounded_form(
             body,
@@ -202,7 +210,7 @@ def _form(
             max_fields=len(allowed),
         )
     except BoundedFormError as error:
-        raise WebError(error.status_code, "Некорректная форма.") from None
+        raise WebError(error.status_code, t(lang, "err.invalid_form")) from None
 
 
 def _require_origin(request: Request, settings: Settings) -> None:
@@ -210,7 +218,8 @@ def _require_origin(request: Request, settings: Settings) -> None:
         require_exact_origin(request.scope, settings.web_public_origin)
     except OriginValidationError:
         _log_security_event(request, "dashboard_origin_rejected")
-        raise WebError(403, "Запрос отклонён.") from None
+        lang = normalize_language(request.cookies.get(LANG_COOKIE_NAME))
+        raise WebError(403, t(lang, "err.request_rejected")) from None
 
 
 def _settings(request: Request) -> Settings:
@@ -235,7 +244,11 @@ def _error_response(request: Request, status_code: int, detail: str) -> HTMLResp
         request.app.state.templates.TemplateResponse(
             request=request,
             name=f"errors/{status_code}.html",
-            context={"detail": detail, "request_id": _request_id(request)},
+            context={
+                "detail": detail,
+                "lang": normalize_language(request.cookies.get(LANG_COOKIE_NAME)),
+                "request_id": _request_id(request),
+            },
             status_code=status_code,
         ),
     )

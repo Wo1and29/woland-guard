@@ -1,11 +1,11 @@
 {% extends "base_minimal.html" %}
-{% block title %}Вход — Woland Guard{% endblock %}
+{% block title %}{{ t(lang, 'auth.title') }}{% endblock %}
 {% block content %}
-<h1>Вход оператора</h1>
+<h1>{{ t(lang, 'auth.h1') }}</h1>
 <form method="post" action="/dashboard/login" accept-charset="UTF-8">
   <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-  <label for="credential">API-ключ оператора</label>
+  <label for="credential">{{ t(lang, 'auth.api_key_label') }}</label>
   <input id="credential" name="credential" type="password" required autocomplete="off">
-  <button type="submit">Войти</button>
+  <button type="submit">{{ t(lang, 'auth.login_button') }}</button>
 </form>
 {% endblock %}

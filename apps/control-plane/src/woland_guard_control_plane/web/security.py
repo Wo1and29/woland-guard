@@ -14,6 +14,7 @@ from starlette.types import Message, Receive, Scope, Send
 
 SESSION_COOKIE_NAME = "__Host-wg_session"
 CSRF_COOKIE_NAME = "__Host-wg_csrf"
+LANG_COOKIE_NAME = "__Host-wg_lang"
 CSRF_FORM_FIELD = "_csrf"
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
