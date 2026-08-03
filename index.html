@@ -145,7 +145,7 @@
     margin: 0;
     color: var(--ink);
   }
-  h1 { font-size: clamp(2.35rem, 5.4vw, 4.05rem); line-height: 1.05; letter-spacing: -0.016em; }
+  h1 { font-size: clamp(2.1rem, 3.6vw, 3.35rem); line-height: 1.12; letter-spacing: -0.014em; }
   h1 mark {
     background: none;
     color: inherit;
@@ -292,12 +292,13 @@
   /* hero */
   .hero .wrap {
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
+    grid-template-columns: 1.3fr 0.7fr;
     gap: clamp(2rem, 5vw, 4rem);
     align-items: center;
     padding-block: clamp(3.5rem, 8vw, 6rem);
   }
-  .hero-copy { display: flex; flex-direction: column; gap: 1.6rem; }
+  .hero-copy { display: flex; flex-direction: column; gap: 1.6rem; min-width: 0; }
+  .hero-visual { min-width: 0; }
   .hero-cta { display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.4rem; }
 
   .hero.hero-dark {
@@ -399,7 +400,8 @@
   .sev-chip[data-sev="critical"] { color: var(--sev-critical); background: color-mix(in srgb, var(--sev-critical) 14%, transparent); }
   .sev-chip[data-sev="warning"] { color: var(--sev-warning); background: color-mix(in srgb, var(--sev-warning) 14%, transparent); }
   .sev-chip[data-sev="info"] { color: var(--sev-info); background: color-mix(in srgb, var(--sev-info) 16%, transparent); }
-  .feed-rule { font-weight: 600; font-size: 0.94rem; }
+  .feed-main { min-width: 0; }
+  .feed-rule { font-weight: 600; font-size: 0.94rem; overflow-wrap: anywhere; }
   .feed-meta {
     font-family: 'WG Mono', monospace;
     font-size: 0.74rem;
@@ -409,6 +411,7 @@
     flex-wrap: wrap;
     margin-top: 0.15rem;
   }
+  .feed-meta span { overflow-wrap: anywhere; }
   .feed-time {
     font-family: 'WG Mono', monospace;
     font-size: 0.76rem;
@@ -721,7 +724,7 @@
           <div class="feed-card__head"><span><span class="dot"></span><span data-i18n="hero.feedHead">уведомление · пример</span></span><span>#WG-INC</span></div>
           <div class="feed-row">
             <span class="sev-chip" data-sev="critical">critical</span>
-            <span>
+            <span class="feed-main">
               <div class="feed-rule">ssh_root_login_success</div>
               <div class="feed-meta"><span>T1078 · Valid Accounts</span><span>db-primary-01</span></div>
             </span>
@@ -729,7 +732,7 @@
           </div>
           <div class="feed-row">
             <span class="sev-chip" data-sev="warning">warning</span>
-            <span>
+            <span class="feed-main">
               <div class="feed-rule">ssh_bruteforce_by_ip</div>
               <div class="feed-meta"><span>T1110 · Brute Force</span><span>bastion-eu-west-1</span></div>
             </span>
@@ -737,7 +740,7 @@
           </div>
           <div class="feed-row">
             <span class="sev-chip" data-sev="info">info</span>
-            <span>
+            <span class="feed-main">
               <div class="feed-rule">user_account_created</div>
               <div class="feed-meta"><span>T1136 · Create Account</span><span>api-gateway-02</span></div>
             </span>
@@ -745,7 +748,7 @@
           </div>
           <div class="feed-row feed-row--incoming" id="feedIncoming">
             <span class="sev-chip" data-sev="warning">warning</span>
-            <span>
+            <span class="feed-main">
               <div class="feed-rule">privileged_group_membership_changed</div>
               <div class="feed-meta"><span>T1098 · Account Manipulation</span><span>web-frontend-01</span></div>
             </span>
