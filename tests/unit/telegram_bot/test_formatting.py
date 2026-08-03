@@ -80,7 +80,7 @@ def test_overview_reports_only_aggregate_counters() -> None:
         recent_incidents=(),
     )
 
-    rendered = formatting.format_overview(overview)
+    rendered = formatting.format_overview("ru", overview)
 
     assert "Серверы: 3" in rendered
     assert "Открытых инцидентов: 5" in rendered
@@ -88,7 +88,7 @@ def test_overview_reports_only_aggregate_counters() -> None:
 
 
 def test_servers_render_allowlisted_fields_only() -> None:
-    rendered = formatting.format_servers((_server(),), truncated=False)
+    rendered = formatting.format_servers("ru", (_server(),), truncated=False)
 
     assert "prod-web-01" in rendered
     assert "prod-web-01.internal" in rendered
@@ -97,13 +97,14 @@ def test_servers_render_allowlisted_fields_only() -> None:
 
 
 def test_truncation_is_announced_without_leaking_the_remainder() -> None:
-    rendered = formatting.format_servers((_server(),), truncated=True)
+    rendered = formatting.format_servers("ru", (_server(),), truncated=True)
 
     assert "Показаны не все записи" in rendered
 
 
 def test_incident_list_includes_identifier_and_severity() -> None:
     rendered = formatting.format_incidents(
+        "ru",
         (_incident(),),
         truncated=False,
         empty_text="пусто",
@@ -116,7 +117,7 @@ def test_incident_list_includes_identifier_and_severity() -> None:
 
 def test_empty_incident_list_uses_the_caller_supplied_text() -> None:
     assert (
-        formatting.format_incidents((), truncated=False, empty_text="Инцидентов нет.")
+        formatting.format_incidents("ru", (), truncated=False, empty_text="Инцидентов нет.")
         == "Инцидентов нет."
     )
 
@@ -132,7 +133,7 @@ def test_empty_incident_list_uses_the_caller_supplied_text() -> None:
     ],
 )
 def test_stored_values_never_carry_control_characters_into_a_reply(hostile: str) -> None:
-    rendered = formatting.format_servers((_server(name=hostile),), truncated=False)
+    rendered = formatting.format_servers("ru", (_server(name=hostile),), truncated=False)
 
     for character in ("\n\n\n", "\r", "\x00", "​", " "):
         assert character not in rendered
@@ -154,7 +155,7 @@ def test_empty_and_missing_values_use_a_placeholder() -> None:
 def test_whole_reply_is_bounded() -> None:
     many = tuple(_incident(title=f"инцидент {index}") for index in range(25))
 
-    rendered = formatting.format_incidents(many, truncated=True, empty_text="пусто")
+    rendered = formatting.format_incidents("ru", many, truncated=True, empty_text="пусто")
 
     assert len(rendered) <= formatting.MESSAGE_MAX_CHARS
 
@@ -192,14 +193,14 @@ def _plan(**overrides: object) -> IpBlockPlanSummary:
 def test_every_block_rejection_reason_has_a_fixed_safe_text(
     reason: BlockTargetRejectionReason,
 ) -> None:
-    rendered = formatting.format_block_rejection(reason)
+    rendered = formatting.format_block_rejection("ru", reason)
 
     assert rendered
     assert "\n" not in rendered
 
 
 def test_block_proposal_message_discloses_the_command_and_address() -> None:
-    rendered = formatting.format_block_proposal_message(_plan())
+    rendered = formatting.format_block_proposal_message("ru", _plan())
 
     assert "203.0.113.10" in rendered
     assert str(INCIDENT_ID) in rendered
@@ -209,12 +210,12 @@ def test_block_proposal_message_discloses_the_command_and_address() -> None:
 
 @pytest.mark.parametrize("status", list(DecideIpBlockStatus))
 def test_every_decide_outcome_has_a_fixed_safe_text(status: DecideIpBlockStatus) -> None:
-    rendered = formatting.format_block_decision_outcome(status)
+    rendered = formatting.format_block_decision_outcome("ru", status)
 
     assert rendered
 
 
 def test_approved_outcome_explicitly_states_nothing_was_executed() -> None:
-    rendered = formatting.format_block_decision_outcome(DecideIpBlockStatus.APPROVED)
+    rendered = formatting.format_block_decision_outcome("ru", DecideIpBlockStatus.APPROVED)
 
     assert "НЕ выполнена" in rendered

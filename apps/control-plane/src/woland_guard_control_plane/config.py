@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from woland_guard_control_plane.language import Language
+
 
 class Settings(BaseSettings):
     """Validated control-plane settings."""
@@ -63,6 +65,10 @@ class Settings(BaseSettings):
     telegram_read_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
     telegram_write_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
     telegram_pool_timeout_seconds: float = Field(default=1.0, gt=0.0, le=60.0)
+    # Broadcast notifications go to a configured chat, not to one identified
+    # operator, so their language is a deployment choice rather than a personal
+    # preference. Interactive replies use the operator's own /lang setting.
+    telegram_notification_language: Language = "ru"
 
     telegram_bot_long_poll_seconds: int = Field(default=25, ge=0, le=50)
     telegram_bot_connect_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)

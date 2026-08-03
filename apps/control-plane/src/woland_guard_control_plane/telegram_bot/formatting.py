@@ -1,8 +1,11 @@
 """Plain-text rendering of allowlisted fields for inbound Telegram replies.
 
-Every reply is assembled from fixed strings and explicit database columns. Operator
-input is never echoed back, and stored values are bounded and stripped of control
-characters before they reach the outgoing message.
+Every reply is assembled from fixed catalog strings and explicit database columns.
+Operator input is never echoed back, and stored values are bounded and stripped of
+control characters before they reach the outgoing message.
+
+Every renderer takes the resolved language explicitly rather than reading a global:
+the language is a property of one conversation, and the poller handles several.
 """
 
 from __future__ import annotations
@@ -18,112 +21,168 @@ from woland_guard_control_plane.application.ip_block_policy import BlockTargetRe
 from woland_guard_control_plane.application.ip_blocks import DecideIpBlockStatus, IpBlockPlanSummary
 from woland_guard_control_plane.application.server_queries import ServerSummary
 from woland_guard_control_plane.infrastructure.database.models import IncidentStatus
+from woland_guard_control_plane.telegram_bot.i18n import tg
 
 FIELD_MAX_CHARS: Final = 80
 MESSAGE_MAX_CHARS: Final = 3_500
 CALLBACK_ANSWER_MAX_CHARS: Final = 200
 _PLACEHOLDER: Final = "-"
 
-_STATUS_LABELS: Final[dict[str, str]] = {
-    IncidentStatus.NEW.value: "новый",
-    IncidentStatus.INVESTIGATING.value: "в работе",
-    IncidentStatus.RESOLVED.value: "закрыт",
-    IncidentStatus.FALSE_POSITIVE.value: "ложное срабатывание",
+_STATUS_LABEL_KEYS: Final[dict[str, str]] = {
+    IncidentStatus.NEW.value: "status.new",
+    IncidentStatus.INVESTIGATING.value: "status.investigating",
+    IncidentStatus.RESOLVED.value: "status.resolved",
+    IncidentStatus.FALSE_POSITIVE.value: "status.false_positive",
 }
 
-HELP_TEXT: Final = (
-    "Woland Guard\n"
-    "\n"
-    "/status - сводка по серверам и инцидентам\n"
-    "/servers - список контролируемых серверов\n"
-    "/incidents - последние инциденты\n"
-    "/critical - активные критические инциденты\n"
-    "/help - эта справка\n"
-    "\n"
-    "Бот доступен только связанным операторам и отвечает только в личном чате."
-)
-
-UNLINKED_TEMPLATE: Final = (
-    "Этот аккаунт не связан с оператором Woland Guard.\n"
-    "Ваш Telegram ID: {telegram_user_id}\n"
-    "Передайте его администратору для связывания через локальный CLI."
-)
-
-FORBIDDEN_TEXT: Final = "Недостаточно прав для этой команды."
-UNKNOWN_COMMAND_TEXT: Final = "Неизвестная команда. Отправьте /help."
-UNAVAILABLE_TEXT: Final = "Данные временно недоступны. Повторите позже."
-
-CALLBACK_UNLINKED_TEXT: Final = "Аккаунт не связан с оператором. Обратитесь к администратору."
-CALLBACK_FORBIDDEN_TEXT: Final = "Недостаточно прав для этого действия."
-CALLBACK_INVALID_TEXT: Final = "Некорректный запрос."
-CALLBACK_RATE_LIMITED_TEXT: Final = "Слишком много запросов. Повторите позже."
-
-REASON_INVALID_TEXT: Final = (
-    "Причина некорректна (1–1000 символов, без управляющих символов). "
-    "Действие отменено — нажмите кнопку ещё раз."
-)
-REASON_EXPIRED_TEXT: Final = "Время ожидания причины истекло. Нажмите кнопку в уведомлении ещё раз."
-
-INCIDENT_NOT_FOUND_TEXT: Final = "Инцидент не найден."
-INCIDENT_STALE_VERSION_TEXT: Final = (
-    "Инцидент уже был изменён. Откройте панель, чтобы увидеть текущий статус."
-)
-INCIDENT_TRANSITION_NOT_ALLOWED_TEXT: Final = "Переход недоступен из текущего статуса инцидента."
-
-IP_BLOCK_DISABLED_TEXT: Final = "Функция блокировки IP отключена на этом сервере."
-IP_BLOCK_NO_SOURCE_ADDRESS_TEXT: Final = "У инцидента нет адреса источника для блокировки."
-IP_BLOCK_PROPOSED_TEXT: Final = "План подготовлен, детали отправлены отдельным сообщением."
-IP_BLOCK_REUSED_TEXT: Final = "План уже подготовлен ранее, детали отправлены отдельным сообщением."
-IP_BLOCK_PLAN_NOT_FOUND_TEXT: Final = "План не найден."
-IP_BLOCK_ALREADY_DECIDED_TEXT: Final = "План уже был обработан ранее."
-IP_BLOCK_EXPIRED_TEXT: Final = "Срок действия плана истёк. Подготовьте блокировку заново."
-IP_BLOCK_SAME_OPERATOR_TEXT: Final = "Подтвердить план может только другой оператор."
-IP_BLOCK_NOW_BLOCKED_TEXT: Final = (
-    "Адрес больше нельзя блокировать (allowlist или защищённый диапазон изменились). "
-    "План автоматически отклонён."
-)
-IP_BLOCK_APPROVED_TEXT: Final = (
-    "План подтверждён. Блокировка НЕ выполнена: control plane не исполняет команды, "
-    "это только подтверждение плана."
-)
-IP_BLOCK_REJECTED_TEXT: Final = "План отклонён."
-
-_BLOCK_REJECTION_TEXTS: Final[dict[BlockTargetRejectionReason, str]] = {
-    BlockTargetRejectionReason.NOT_AN_ADDRESS: "Адрес источника инцидента некорректен.",
-    BlockTargetRejectionReason.NOT_CANONICAL: "Адрес источника инцидента некорректен.",
-    BlockTargetRejectionReason.NEVER_BLOCK: "Этот адрес защищён от блокировки.",
-    BlockTargetRejectionReason.ALLOWLISTED: "Этот адрес в allowlist и не может быть заблокирован.",
+_BLOCK_REJECTION_KEYS: Final[dict[BlockTargetRejectionReason, str]] = {
+    BlockTargetRejectionReason.NOT_AN_ADDRESS: "ip_block.reject.not_an_address",
+    BlockTargetRejectionReason.NOT_CANONICAL: "ip_block.reject.not_an_address",
+    BlockTargetRejectionReason.NEVER_BLOCK: "ip_block.reject.never_block",
+    BlockTargetRejectionReason.ALLOWLISTED: "ip_block.reject.allowlisted",
 }
 
-_DECIDE_OUTCOME_TEXTS: Final[dict[DecideIpBlockStatus, str]] = {
-    DecideIpBlockStatus.APPROVED: IP_BLOCK_APPROVED_TEXT,
-    DecideIpBlockStatus.REJECTED: IP_BLOCK_REJECTED_TEXT,
-    DecideIpBlockStatus.PLAN_NOT_FOUND: IP_BLOCK_PLAN_NOT_FOUND_TEXT,
-    DecideIpBlockStatus.ALREADY_DECIDED: IP_BLOCK_ALREADY_DECIDED_TEXT,
-    DecideIpBlockStatus.EXPIRED: IP_BLOCK_EXPIRED_TEXT,
-    DecideIpBlockStatus.SAME_OPERATOR: IP_BLOCK_SAME_OPERATOR_TEXT,
-    DecideIpBlockStatus.NOW_BLOCKED: IP_BLOCK_NOW_BLOCKED_TEXT,
+_DECIDE_OUTCOME_KEYS: Final[dict[DecideIpBlockStatus, str]] = {
+    DecideIpBlockStatus.APPROVED: "ip_block.approved",
+    DecideIpBlockStatus.REJECTED: "ip_block.rejected",
+    DecideIpBlockStatus.PLAN_NOT_FOUND: "ip_block.plan_not_found",
+    DecideIpBlockStatus.ALREADY_DECIDED: "ip_block.already_decided",
+    DecideIpBlockStatus.EXPIRED: "ip_block.expired",
+    DecideIpBlockStatus.SAME_OPERATOR: "ip_block.same_operator",
+    DecideIpBlockStatus.NOW_BLOCKED: "ip_block.now_blocked",
 }
 
 
-def format_reason_prompt(target_status: IncidentStatus) -> str:
+def help_text(lang: str) -> str:
+    return tg(lang, "help")
+
+
+def unlinked_text(lang: str, *, telegram_user_id: int) -> str:
+    return tg(lang, "unlinked").format(telegram_user_id=telegram_user_id)
+
+
+def forbidden_text(lang: str) -> str:
+    return tg(lang, "forbidden")
+
+
+def unknown_command_text(lang: str) -> str:
+    return tg(lang, "unknown_command")
+
+
+def unavailable_text(lang: str) -> str:
+    return tg(lang, "unavailable")
+
+
+def language_usage_text(lang: str) -> str:
+    return tg(lang, "language.usage")
+
+
+def language_changed_text(lang: str) -> str:
+    return tg(lang, "language.changed")
+
+
+def callback_unlinked_text(lang: str) -> str:
+    return tg(lang, "callback.unlinked")
+
+
+def callback_forbidden_text(lang: str) -> str:
+    return tg(lang, "callback.forbidden")
+
+
+def callback_invalid_text(lang: str) -> str:
+    return tg(lang, "callback.invalid")
+
+
+def callback_rate_limited_text(lang: str) -> str:
+    return tg(lang, "callback.rate_limited")
+
+
+def reason_invalid_text(lang: str) -> str:
+    return tg(lang, "reason.invalid")
+
+
+def reason_expired_text(lang: str) -> str:
+    return tg(lang, "reason.expired")
+
+
+def incident_not_found_text(lang: str) -> str:
+    return tg(lang, "incident.not_found")
+
+
+def incident_stale_version_text(lang: str) -> str:
+    return tg(lang, "incident.stale_version")
+
+
+def incident_transition_not_allowed_text(lang: str) -> str:
+    return tg(lang, "incident.transition_not_allowed")
+
+
+def incidents_empty_text(lang: str) -> str:
+    return tg(lang, "incidents.empty")
+
+
+def critical_incidents_empty_text(lang: str) -> str:
+    return tg(lang, "incidents.empty_critical")
+
+
+def ip_block_disabled_text(lang: str) -> str:
+    return tg(lang, "ip_block.disabled")
+
+
+def ip_block_no_source_address_text(lang: str) -> str:
+    return tg(lang, "ip_block.no_source_address")
+
+
+def ip_block_proposed_text(lang: str) -> str:
+    return tg(lang, "ip_block.proposed")
+
+
+def ip_block_reused_text(lang: str) -> str:
+    return tg(lang, "ip_block.reused")
+
+
+def ip_block_plan_not_found_text(lang: str) -> str:
+    return tg(lang, "ip_block.plan_not_found")
+
+
+def ip_block_already_decided_text(lang: str) -> str:
+    return tg(lang, "ip_block.already_decided")
+
+
+def ip_block_expired_text(lang: str) -> str:
+    return tg(lang, "ip_block.expired")
+
+
+def ip_block_same_operator_text(lang: str) -> str:
+    return tg(lang, "ip_block.same_operator")
+
+
+def ip_block_now_blocked_text(lang: str) -> str:
+    return tg(lang, "ip_block.now_blocked")
+
+
+def ip_block_approved_text(lang: str) -> str:
+    return tg(lang, "ip_block.approved")
+
+
+def ip_block_rejected_text(lang: str) -> str:
+    return tg(lang, "ip_block.rejected")
+
+
+def format_reason_prompt(lang: str, target_status: IncidentStatus) -> str:
     """Ask for the terminal-status reason as a follow-up private message."""
 
-    label = _STATUS_LABELS[target_status.value]
-    return (
-        f"Действие «{label}» требует причины.\n"
-        "Отправьте её одним сообщением (1–1000 символов).\n"
-        "Любая команда, например /help, отменяет действие."
-    )
+    label = tg(lang, _STATUS_LABEL_KEYS[target_status.value])
+    return tg(lang, "reason.prompt").format(label=label)
 
 
-def format_block_rejection(reason: BlockTargetRejectionReason) -> str:
+def format_block_rejection(lang: str, reason: BlockTargetRejectionReason) -> str:
     """Render one closed, fixed reason without ever reflecting the address."""
 
-    return _BLOCK_REJECTION_TEXTS[reason]
+    return tg(lang, _BLOCK_REJECTION_KEYS[reason])
 
 
-def format_block_proposal_message(plan: IpBlockPlanSummary) -> str:
+def format_block_proposal_message(lang: str, plan: IpBlockPlanSummary) -> str:
     """Render the follow-up message sent after a plan is created or reused.
 
     This is the one place the correlated address is disclosed in Telegram --
@@ -133,45 +192,46 @@ def format_block_proposal_message(plan: IpBlockPlanSummary) -> str:
 
     command_text = " ".join(plan.command_argv)
     lines = (
-        "Предложена блокировка IP (ничего не выполнено)",
+        tg(lang, "proposal.heading"),
         "",
-        f"Адрес: {plan.ip_address}",
-        f"Инцидент: {plan.incident_id}",
-        f"Команда: {command_text}",
-        f"Истекает: {format_timestamp(plan.expires_at)}",
+        f"{tg(lang, 'proposal.address')} {plan.ip_address}",
+        f"{tg(lang, 'proposal.incident')} {plan.incident_id}",
+        f"{tg(lang, 'proposal.command')} {command_text}",
+        f"{tg(lang, 'proposal.expires')} {format_timestamp(plan.expires_at)}",
         "",
-        "Подтвердить может оператор с ролью admin. Отклонить может любой аналитик.",
+        tg(lang, "proposal.approval_note"),
     )
     return _bounded("\n".join(lines))
 
 
-def format_block_decision_outcome(status: DecideIpBlockStatus) -> str:
+def format_block_decision_outcome(lang: str, status: DecideIpBlockStatus) -> str:
     """Render one closed decision outcome; APPROVED always states nothing ran."""
 
-    return _DECIDE_OUTCOME_TEXTS[status]
+    return tg(lang, _DECIDE_OUTCOME_KEYS[status])
 
 
 def format_transition_outcome(
+    lang: str,
     outcome: TransitionOutcome,
     *,
     target_status: IncidentStatus,
 ) -> str:
     """Render one bounded, single-purpose transition result for Telegram."""
 
-    label = _STATUS_LABELS[target_status.value]
+    label = tg(lang, _STATUS_LABEL_KEYS[target_status.value])
     if outcome.http_status == 200:
         if outcome.replayed:
-            return f"Уже выполнено ранее: статус «{label}»."
-        return f"Статус изменён: «{label}»."
+            return tg(lang, "incident.already_applied").format(label=label)
+        return tg(lang, "incident.status_changed").format(label=label)
     if outcome.http_status == 404:
-        return INCIDENT_NOT_FOUND_TEXT
+        return incident_not_found_text(lang)
     if outcome.conflict_type == "stale_version":
-        return INCIDENT_STALE_VERSION_TEXT
+        return incident_stale_version_text(lang)
     if outcome.conflict_type == "transition_not_allowed":
-        return INCIDENT_TRANSITION_NOT_ALLOWED_TEXT
+        return incident_transition_not_allowed_text(lang)
     if outcome.conflict_type == "idempotency_key_reused":
-        return "Действие уже выполняется. Повторите позже."
-    return "Не удалось изменить статус. Повторите позже."
+        return tg(lang, "incident.in_progress")
+    return tg(lang, "incident.transition_failed")
 
 
 def safe_field(value: object, *, limit: int = FIELD_MAX_CHARS) -> str:
@@ -200,65 +260,75 @@ def format_timestamp(value: datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M UTC")
 
 
-def format_overview(overview: DashboardOverview) -> str:
+def format_overview(lang: str, overview: DashboardOverview) -> str:
     """Render the aggregate counters shown by /status."""
 
+    detail = tg(lang, "overview.servers_detail").format(
+        active=overview.servers.active,
+        inactive=overview.servers.inactive,
+    )
     lines = [
-        "Состояние Woland Guard",
+        tg(lang, "overview.heading"),
         "",
-        f"Серверы: {overview.servers.total}"
-        f" (активных {overview.servers.active}, неактивных {overview.servers.inactive})",
-        f"Открытых инцидентов: {overview.incidents.active}",
-        f"Из них критических: {overview.incidents.critical_active}",
+        f"{tg(lang, 'overview.servers')} {overview.servers.total} ({detail})",
+        f"{tg(lang, 'overview.open_incidents')} {overview.incidents.active}",
+        f"{tg(lang, 'overview.critical')} {overview.incidents.critical_active}",
         "",
-        "Очередь уведомлений:",
-        f"  ожидают: {overview.notifications.pending}",
-        f"  в работе: {overview.notifications.processing}",
-        f"  доставлены: {overview.notifications.delivered}",
-        f"  неуспешные: {overview.notifications.failed}",
+        tg(lang, "overview.queue"),
+        f"  {tg(lang, 'overview.pending')} {overview.notifications.pending}",
+        f"  {tg(lang, 'overview.processing')} {overview.notifications.processing}",
+        f"  {tg(lang, 'overview.delivered')} {overview.notifications.delivered}",
+        f"  {tg(lang, 'overview.failed')} {overview.notifications.failed}",
     ]
     return _bounded("\n".join(lines))
 
 
-def format_servers(servers: tuple[ServerSummary, ...], *, truncated: bool) -> str:
+def format_servers(lang: str, servers: tuple[ServerSummary, ...], *, truncated: bool) -> str:
     """Render one bounded server list."""
 
     if not servers:
-        return "Серверы не зарегистрированы."
-    lines = ["Серверы:", ""]
+        return tg(lang, "servers.empty")
+    lines = [tg(lang, "servers.heading"), ""]
     for server in servers:
-        state = "активен" if server.is_active else "неактивен"
+        state = tg(lang, "servers.active" if server.is_active else "servers.inactive")
         lines.append(f"• {safe_field(server.name)} ({state})")
-        lines.append(f"  хост: {safe_field(server.hostname)}")
-        lines.append(f"  открытых инцидентов: {server.active_incident_count}")
-        lines.append(f"  последнее событие: {format_timestamp(server.last_event_at)}")
+        lines.append(f"  {tg(lang, 'servers.host')} {safe_field(server.hostname)}")
+        lines.append(f"  {tg(lang, 'servers.open_incidents')} {server.active_incident_count}")
+        lines.append(f"  {tg(lang, 'servers.last_event')} {format_timestamp(server.last_event_at)}")
         lines.append("")
     if truncated:
-        lines.append("Показаны не все записи. Полный список — в Dashboard.")
+        lines.append(tg(lang, "list.truncated"))
     return _bounded("\n".join(lines).strip())
 
 
 def format_incidents(
+    lang: str,
     incidents: tuple[DashboardIncidentSummary, ...],
     *,
     truncated: bool,
     empty_text: str,
 ) -> str:
-    """Render one bounded incident list."""
+    """Render one bounded incident list.
+
+    The incident title follows the reply language when the rule that produced it
+    carries a translation; historical incidents detected before the rules were
+    bilingual fall back to their frozen Russian title (ADR-0017).
+    """
 
     if not incidents:
         return empty_text
-    lines = ["Инциденты:", ""]
+    lines = [tg(lang, "incidents.heading"), ""]
     for incident in incidents:
-        lines.append(f"• [{safe_field(incident.severity, limit=16)}] {safe_field(incident.title)}")
-        lines.append(f"  сервер: {safe_field(incident.server_name)}")
-        lines.append(f"  статус: {safe_field(incident.status, limit=32)}")
-        lines.append(f"  событий: {incident.event_count}")
-        lines.append(f"  последнее: {format_timestamp(incident.last_seen_at)}")
-        lines.append(f"  id: {incident.id}")
+        title = incident.title_en if lang == "en" and incident.title_en else incident.title
+        lines.append(f"• [{safe_field(incident.severity, limit=16)}] {safe_field(title)}")
+        lines.append(f"  {tg(lang, 'incidents.server')} {safe_field(incident.server_name)}")
+        lines.append(f"  {tg(lang, 'incidents.status')} {safe_field(incident.status, limit=32)}")
+        lines.append(f"  {tg(lang, 'incidents.events')} {incident.event_count}")
+        lines.append(f"  {tg(lang, 'incidents.last')} {format_timestamp(incident.last_seen_at)}")
+        lines.append(f"  {tg(lang, 'incidents.id')} {incident.id}")
         lines.append("")
     if truncated:
-        lines.append("Показаны не все записи. Полный список — в Dashboard.")
+        lines.append(tg(lang, "list.truncated"))
     return _bounded("\n".join(lines).strip())
 
 

@@ -301,6 +301,7 @@ def test_new_incident_creates_one_outbox_per_enabled_destination(
                 "rule_version",
                 "severity",
                 "title",
+                "title_en",
                 "created_at",
             }
 
@@ -446,8 +447,9 @@ def test_incident_snapshot_stays_immutable_after_new_rule_activation(
     )
     assert first.status_code == 200
 
+    successor = original.version + 1
     second_version = original.model_copy(
-        update={"version": 2, "title": "Synthetic changed v2 title"}
+        update={"version": successor, "title": "Synthetic changed successor title"}
     )
     with get_session_factory().begin() as session:
         sync_rules(session, (second_version,))
@@ -473,20 +475,20 @@ def test_incident_snapshot_stays_immutable_after_new_rule_activation(
         ).all()
         incidents = session.scalars(select(Incident).order_by(Incident.rule_version)).all()
         assert [(version.version, version.is_active) for version in versions] == [
-            (1, False),
-            (2, True),
+            (original.version, False),
+            (successor, True),
         ]
         assert versions[0].definition["title"] == original.title
         assert len(incidents) == 2
         first_incident, second_incident = incidents
         assert first_incident.rule_version_id == versions[0].id
-        assert first_incident.rule_version == 1
-        assert first_incident.rule_snapshot["version"] == 1
+        assert first_incident.rule_version == original.version
+        assert first_incident.rule_snapshot["version"] == original.version
         assert first_incident.title == original.title
         assert first_incident.event_count == 1
         assert second_incident.rule_version_id == versions[1].id
-        assert second_incident.rule_version == 2
-        assert second_incident.rule_snapshot["version"] == 2
+        assert second_incident.rule_version == successor
+        assert second_incident.rule_snapshot["version"] == successor
         assert second_incident.title == second_version.title
         assert second_incident.event_count == 1
         evidence_counts: dict[UUID, int] = dict(
@@ -519,7 +521,7 @@ def test_malformed_rule_set_does_not_change_active_versions(tmp_path: Path) -> N
         versions = session.scalars(select(DetectionRuleVersion)).all()
         assert len(versions) == 1
         assert versions[0].is_active is True
-        assert versions[0].version == 1
+        assert versions[0].version == _default_rule("ssh_root_login_success").version
 
 
 def test_published_rule_version_cannot_be_mutated() -> None:

@@ -35,6 +35,7 @@ from woland_guard_control_plane.infrastructure.telegram.token_file import (
     TelegramTokenFileError,
     TelegramTokenSynchronizer,
 )
+from woland_guard_control_plane.language import DEFAULT_LANGUAGE, Language
 
 
 class _RedactedScalar[T]:
@@ -112,10 +113,14 @@ class TelegramDeliveryAdapter:
         client: TelegramBotApiClient,
         synchronizer: TelegramTokenSynchronizer,
         dashboard_origin: str,
+        language: Language = DEFAULT_LANGUAGE,
     ) -> None:
         self._client = client
         self._synchronizer = synchronizer
         self._dashboard_origin = dashboard_origin
+        # One broadcast chat has one audience, so its language is a deployment
+        # choice; there is no single operator here to hold a preference.
+        self._language = language
 
     def deliver(
         self,
@@ -134,8 +139,9 @@ class TelegramDeliveryAdapter:
         except TelegramTokenFileError as error:
             return DeliveryResult(DeliveryDisposition.RETRYABLE, error.error_code)
         try:
-            text = format_incident_created_message(request.payload)
+            text = format_incident_created_message(self._language, request.payload)
             keyboard = build_incident_action_keyboard(
+                self._language,
                 incident_id=request.payload.incident_id,
                 dashboard_origin=self._dashboard_origin,
             )

@@ -34,7 +34,7 @@ def _payload(*, title: str = "Synthetic incident") -> IncidentCreatedNotificatio
 
 
 def test_formatter_contains_only_safe_incident_summary() -> None:
-    text = format_incident_created_message(_payload())
+    text = format_incident_created_message("ru", _payload())
     assert "Synthetic incident" in text
     assert "synthetic_rule" in text
     assert "parse_mode" not in text
@@ -44,11 +44,12 @@ def test_formatter_contains_only_safe_incident_summary() -> None:
 
 def test_formatter_rejects_control_characters() -> None:
     with pytest.raises(TelegramMessageError):
-        format_incident_created_message(_payload(title="unsafe\nline"))
+        format_incident_created_message("ru", _payload(title="unsafe\nline"))
 
 
 def test_keyboard_encodes_all_three_status_buttons_at_version_one() -> None:
     keyboard = build_incident_action_keyboard(
+        "ru",
         incident_id=INCIDENT_ID,
         dashboard_origin="https://guard.example.invalid",
     )
@@ -92,4 +93,4 @@ def test_keyboard_encodes_all_three_status_buttons_at_version_one() -> None:
 )
 def test_keyboard_rejects_a_malformed_dashboard_origin(origin: str) -> None:
     with pytest.raises(TelegramMessageError):
-        build_incident_action_keyboard(incident_id=INCIDENT_ID, dashboard_origin=origin)
+        build_incident_action_keyboard("ru", incident_id=INCIDENT_ID, dashboard_origin=origin)

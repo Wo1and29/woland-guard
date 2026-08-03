@@ -8,15 +8,25 @@ wire identifiers, not prose.
 
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import Request
 
+from woland_guard_control_plane.language import (
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+    Language,
+    normalize_language,
+)
 from woland_guard_control_plane.web.security import LANG_COOKIE_NAME
 
-Language = Literal["ru", "en"]
-SUPPORTED_LANGUAGES: tuple[Language, ...] = ("ru", "en")
-DEFAULT_LANGUAGE: Language = "ru"
+__all__ = [
+    "DEFAULT_LANGUAGE",
+    "SUPPORTED_LANGUAGES",
+    "Language",
+    "current_language",
+    "localized",
+    "normalize_language",
+    "t",
+]
 
 _STRINGS: dict[str, dict[Language, str]] = {
     # common shell
@@ -304,14 +314,6 @@ _STRINGS: dict[str, dict[Language, str]] = {
     "presentation.no": {"ru": "нет", "en": "no"},
     "audit.details_unavailable": {"ru": "Детали недоступны", "en": "Details unavailable"},
 }
-
-
-def normalize_language(value: str | None) -> Language:
-    if value == "ru":
-        return "ru"
-    if value == "en":
-        return "en"
-    return DEFAULT_LANGUAGE
 
 
 def current_language(request: Request) -> Language:

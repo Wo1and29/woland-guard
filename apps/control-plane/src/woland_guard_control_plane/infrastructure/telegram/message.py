@@ -12,13 +12,14 @@ from woland_guard_control_plane.infrastructure.telegram.callbacks import (
     encode_incident_action,
     encode_propose_block,
 )
+from woland_guard_control_plane.telegram_bot.i18n import tg
 
 TELEGRAM_TEXT_LIMIT = 4096
 _NEWLY_CREATED_INCIDENT_VERSION = 1
 _ACTION_BUTTONS: tuple[tuple[str, IncidentStatus], ...] = (
-    ("Принять в работу", IncidentStatus.INVESTIGATING),
-    ("Ложное срабатывание", IncidentStatus.FALSE_POSITIVE),
-    ("Закрыть", IncidentStatus.RESOLVED),
+    ("button.investigating", IncidentStatus.INVESTIGATING),
+    ("button.false_positive", IncidentStatus.FALSE_POSITIVE),
+    ("button.resolved", IncidentStatus.RESOLVED),
 )
 
 
@@ -27,6 +28,7 @@ class TelegramMessageError(ValueError):
 
 
 def build_incident_action_keyboard(
+    lang: str,
     *,
     incident_id: UUID,
     dashboard_origin: str,
@@ -52,42 +54,42 @@ def build_incident_action_keyboard(
         raise TelegramMessageError("Telegram dashboard origin is invalid.")
     status_row = [
         {
-            "text": label,
+            "text": tg(lang, label_key),
             "callback_data": encode_incident_action(
                 incident_id=incident_id,
                 target_status=status,
                 expected_version=_NEWLY_CREATED_INCIDENT_VERSION,
             ),
         }
-        for label, status in _ACTION_BUTTONS
+        for label_key, status in _ACTION_BUTTONS
     ]
     block_row = [
         {
-            "text": "Подготовить блокировку IP",
+            "text": tg(lang, "button.propose_block"),
             "callback_data": encode_propose_block(incident_id=incident_id),
         }
     ]
     dashboard_row = [
         {
-            "text": "Открыть панель",
+            "text": tg(lang, "button.open_dashboard"),
             "url": f"{dashboard_origin}/dashboard/incidents/{incident_id}",
         }
     ]
     return {"inline_keyboard": [status_row, block_row, dashboard_row]}
 
 
-def build_block_decision_keyboard(plan_id: UUID) -> dict[str, Any]:
+def build_block_decision_keyboard(lang: str, plan_id: UUID) -> dict[str, Any]:
     """Build the inline keyboard attached to a block-plan follow-up message."""
 
     return {
         "inline_keyboard": [
             [
                 {
-                    "text": "Подтвердить",
+                    "text": tg(lang, "button.approve"),
                     "callback_data": encode_decide_block(plan_id=plan_id, approve=True),
                 },
                 {
-                    "text": "Отклонить",
+                    "text": tg(lang, "button.reject"),
                     "callback_data": encode_decide_block(plan_id=plan_id, approve=False),
                 },
             ]
@@ -95,21 +97,27 @@ def build_block_decision_keyboard(plan_id: UUID) -> dict[str, Any]:
     }
 
 
-def format_incident_created_message(payload: IncidentCreatedNotificationV1) -> str:
-    """Format only the allowlisted immutable incident summary."""
+def format_incident_created_message(lang: str, payload: IncidentCreatedNotificationV1) -> str:
+    """Format only the allowlisted immutable incident summary.
 
-    _require_safe_line(payload.title)
+    This message is a broadcast to a configured chat, not a reply to one operator,
+    so its language comes from deployment configuration rather than any per-user
+    preference -- there is no single user to have a preference (ADR-0018).
+    """
+
+    title = payload.title_en if lang == "en" and payload.title_en else payload.title
+    _require_safe_line(title)
     _require_safe_line(payload.rule_key)
     created_at = payload.created_at.isoformat()
     text = "\n".join(
         (
-            "Woland Guard: новый инцидент",
-            f"Критичность: {payload.severity.upper()}",
-            f"Заголовок: {payload.title}",
-            f"Правило: {payload.rule_key} v{payload.rule_version}",
-            f"Инцидент: {payload.incident_id}",
-            f"Сервер: {payload.server_id}",
-            f"Создан: {created_at}",
+            tg(lang, "notification.heading"),
+            f"{tg(lang, 'notification.severity')} {payload.severity.upper()}",
+            f"{tg(lang, 'notification.title')} {title}",
+            f"{tg(lang, 'notification.rule')} {payload.rule_key} v{payload.rule_version}",
+            f"{tg(lang, 'notification.incident')} {payload.incident_id}",
+            f"{tg(lang, 'notification.server')} {payload.server_id}",
+            f"{tg(lang, 'notification.created')} {created_at}",
         )
     )
     if not 1 <= len(text) <= TELEGRAM_TEXT_LIMIT:

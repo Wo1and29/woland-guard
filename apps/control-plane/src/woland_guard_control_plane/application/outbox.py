@@ -31,12 +31,16 @@ class IncidentCreatedNotificationV1(BaseModel):
     rule_version: int = Field(gt=0)
     severity: Literal["low", "medium", "high", "critical"]
     title: str = Field(min_length=1, max_length=255)
+    # Optional so messages enqueued before the rules carried English prose still
+    # validate when the worker picks them up after an upgrade; the renderer falls
+    # back to the Russian title (ADR-0017).
+    title_en: str | None = Field(default=None, min_length=1, max_length=255)
     created_at: datetime
 
-    @field_validator("rule_key", "title")
+    @field_validator("rule_key", "title", "title_en")
     @classmethod
-    def reject_nul(cls, value: str) -> str:
-        if "\x00" in value:
+    def reject_nul(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
             raise ValueError("notification text contains a forbidden character")
         return value
 
@@ -58,6 +62,7 @@ def build_incident_created_payload(incident: Incident) -> IncidentCreatedNotific
         rule_version=incident.rule_version,
         severity=incident.severity,  # type: ignore[arg-type]
         title=incident.title,
+        title_en=incident.title_en,
         created_at=incident.created_at,
     )
 

@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    String,
     func,
     text,
 )
@@ -30,6 +31,10 @@ class OperatorTelegramLink(Base):
             "revoked_at IS NULL OR revoked_at >= created_at",
             name="revocation_not_before_creation",
         ),
+        CheckConstraint(
+            "language IS NULL OR language IN ('ru', 'en')",
+            name="language_allowed",
+        ),
         Index(
             "uq_operator_telegram_links_active_telegram_user",
             "telegram_user_id",
@@ -50,6 +55,10 @@ class OperatorTelegramLink(Base):
         index=True,
     )
     telegram_user_id: Mapped[int] = mapped_column(BigInteger)
+    # Null until the operator runs /lang: the bot then falls back to the language
+    # tag the Telegram client itself reports, so a reply is never left untranslated
+    # just because nobody has set a preference yet.
+    language: Mapped[str | None] = mapped_column(String(2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

@@ -15,6 +15,7 @@ from woland_guard_control_plane.infrastructure.database.models import (
     OperatorRole,
     OperatorTelegramLink,
 )
+from woland_guard_control_plane.language import Language, normalize_language
 
 TELEGRAM_USER_ID_MAX = 2**53 - 1
 
@@ -171,6 +172,51 @@ def authenticate_telegram_user(
         auth_method_type=OperatorAuthMethodType.TELEGRAM,
         auth_method_id=link.id,
     )
+
+
+def stored_telegram_language(
+    session: Session,
+    *,
+    telegram_user_id: int,
+) -> Language | None:
+    """Return the operator's saved reply language, or None when they never set one.
+
+    None is not "Russian": it tells the caller to fall through to the language tag
+    reported by the Telegram client instead of assuming a preference.
+    """
+
+    try:
+        identifier = validate_telegram_user_id(telegram_user_id)
+    except TelegramIdentityError:
+        return None
+    link = _active_link_for_telegram_user(session, telegram_user_id=identifier)
+    if link is None or link.language is None:
+        return None
+    return normalize_language(link.language)
+
+
+def set_telegram_language(
+    session: Session,
+    *,
+    telegram_user_id: int,
+    language: Language,
+) -> bool:
+    """Persist one reply-language preference; returns False for an unlinked account.
+
+    Deliberately not audited: this changes how text is rendered for one operator,
+    not what they may access, so it is not a security-relevant event the way
+    `operator_telegram_link.created` and `.revoked` are.
+    """
+
+    try:
+        identifier = validate_telegram_user_id(telegram_user_id)
+    except TelegramIdentityError:
+        return False
+    link = _active_link_for_telegram_user(session, telegram_user_id=identifier)
+    if link is None:
+        return False
+    link.language = normalize_language(language)
+    return True
 
 
 def _active_link_for_operator(

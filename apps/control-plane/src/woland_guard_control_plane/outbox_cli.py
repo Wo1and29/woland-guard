@@ -134,6 +134,7 @@ def _build_worker(settings: Settings) -> OutboxWorker:
             ),
             synchronizer=TelegramTokenSynchronizer(),
             dashboard_origin=settings.web_public_origin,
+            language=settings.telegram_notification_language,
         )
     }
     return OutboxWorker(

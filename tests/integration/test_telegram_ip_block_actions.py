@@ -150,7 +150,7 @@ def test_propose_is_refused_while_the_feature_is_disabled(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_DISABLED_TEXT
+    assert answer.text == formatting.ip_block_disabled_text("ru")
     assert answer.follow_up_text is None
 
 
@@ -166,7 +166,7 @@ def test_propose_without_a_message_is_rejected_safely(
         now=NOW,
     )
 
-    assert answer.text == formatting.CALLBACK_INVALID_TEXT
+    assert answer.text == formatting.callback_invalid_text("ru")
     assert answer.follow_up_text is None
 
 
@@ -177,7 +177,7 @@ def test_propose_requires_permission(register_operator: OperatorFactory) -> None
 
     answer = _router().handle_callback_query(_propose_callback(incident_id), now=NOW)
 
-    assert answer.text == formatting.CALLBACK_FORBIDDEN_TEXT
+    assert answer.text == formatting.callback_forbidden_text("ru")
 
 
 def test_propose_from_an_unlinked_account_is_refused() -> None:
@@ -185,7 +185,7 @@ def test_propose_from_an_unlinked_account_is_refused() -> None:
 
     answer = _router().handle_callback_query(_propose_callback(incident_id), now=NOW)
 
-    assert answer.text == formatting.CALLBACK_UNLINKED_TEXT
+    assert answer.text == formatting.callback_unlinked_text("ru")
 
 
 def test_propose_for_a_missing_incident_reports_not_found(
@@ -196,7 +196,7 @@ def test_propose_for_a_missing_incident_reports_not_found(
 
     answer = _router().handle_callback_query(_propose_callback(uuid4()), now=NOW)
 
-    assert answer.text == formatting.INCIDENT_NOT_FOUND_TEXT
+    assert answer.text == formatting.incident_not_found_text("ru")
 
 
 def test_propose_without_a_source_address_is_refused(
@@ -208,7 +208,7 @@ def test_propose_without_a_source_address_is_refused(
 
     answer = _router().handle_callback_query(_propose_callback(incident_id), now=NOW)
 
-    assert answer.text == formatting.IP_BLOCK_NO_SOURCE_ADDRESS_TEXT
+    assert answer.text == formatting.ip_block_no_source_address_text("ru")
 
 
 def test_propose_for_a_never_block_address_is_refused(
@@ -233,7 +233,7 @@ def test_propose_creates_a_plan_with_a_follow_up_and_keyboard(
 
     answer = _router().handle_callback_query(_propose_callback(incident_id), now=NOW)
 
-    assert answer.text == formatting.IP_BLOCK_PROPOSED_TEXT
+    assert answer.text == formatting.ip_block_proposed_text("ru")
     assert answer.follow_up_text is not None
     assert "8.8.8.8" in answer.follow_up_text
     assert answer.follow_up_keyboard is not None
@@ -262,8 +262,8 @@ def test_second_propose_press_reuses_the_plan_without_a_new_audit_entry(
         _propose_callback(incident_id, callback_id="cb-propose-2"), now=NOW
     )
 
-    assert first.text == formatting.IP_BLOCK_PROPOSED_TEXT
-    assert second.text == formatting.IP_BLOCK_REUSED_TEXT
+    assert first.text == formatting.ip_block_proposed_text("ru")
+    assert second.text == formatting.ip_block_reused_text("ru")
     with get_session_factory()() as session:
         plan = session.scalar(select(IpBlockPlan).where(IpBlockPlan.incident_id == incident_id))
         assert plan is not None
@@ -299,7 +299,7 @@ def test_approve_by_a_second_operator_never_claims_execution(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_APPROVED_TEXT
+    assert answer.text == formatting.ip_block_approved_text("ru")
     assert "НЕ выполнена" in answer.text
     assert answer.show_alert is False
     with get_session_factory()() as session:
@@ -321,7 +321,7 @@ def test_approve_by_the_same_operator_is_refused_by_default(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_SAME_OPERATOR_TEXT
+    assert answer.text == formatting.ip_block_same_operator_text("ru")
 
 
 def test_single_operator_settings_allow_self_approval(
@@ -337,7 +337,7 @@ def test_single_operator_settings_allow_self_approval(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_APPROVED_TEXT
+    assert answer.text == formatting.ip_block_approved_text("ru")
 
 
 def test_approve_requires_the_admin_only_permission(
@@ -355,7 +355,7 @@ def test_approve_requires_the_admin_only_permission(
         now=NOW,
     )
 
-    assert answer.text == formatting.CALLBACK_FORBIDDEN_TEXT
+    assert answer.text == formatting.callback_forbidden_text("ru")
 
 
 def test_reject_only_requires_the_propose_permission(
@@ -371,7 +371,7 @@ def test_reject_only_requires_the_propose_permission(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_REJECTED_TEXT
+    assert answer.text == formatting.ip_block_rejected_text("ru")
     with get_session_factory()() as session:
         stored = session.get(IpBlockPlan, plan_id)
         assert stored is not None
@@ -392,7 +392,7 @@ def test_decide_is_refused_while_the_feature_is_disabled(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_DISABLED_TEXT
+    assert answer.text == formatting.ip_block_disabled_text("ru")
 
 
 def test_deciding_an_already_decided_plan_is_reported(
@@ -415,7 +415,7 @@ def test_deciding_an_already_decided_plan_is_reported(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_ALREADY_DECIDED_TEXT
+    assert answer.text == formatting.ip_block_already_decided_text("ru")
 
 
 def test_approve_rechecks_policy_and_reports_auto_rejection(
@@ -435,7 +435,7 @@ def test_approve_rechecks_policy_and_reports_auto_rejection(
         now=NOW,
     )
 
-    assert answer.text == formatting.IP_BLOCK_NOW_BLOCKED_TEXT
+    assert answer.text == formatting.ip_block_now_blocked_text("ru")
     with get_session_factory()() as session:
         stored = session.get(IpBlockPlan, plan_id)
         assert stored is not None

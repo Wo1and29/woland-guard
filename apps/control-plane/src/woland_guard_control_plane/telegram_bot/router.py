@@ -48,7 +48,11 @@ from woland_guard_control_plane.application.server_queries import (
     ServerSort,
     list_servers,
 )
-from woland_guard_control_plane.application.telegram_identity import authenticate_telegram_user
+from woland_guard_control_plane.application.telegram_identity import (
+    authenticate_telegram_user,
+    set_telegram_language,
+    stored_telegram_language,
+)
 from woland_guard_control_plane.infrastructure.database.models import Incident, IncidentStatus
 from woland_guard_control_plane.infrastructure.telegram.callbacks import (
     CallbackDataError,
@@ -62,6 +66,13 @@ from woland_guard_control_plane.infrastructure.telegram.message import (
 from woland_guard_control_plane.infrastructure.telegram.updates import (
     TelegramCallbackQuery,
     TelegramMessage,
+)
+from woland_guard_control_plane.language import (
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+    Language,
+    language_from_client_tag,
+    normalize_language,
 )
 from woland_guard_control_plane.telegram_bot import formatting
 from woland_guard_control_plane.telegram_bot.pending_actions import (
@@ -144,6 +155,7 @@ class TelegramCommandRouter:
             return None
 
         command = _parse_command(message.text)
+        client_language = language_from_client_tag(sender.language_code)
         with self._session_factory.begin() as session:
             principal = authenticate_telegram_user(
                 session,
@@ -151,24 +163,40 @@ class TelegramCommandRouter:
                 now=now,
             )
             if principal is None:
-                return formatting.UNLINKED_TEMPLATE.format(telegram_user_id=sender.id)
+                # No operator, so no stored preference exists: the account's own
+                # language tag is the only signal, and this is the first message a
+                # new user ever sees, so it matters that it is comprehensible.
+                return formatting.unlinked_text(
+                    client_language or DEFAULT_LANGUAGE,
+                    telegram_user_id=sender.id,
+                )
+            lang = self._reply_language(session, sender_id=sender.id, client=client_language)
             if command is not None:
                 # Any recognized command cancels a pending reason prompt rather than
                 # being silently swallowed by it.
                 delete_pending_action(session, telegram_user_id=sender.id)
                 if command == "/help":
-                    return formatting.HELP_TEXT
+                    return formatting.help_text(lang)
+                if command == "/lang":
+                    return self._set_language(
+                        session,
+                        sender_id=sender.id,
+                        argument=_parse_command_argument(message.text),
+                        current=lang,
+                    )
                 if not role_has_permission(principal.role, Permission.VIEW_INCIDENTS):
-                    return formatting.FORBIDDEN_TEXT
-                return self._dispatch(session, command=command, principal=principal, now=now)
+                    return formatting.forbidden_text(lang)
+                return self._dispatch(
+                    session, command=command, principal=principal, lang=lang, now=now
+                )
             lookup = load_pending_action(session, telegram_user_id=sender.id, now=now)
             if lookup.action is None:
-                return formatting.REASON_EXPIRED_TEXT if lookup.was_expired else None
+                return formatting.reason_expired_text(lang) if lookup.was_expired else None
             delete_pending_action(session, telegram_user_id=sender.id)
             try:
                 reason = normalize_reason(message.text)
             except TransitionValidationError:
-                return formatting.REASON_INVALID_TEXT
+                return formatting.reason_invalid_text(lang)
             return self._apply_transition(
                 session,
                 principal=principal,
@@ -178,6 +206,7 @@ class TelegramCommandRouter:
                 reason=reason,
                 idempotency_key=f"tg-msg-{update_id}",
                 request_id=f"telegram-msg-{update_id}",
+                lang=lang,
                 now=now,
             )
 
@@ -195,19 +224,28 @@ class TelegramCommandRouter:
         """
 
         sender = callback_query.sender
+        # Resolved before any database work so that the replies which deliberately
+        # short-circuit ahead of it -- malformed data, rate limiting -- are still
+        # rendered in the language the client asked for.
+        client_language = None if sender is None else language_from_client_tag(sender.language_code)
+        early_language = client_language or DEFAULT_LANGUAGE
         if sender is None or sender.is_bot or callback_query.data is None:
-            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+            return CallbackAnswer(formatting.callback_invalid_text(early_language), True)
         try:
             action = parse_callback_data(callback_query.data)
         except CallbackDataError:
-            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+            return CallbackAnswer(formatting.callback_invalid_text(early_language), True)
         if self._rate_limiter.consume(str(sender.id)) is not None:
-            return CallbackAnswer(formatting.CALLBACK_RATE_LIMITED_TEXT, True)
+            return CallbackAnswer(formatting.callback_rate_limited_text(early_language), True)
 
         if isinstance(action, ProposeBlockCallback):
-            return self._handle_propose_block(action, callback_query, sender_id=sender.id, now=now)
+            return self._handle_propose_block(
+                action, callback_query, sender_id=sender.id, client=client_language, now=now
+            )
         if isinstance(action, DecideBlockCallback):
-            return self._handle_decide_block(action, callback_query, sender_id=sender.id, now=now)
+            return self._handle_decide_block(
+                action, callback_query, sender_id=sender.id, client=client_language, now=now
+            )
 
         with self._session_factory.begin() as session:
             principal = authenticate_telegram_user(
@@ -216,9 +254,10 @@ class TelegramCommandRouter:
                 now=now,
             )
             if principal is None:
-                return CallbackAnswer(formatting.CALLBACK_UNLINKED_TEXT, True)
+                return CallbackAnswer(formatting.callback_unlinked_text(early_language), True)
+            lang = self._reply_language(session, sender_id=sender.id, client=client_language)
             if not role_has_permission(principal.role, Permission.TRANSITION_INCIDENTS):
-                return CallbackAnswer(formatting.CALLBACK_FORBIDDEN_TEXT, True)
+                return CallbackAnswer(formatting.callback_forbidden_text(lang), True)
             if action.target_status is IncidentStatus.INVESTIGATING:
                 text = self._apply_transition(
                     session,
@@ -229,6 +268,7 @@ class TelegramCommandRouter:
                     reason=None,
                     idempotency_key=_callback_idempotency_key(callback_query.id),
                     request_id=_callback_request_id(callback_query.id),
+                    lang=lang,
                     now=now,
                 )
                 return CallbackAnswer(text, False)
@@ -241,6 +281,7 @@ class TelegramCommandRouter:
                 incident_id=action.incident_id,
                 target_status=action.target_status,
                 expected_version=action.expected_version,
+                lang=lang,
             )
             if precheck_error is not None:
                 return CallbackAnswer(precheck_error, False)
@@ -253,7 +294,38 @@ class TelegramCommandRouter:
                 ttl_seconds=self._pending_action_ttl_seconds,
                 now=now,
             )
-            return CallbackAnswer(formatting.format_reason_prompt(action.target_status), True)
+            return CallbackAnswer(formatting.format_reason_prompt(lang, action.target_status), True)
+
+    def _reply_language(
+        self,
+        session: Session,
+        *,
+        sender_id: int,
+        client: Language | None,
+    ) -> Language:
+        """Resolve one conversation's language: saved choice, else client tag, else default."""
+
+        stored = stored_telegram_language(session, telegram_user_id=sender_id)
+        if stored is not None:
+            return stored
+        return client or DEFAULT_LANGUAGE
+
+    def _set_language(
+        self,
+        session: Session,
+        *,
+        sender_id: int,
+        argument: str | None,
+        current: Language,
+    ) -> str:
+        """Apply /lang, answering in the newly chosen language on success."""
+
+        if argument is None or argument.casefold() not in SUPPORTED_LANGUAGES:
+            return formatting.language_usage_text(current)
+        chosen = normalize_language(argument.casefold())
+        if not set_telegram_language(session, telegram_user_id=sender_id, language=chosen):
+            return formatting.language_usage_text(current)
+        return formatting.language_changed_text(chosen)
 
     def _handle_propose_block(
         self,
@@ -261,6 +333,7 @@ class TelegramCommandRouter:
         callback_query: TelegramCallbackQuery,
         *,
         sender_id: int,
+        client: Language | None,
         now: datetime,
     ) -> CallbackAnswer:
         """Propose blocking one incident's correlated source address.
@@ -271,17 +344,20 @@ class TelegramCommandRouter:
         rejected rather than silently dropping the plan's details.
         """
 
+        early_language = client or DEFAULT_LANGUAGE
         if not self._ip_block_settings.enabled:
-            return CallbackAnswer(formatting.IP_BLOCK_DISABLED_TEXT, True)
+            return CallbackAnswer(formatting.ip_block_disabled_text(early_language), True)
         if callback_query.message is None:
-            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+            return CallbackAnswer(formatting.callback_invalid_text(early_language), True)
 
+        lang = early_language
         with self._session_factory.begin() as session:
             principal = authenticate_telegram_user(session, telegram_user_id=sender_id, now=now)
             if principal is None:
-                return CallbackAnswer(formatting.CALLBACK_UNLINKED_TEXT, True)
+                return CallbackAnswer(formatting.callback_unlinked_text(early_language), True)
+            lang = self._reply_language(session, sender_id=sender_id, client=client)
             if not role_has_permission(principal.role, Permission.PROPOSE_IP_BLOCK):
-                return CallbackAnswer(formatting.CALLBACK_FORBIDDEN_TEXT, True)
+                return CallbackAnswer(formatting.callback_forbidden_text(lang), True)
             result = propose_ip_block(
                 session,
                 actor=principal,
@@ -295,26 +371,28 @@ class TelegramCommandRouter:
             )
 
         if result.status is ProposeIpBlockStatus.INCIDENT_NOT_FOUND:
-            return CallbackAnswer(formatting.INCIDENT_NOT_FOUND_TEXT, True)
+            return CallbackAnswer(formatting.incident_not_found_text(lang), True)
         if result.status is ProposeIpBlockStatus.NO_SOURCE_ADDRESS:
-            return CallbackAnswer(formatting.IP_BLOCK_NO_SOURCE_ADDRESS_TEXT, True)
+            return CallbackAnswer(formatting.ip_block_no_source_address_text(lang), True)
         if result.status is ProposeIpBlockStatus.REJECTED:
             if result.rejection_reason is None:
-                return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
-            return CallbackAnswer(formatting.format_block_rejection(result.rejection_reason), True)
+                return CallbackAnswer(formatting.callback_invalid_text(lang), True)
+            return CallbackAnswer(
+                formatting.format_block_rejection(lang, result.rejection_reason), True
+            )
 
         if result.plan is None:
-            return CallbackAnswer(formatting.CALLBACK_INVALID_TEXT, True)
+            return CallbackAnswer(formatting.callback_invalid_text(lang), True)
         ack_text = (
-            formatting.IP_BLOCK_PROPOSED_TEXT
+            formatting.ip_block_proposed_text(lang)
             if result.status is ProposeIpBlockStatus.CREATED
-            else formatting.IP_BLOCK_REUSED_TEXT
+            else formatting.ip_block_reused_text(lang)
         )
         return CallbackAnswer(
             ack_text,
             False,
-            follow_up_text=formatting.format_block_proposal_message(result.plan),
-            follow_up_keyboard=build_block_decision_keyboard(result.plan.plan_id),
+            follow_up_text=formatting.format_block_proposal_message(lang, result.plan),
+            follow_up_keyboard=build_block_decision_keyboard(lang, result.plan.plan_id),
         )
 
     def _handle_decide_block(
@@ -323,6 +401,7 @@ class TelegramCommandRouter:
         callback_query: TelegramCallbackQuery,
         *,
         sender_id: int,
+        client: Language | None,
         now: datetime,
     ) -> CallbackAnswer:
         """Approve or reject one still-live plan.
@@ -332,19 +411,22 @@ class TelegramCommandRouter:
         proposal is the safe direction and does not need a second admin (ADR-0015).
         """
 
+        early_language = client or DEFAULT_LANGUAGE
         if not self._ip_block_settings.enabled:
-            return CallbackAnswer(formatting.IP_BLOCK_DISABLED_TEXT, True)
+            return CallbackAnswer(formatting.ip_block_disabled_text(early_language), True)
         required_permission = (
             Permission.APPROVE_IP_BLOCK if action.approve else Permission.PROPOSE_IP_BLOCK
         )
         request_id = _callback_request_id(callback_query.id)
 
+        lang = early_language
         with self._session_factory.begin() as session:
             principal = authenticate_telegram_user(session, telegram_user_id=sender_id, now=now)
             if principal is None:
-                return CallbackAnswer(formatting.CALLBACK_UNLINKED_TEXT, True)
+                return CallbackAnswer(formatting.callback_unlinked_text(early_language), True)
+            lang = self._reply_language(session, sender_id=sender_id, client=client)
             if not role_has_permission(principal.role, required_permission):
-                return CallbackAnswer(formatting.CALLBACK_FORBIDDEN_TEXT, True)
+                return CallbackAnswer(formatting.callback_forbidden_text(lang), True)
             if action.approve:
                 result = approve_ip_block(
                     session,
@@ -367,7 +449,9 @@ class TelegramCommandRouter:
             DecideIpBlockStatus.APPROVED,
             DecideIpBlockStatus.REJECTED,
         )
-        return CallbackAnswer(formatting.format_block_decision_outcome(result.status), show_alert)
+        return CallbackAnswer(
+            formatting.format_block_decision_outcome(lang, result.status), show_alert
+        )
 
     def _apply_transition(
         self,
@@ -380,6 +464,7 @@ class TelegramCommandRouter:
         reason: str | None,
         idempotency_key: str,
         request_id: str,
+        lang: Language,
         now: datetime,
     ) -> str:
         normalized = NormalizedTransition(
@@ -398,7 +483,7 @@ class TelegramCommandRouter:
             request_id=request_id,
             now=now,
         )
-        return formatting.format_transition_outcome(outcome, target_status=target_status)
+        return formatting.format_transition_outcome(lang, outcome, target_status=target_status)
 
     def _precheck_transition(
         self,
@@ -407,6 +492,7 @@ class TelegramCommandRouter:
         incident_id: UUID,
         target_status: IncidentStatus,
         expected_version: int,
+        lang: Language,
     ) -> str | None:
         """Return an error reply if the eventual transition can already be ruled out.
 
@@ -418,11 +504,11 @@ class TelegramCommandRouter:
 
         incident = session.scalar(select(Incident).where(Incident.id == incident_id))
         if incident is None:
-            return formatting.INCIDENT_NOT_FOUND_TEXT
+            return formatting.incident_not_found_text(lang)
         if incident.lock_version != expected_version:
-            return formatting.INCIDENT_STALE_VERSION_TEXT
+            return formatting.incident_stale_version_text(lang)
         if not is_transition_allowed(IncidentStatus(incident.status), target_status):
-            return formatting.INCIDENT_TRANSITION_NOT_ALLOWED_TEXT
+            return formatting.incident_transition_not_allowed_text(lang)
         return None
 
     def _dispatch(
@@ -431,11 +517,12 @@ class TelegramCommandRouter:
         *,
         command: str,
         principal: OperatorPrincipal,
+        lang: Language,
         now: datetime,
     ) -> str:
         del principal
         if command == "/status":
-            return formatting.format_overview(get_dashboard_overview(session, now=now))
+            return formatting.format_overview(lang, get_dashboard_overview(session, now=now))
         if command == "/servers":
             page = list_servers(
                 session,
@@ -446,6 +533,7 @@ class TelegramCommandRouter:
             )
             shown = page.items[: self._result_limit]
             return formatting.format_servers(
+                lang,
                 shown,
                 truncated=len(page.items) > len(shown) or page.next_cursor is not None,
             )
@@ -453,7 +541,8 @@ class TelegramCommandRouter:
             return self._incidents(
                 session,
                 filters=IncidentDashboardFilters(),
-                empty_text="Инцидентов пока нет.",
+                lang=lang,
+                empty_text=formatting.incidents_empty_text(lang),
             )
         if command == "/critical":
             return self._incidents(
@@ -462,15 +551,17 @@ class TelegramCommandRouter:
                     statuses=_ACTIVE_STATUSES,
                     severities=("critical",),
                 ),
-                empty_text="Активных критических инцидентов нет.",
+                lang=lang,
+                empty_text=formatting.critical_incidents_empty_text(lang),
             )
-        return formatting.UNKNOWN_COMMAND_TEXT
+        return formatting.unknown_command_text(lang)
 
     def _incidents(
         self,
         session: Session,
         *,
         filters: IncidentDashboardFilters,
+        lang: Language,
         empty_text: str,
     ) -> str:
         page = list_dashboard_incidents(
@@ -482,10 +573,25 @@ class TelegramCommandRouter:
         )
         shown = page.items[: self._result_limit]
         return formatting.format_incidents(
+            lang,
             shown,
             truncated=len(page.items) > len(shown) or page.next_cursor is not None,
             empty_text=empty_text,
         )
+
+
+def _parse_command_argument(text: str) -> str | None:
+    """Return the single bounded argument token after a command, if any.
+
+    Only the first token is read and its length is capped: this feeds a closed
+    allowlist comparison, never a message, so nothing here is ever echoed back.
+    """
+
+    parts = text.strip().split(maxsplit=2)
+    if len(parts) < 2:
+        return None
+    argument = parts[1]
+    return argument if len(argument) <= 16 else None
 
 
 def _callback_idempotency_key(callback_query_id: str) -> str:

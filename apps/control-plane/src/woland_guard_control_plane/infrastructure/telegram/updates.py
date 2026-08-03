@@ -18,6 +18,7 @@ TELEGRAM_UPDATE_BATCH_MAX: Final = 100
 TELEGRAM_USER_ID_MAX: Final = 2**53 - 1
 TELEGRAM_CALLBACK_QUERY_ID_MAX_CHARS: Final = 128
 TELEGRAM_CALLBACK_DATA_MAX_CHARS: Final = 256
+TELEGRAM_LANGUAGE_TAG_MAX_CHARS: Final = 35
 PRIVATE_CHAT_TYPE: Final = "private"
 
 
@@ -34,6 +35,10 @@ class TelegramSender(_InboundModel):
 
     id: int = Field(gt=0, le=TELEGRAM_USER_ID_MAX)
     is_bot: bool = False
+    # An untrusted IETF tag such as "en" or "ru-RU". Used only to pick a reply
+    # language when the operator has no saved preference -- never for access
+    # decisions -- and bounded because it is client-supplied like any other field.
+    language_code: str | None = Field(default=None, max_length=TELEGRAM_LANGUAGE_TAG_MAX_CHARS)
 
 
 class TelegramChat(_InboundModel):

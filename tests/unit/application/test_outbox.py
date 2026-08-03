@@ -52,6 +52,7 @@ def test_incident_payload_contains_only_the_exact_safe_allowlist() -> None:
         "rule_version",
         "severity",
         "title",
+        "title_en",
         "created_at",
     }
     serialized = str(payload)

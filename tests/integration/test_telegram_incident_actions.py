@@ -292,7 +292,7 @@ def test_command_cancels_a_pending_reason_prompt(
         now=NOW,
         update_id=200,
     )
-    assert help_reply == formatting.HELP_TEXT
+    assert help_reply == formatting.help_text("ru")
 
     # The reason prompt was cancelled: an ordinary follow-up message is now ignored.
     ignored = router.handle(
@@ -333,7 +333,7 @@ def test_invalid_reason_is_rejected_and_cancels_the_pending_action(
         update_id=300,
     )
 
-    assert reply == formatting.REASON_INVALID_TEXT
+    assert reply == formatting.reason_invalid_text("ru")
     assert _incident_status(incident_id) == "new"
 
     # The action was cancelled, not left pending: a later valid message is ignored.
@@ -374,7 +374,7 @@ def test_expired_pending_action_reports_expiry_instead_of_applying(
         update_id=400,
     )
 
-    assert reply == formatting.REASON_EXPIRED_TEXT
+    assert reply == formatting.reason_expired_text("ru")
     assert _incident_status(incident_id) == "new"
 
 
@@ -418,7 +418,7 @@ def test_unlinked_sender_callback_is_denied(register_operator: OperatorFactory) 
         now=NOW,
     )
 
-    assert answer.text == formatting.CALLBACK_UNLINKED_TEXT
+    assert answer.text == formatting.callback_unlinked_text("ru")
     assert answer.show_alert is True
     assert _incident_status(incident_id) == "new"
 
@@ -433,7 +433,7 @@ def test_viewer_role_cannot_transition_via_button(register_operator: OperatorFac
         now=NOW,
     )
 
-    assert answer.text == formatting.CALLBACK_FORBIDDEN_TEXT
+    assert answer.text == formatting.callback_forbidden_text("ru")
     assert _incident_status(incident_id) == "new"
 
 
