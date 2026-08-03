@@ -14,6 +14,9 @@ from woland_guard_control_plane.application.detection.rules import (
     load_rules_directory,
 )
 from woland_guard_control_plane.application.detection.sync import RuleSyncError, sync_rules
+from woland_guard_control_plane.application.incident_translations import (
+    backfill_incident_translations,
+)
 from woland_guard_control_plane.application.ip_blocks import (
     AllowlistEntrySummary,
     IpBlockError,
@@ -230,6 +233,10 @@ def _run_rules_command(arguments: argparse.Namespace) -> None:
             return
         with get_session_factory().begin() as session:
             synchronized = sync_rules(session, rules)
+            # Publishing a translated rule is also the moment its translation
+            # becomes available to incidents that froze the identical Russian
+            # prose before it existed (ADR-0017). Same transaction as the sync.
+            translated = backfill_incident_translations(session)
     except RuleValidationError:
         print("Набор правил не прошёл строгую проверку.", file=sys.stderr)
         raise SystemExit(2) from None
@@ -237,6 +244,8 @@ def _run_rules_command(arguments: argparse.Namespace) -> None:
         print("Не удалось атомарно синхронизировать правила.", file=sys.stderr)
         raise SystemExit(1) from None
     print(f"Активировано правил: {synchronized}")
+    if translated:
+        print(f"Дополнено переводом инцидентов: {translated}")
 
 
 def _run_create_test_agent(arguments: argparse.Namespace) -> None:
