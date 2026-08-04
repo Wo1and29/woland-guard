@@ -24,6 +24,7 @@ class EventSource(StrEnum):
     # A file-read event is never relabelled as journald: the two differ in what
     # they can guarantee about ordering and rotation loss (ADR-0019).
     SYSLOG_FILE = "syslog_file"
+    NGINX_ACCESS = "nginx_access"
 
 
 class NormalizedEventV1(BaseModel):

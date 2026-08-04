@@ -207,7 +207,7 @@ def test_restart_drains_ordered_backlog_then_follows_live_records(tmp_path: Path
     transport = FixedTransport(DeliveryClass.SUCCESS)
     service = make_service(source, spool, transport)
 
-    service._collect_cycle()
+    service._collect_cycle(source)
 
     assert source.backlog_cursor == "s=before-stop;i=0"
     assert source.follow_cursor == "s=backlog;i=2"
@@ -353,6 +353,81 @@ def test_unexpected_collector_failure_exits_safely_for_systemd_restart(
 
     assert "synthetic-sensitive-payload" not in caplog.text
     assert "source_collector_failed" in caplog.text
+
+
+def test_two_sources_keep_independent_cursors_and_event_sources(tmp_path: Path) -> None:
+    """A journal source and an access log run together without sharing state.
+
+    They describe disjoint records (ADR-0020 §5), so each keeps its own cursor
+    key and stamps its own EventSource on what it stores.
+    """
+
+    class WebSource:
+        name = "nginx_access"
+        event_source = EventSource.NGINX_ACCESS
+
+        def backlog(
+            self,
+            *,
+            after_cursor: str | None,
+            stop_event: Event,
+            initial_limit: int | None,
+        ) -> Iterator[JournalRecord]:
+            del after_cursor, stop_event, initial_limit
+            yield JournalRecord(
+                cursor="1:2:64:abcdef123456",
+                fields={
+                    "NGINX_STATUS": 404,
+                    "NGINX_METHOD": "GET",
+                    "NGINX_PATH": "/.env",
+                    "NGINX_REMOTE_ADDR": "198.51.100.7",
+                    "__REALTIME_TIMESTAMP": 1_700_000_000_000_000,
+                },
+            )
+
+        def follow(self, *, after_cursor: str | None, stop_event: Event) -> Iterator[JournalRecord]:
+            del after_cursor, stop_event
+            yield from ()
+
+    spool = SQLiteSpool(tmp_path / "two-sources.sqlite3", max_events=10)
+    journal = SyntheticSource([supported_record("s=j;i=1", actor="root", ip="192.0.2.1")])
+    delivery = DeliveryManager(
+        spool=spool,
+        transport=FixedTransport(DeliveryClass.SUCCESS),
+        configured_batch_size=100,
+        backoff=BackoffPolicy(
+            base_seconds=0,
+            maximum_seconds=0,
+            random_source=Random(1),  # noqa: S311 - deterministic test jitter
+        ),
+        authentication_retry_seconds=300,
+    )
+    service = AgentService(
+        sources=[journal, WebSource()],
+        spool=spool,
+        delivery=delivery,
+        delivery_poll_seconds=0.01,
+    )
+
+    result = service.run_once()
+
+    assert result.collected == 2
+    assert spool.cursor("journald") == "s=j;i=1"
+    assert spool.cursor("nginx_access") == "1:2:64:abcdef123456"
+
+
+def test_a_service_needs_exactly_one_of_source_or_sources(tmp_path: Path) -> None:
+    spool = SQLiteSpool(tmp_path / "misconfigured.sqlite3", max_events=10)
+    delivery = DeliveryManager(
+        spool=spool,
+        transport=FixedTransport(DeliveryClass.SUCCESS),
+        configured_batch_size=100,
+        backoff=BackoffPolicy(base_seconds=0, maximum_seconds=0),
+        authentication_retry_seconds=300,
+    )
+
+    with pytest.raises(ValueError, match="exactly one"):
+        AgentService(spool=spool, delivery=delivery, delivery_poll_seconds=0.01)
 
 
 def make_service(

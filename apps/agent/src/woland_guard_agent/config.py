@@ -110,28 +110,43 @@ class SyslogFileSettings(BaseModel):
         return self
 
 
+class NginxAccessSettings(BaseModel):
+    """Location of the nginx access log to follow."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: Path
+
+    @model_validator(mode="after")
+    def path_is_absolute(self) -> Self:
+        if not self.path.is_absolute():
+            raise ValueError("nginx_access.path must be an absolute path")
+        return self
+
+
 class AgentSettings(BaseModel):
     """Complete versioned agent configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
+    # The system journal, read one way or the other. journald and syslog_file
+    # carry the same sshd lines, so enabling both would double-count every
+    # attempt and halve each detection threshold (ADR-0019 §1).
     source: Literal["journald", "syslog_file"] = "journald"
     http: HttpSettings
     spool: SpoolSettings
     syslog_file: SyslogFileSettings | None = None
+    # Independent of the journal source: an access log shares no record with it,
+    # and a web host almost always needs SSH monitoring too (ADR-0020 §5).
+    nginx_access: NginxAccessSettings | None = None
     retry: RetrySettings = Field(default_factory=RetrySettings)
     delivery_poll_seconds: float = Field(default=1.0, gt=0, le=60)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     @model_validator(mode="after")
     def source_settings_match_the_selected_source(self) -> Self:
-        """Keep exactly one source configured, and configured completely.
-
-        Two active sources on a systemd host would report every SSH failure
-        twice under different event ids, quietly halving every detection
-        threshold (ADR-0019 §1), so the schema cannot express that at all.
-        """
+        """Require the journal source to be configured completely, and only once."""
 
         if self.source == "syslog_file" and self.syslog_file is None:
             raise ValueError("syslog_file settings are required when source is syslog_file")

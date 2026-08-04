@@ -14,6 +14,13 @@ source: journald
 # syslog_file:
 #   path: /var/log/auth.log
 
+# Independent of `source` above and safe to enable alongside it: an access log
+# shares no record with the system journal, so there is nothing to double-count
+# (ADR-0020). Only the nginx default `combined` format is parsed. The query
+# string is dropped before an event is built and never leaves the host.
+# nginx_access:
+#   path: /var/log/nginx/access.log
+
 http:
   base_url: https://control-plane.example.invalid
   token_file: /etc/woland-guard/agent.token

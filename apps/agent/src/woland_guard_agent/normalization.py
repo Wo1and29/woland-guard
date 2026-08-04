@@ -95,6 +95,9 @@ def normalize_record(
 
 
 def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:
+    if "NGINX_STATUS" in fields:
+        return _parse_nginx_request(fields)
+
     message = fields.get("MESSAGE")
     if not isinstance(message, str) or "\x00" in message:
         return None
@@ -169,6 +172,35 @@ def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEven
             )
 
     return None
+
+
+def _parse_nginx_request(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:
+    """Build a request event from the closed set the adapter already validated.
+
+    The adapter dropped the query string, the referer and the user agent before
+    this point, so there is nothing here to redact (ADR-0020 §1, §3).
+    """
+
+    status = fields.get("NGINX_STATUS")
+    method = fields.get("NGINX_METHOD")
+    path = fields.get("NGINX_PATH")
+    address = fields.get("NGINX_REMOTE_ADDR")
+    if not isinstance(status, int) or not isinstance(method, str):
+        return None
+    if not isinstance(path, str) or not isinstance(address, str):
+        return None
+
+    source_ip = _validated_ip(address)
+    if source_ip is None:
+        return None
+
+    failed = status >= 400
+    return ParsedSecurityEvent(
+        event_type="web.nginx.request_failed" if failed else "web.nginx.request_completed",
+        summary="HTTP request failed" if failed else "HTTP request completed",
+        source_ip=source_ip,
+        attributes={"status": status, "method": method, "path": path},
+    )
 
 
 def _identifier(fields: Mapping[str, object]) -> str | None:

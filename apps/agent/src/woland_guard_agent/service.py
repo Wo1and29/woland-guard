@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import signal
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from threading import Event, Thread
 from types import FrameType
@@ -45,17 +45,24 @@ class AgentService:
     def __init__(
         self,
         *,
-        source: JournalSource,
+        source: JournalSource | None = None,
+        sources: Sequence[JournalSource] | None = None,
         spool: SQLiteSpool,
         delivery: DeliveryManager,
         delivery_poll_seconds: float,
     ) -> None:
-        self._source = source
+        if (source is None) == (sources is None):
+            raise ValueError("pass exactly one of source or sources")
+        self._sources: tuple[JournalSource, ...] = (
+            (source,) if source is not None else tuple(sources or ())
+        )
+        if not self._sources:
+            raise ValueError("at least one source is required")
         self._spool = spool
         self._delivery = delivery
         self._delivery_poll_seconds = delivery_poll_seconds
         self._stop = Event()
-        self._collector: Thread | None = None
+        self._collectors: list[Thread] = []
         self._collector_failed = False
 
     @property
@@ -85,9 +92,19 @@ class AgentService:
     def run(self) -> None:
         self._spool.initialize()
         self.install_signal_handlers()
-        self._collector = Thread(target=self._collector_entrypoint, name="source-reader")
-        self._collector.start()
-        logger.info("agent_started source=%s", self._source.name)
+        # One collector per source: each keeps its own cursor in the spool, so a
+        # stalled or rebasing source never moves another source's position.
+        self._collectors = [
+            Thread(
+                target=self._collector_entrypoint,
+                args=(source,),
+                name=f"{source.name}-reader",
+            )
+            for source in self._sources
+        ]
+        for collector in self._collectors:
+            collector.start()
+        logger.info("agent_started sources=%s", ",".join(s.name for s in self._sources))
         try:
             while not self._stop.is_set():
                 outcome = self._delivery.deliver_once()
@@ -95,8 +112,8 @@ class AgentService:
                 self._stop.wait(self._delivery_poll_seconds)
         finally:
             self._stop.set()
-            if self._collector is not None:
-                self._collector.join(timeout=5)
+            for collector in self._collectors:
+                collector.join(timeout=5)
             self.close()
             logger.info("agent_stopped")
         if self._collector_failed:
@@ -109,22 +126,23 @@ class AgentService:
         collected = 0
         duplicates = 0
         skipped = 0
-        cursor = self._spool.cursor(self._source.name)
-        try:
-            for record in self._source.backlog(
-                after_cursor=cursor,
-                stop_event=self._stop,
-                initial_limit=source_limit,
-            ):
-                result = self._persist_record(record)
-                if result is None:
-                    skipped += 1
-                elif result is EnqueueResult.INSERTED:
-                    collected += 1
-                else:
-                    duplicates += 1
-        except SourceCursorUnavailableError:
-            self._record_journal_gap()
+        for source in self._sources:
+            cursor = self._spool.cursor(source.name)
+            try:
+                for record in source.backlog(
+                    after_cursor=cursor,
+                    stop_event=self._stop,
+                    initial_limit=source_limit,
+                ):
+                    result = self._persist_record(source, record)
+                    if result is None:
+                        skipped += 1
+                    elif result is EnqueueResult.INSERTED:
+                        collected += 1
+                    else:
+                        duplicates += 1
+            except SourceCursorUnavailableError:
+                self._record_journal_gap(source)
         delivery = self._delivery.deliver_once()
         self._log_delivery(delivery)
         return RunOnceResult(
@@ -134,7 +152,7 @@ class AgentService:
             delivery=delivery,
         )
 
-    def _collect_forever(self) -> None:
+    def _collect_forever(self, source: JournalSource) -> None:
         while not self._stop.is_set():
             if self._spool.statistics().total >= self._spool_capacity():
                 logger.warning("spool_full collection_paused=true")
@@ -142,36 +160,38 @@ class AgentService:
                 continue
 
             try:
-                self._collect_cycle()
+                self._collect_cycle(source)
             except SourceCursorUnavailableError:
-                self._record_journal_gap()
+                self._record_journal_gap(source)
             except SourceUnavailableError:
-                logger.error("source_unavailable source=%s", self._source.name)
+                logger.error("source_unavailable source=%s", source.name)
                 self._stop.wait(self._delivery_poll_seconds)
 
-    def _collect_cycle(self) -> None:
-        cursor = self._spool.cursor(self._source.name)
+    def _collect_cycle(self, source: JournalSource) -> None:
+        cursor = self._spool.cursor(source.name)
         self._drain(
-            self._source.backlog(
+            source,
+            source.backlog(
                 after_cursor=cursor,
                 stop_event=self._stop,
                 initial_limit=None,
-            )
+            ),
         )
-        cursor = self._spool.cursor(self._source.name)
+        cursor = self._spool.cursor(source.name)
         self._drain(
-            self._source.follow(
+            source,
+            source.follow(
                 after_cursor=cursor,
                 stop_event=self._stop,
-            )
+            ),
         )
 
-    def _drain(self, records: Iterator[JournalRecord]) -> None:
+    def _drain(self, source: JournalSource, records: Iterator[JournalRecord]) -> None:
         for record in records:
             if self._stop.is_set():
                 break
             try:
-                result = self._persist_record(record)
+                result = self._persist_record(source, record)
             except SpoolFullError:
                 logger.warning("spool_full cursor_advanced=false")
                 break
@@ -180,34 +200,31 @@ class AgentService:
             else:
                 logger.info("journal_record_stored result=%s", result.value)
 
-    def _persist_record(self, record: JournalRecord) -> EnqueueResult | None:
-        event = normalize_record(record, source=self._source.event_source)
+    def _persist_record(self, source: JournalSource, record: JournalRecord) -> EnqueueResult | None:
+        event = normalize_record(record, source=source.event_source)
         if event is None:
-            self._spool.advance_cursor(
-                source_name=self._source.name,
-                cursor=record.cursor,
-            )
+            self._spool.advance_cursor(source_name=source.name, cursor=record.cursor)
             return None
         return self._spool.enqueue_with_cursor(
-            source_name=self._source.name,
+            source_name=source.name,
             cursor=record.cursor,
             event=event,
         )
 
-    def _record_journal_gap(self) -> None:
+    def _record_journal_gap(self, source: JournalSource) -> None:
         self._spool.record_diagnostic("journal_gap")
-        self._spool.clear_cursor(self._source.name)
+        self._spool.clear_cursor(source.name)
         logger.error(
             "source_cursor_gap source=%s diagnostic=journal_gap rebase=explicit",
-            self._source.name,
+            source.name,
         )
 
-    def _collector_entrypoint(self) -> None:
+    def _collector_entrypoint(self, source: JournalSource) -> None:
         try:
-            self._collect_forever()
+            self._collect_forever(source)
         except Exception:
             self._collector_failed = True
-            logger.error("source_collector_failed source=%s", self._source.name)
+            logger.error("source_collector_failed source=%s", source.name)
             self._stop.set()
 
     def _log_delivery(self, outcome: DeliveryOutcome) -> None:

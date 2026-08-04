@@ -10,6 +10,7 @@ from woland_guard_agent.sources.journald import (
     JournaldCursorUnavailableError,
     JournaldSource,
 )
+from woland_guard_agent.sources.nginx_access import NginxAccessSource
 from woland_guard_agent.sources.syslog_file import (
     SyslogCursorUnavailableError,
     SyslogFileSource,
@@ -21,6 +22,7 @@ __all__ = [
     "JournaldCursorUnavailableError",
     "JournaldSource",
     "JournalSource",
+    "NginxAccessSource",
     "SourceCursorUnavailableError",
     "SourceUnavailableError",
     "SyslogCursorUnavailableError",
