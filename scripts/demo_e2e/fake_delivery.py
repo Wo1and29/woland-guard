@@ -90,12 +90,15 @@ class DemoTelegramTransport(httpx2.BaseTransport):
             body = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise DemoFakeDeliveryError("demo fake delivery rejected a request") from None
+        # ``reply_markup`` is optional on the wire: the incident-created notice carries
+        # an inline keyboard, other sends do not.
         if (
             not isinstance(body, dict)
-            or set(body) != {"chat_id", "text"}
+            or not {"chat_id", "text"} <= set(body) <= {"chat_id", "text", "reply_markup"}
             or type(body["chat_id"]) is not int
             or type(body["text"]) is not str
             or not body["text"]
+            or not isinstance(body.get("reply_markup", {}), dict)
         ):
             raise DemoFakeDeliveryError("demo fake delivery rejected a request")
         self._request_count += 1

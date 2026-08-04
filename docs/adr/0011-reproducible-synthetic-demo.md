@@ -29,8 +29,8 @@ canonical event UUID, UTC `occurred_at`/`collected_at`, `source=journald`, но�
 | `sudo_auth_failures` | 1 | threshold | actor | 5 / 600 s | actor; `linux.sudo.authentication_failed` | нет | medium / «Повторные ошибки аутентификации sudo» | T1548.003 |
 | `user_account_created` | 1 | single | actor | — | actor; `linux.account.user_created` | нет | high / «Создана локальная учётная запись» | T1136.001 |
 
-8A отказывается работать, если каталог содержит не ровно эти восемь enabled version-one
-definitions. YAML и существующий `RuleDefinition` остаются единственным источником истины;
+8A отказывается работать, если каталог содержит не ровно эти восемь enabled definitions;
+версия правила не фиксируется, чтобы prose-only bump не ломал каталог. YAML и существующий `RuleDefinition` остаются единственным источником истины;
 demo implementation не синхронизирует и не изменяет правила.
 
 ## Manifest contract

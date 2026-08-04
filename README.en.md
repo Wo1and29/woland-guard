@@ -289,7 +289,7 @@ ingestion, not distributed exactly-once semantics.
 
 The automated verifier uses a separate `compose.demo.yaml` with a unique Compose project,
 ownership label, network, and PostgreSQL volume. It applies migrations in one job, syncs exactly
-eight enabled version-one rules, sends all 32 canonical manifests through the public
+eight enabled rules from `detection-rules/`, sends all 32 canonical manifests through the public
 `POST /api/v1/events`, checks exact DB outcomes, runs a real outbox worker against a demo-only
 in-process Telegram transport, runs one desktop Chromium workflow against the same database,
 replay, and a custom-format `pg_dump`/`pg_restore` smoke check.

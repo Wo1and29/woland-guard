@@ -25,6 +25,9 @@ def test_templates_have_no_unsafe_rendering_or_external_resources() -> None:
         "http://",
         "https://",
         "//cdn",
+        # A data: URI is same-origin to a human but not to "img-src 'self'", and its
+        # percent-encoded body hides a plain "http://" from the checks above.
+        "data:",
     ):
         assert forbidden not in combined
 

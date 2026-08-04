@@ -96,6 +96,14 @@ def test_keyboard_only_login_mutations_and_logout(
 ) -> None:
     _, page, guard = browser_page
     page.goto(f"{browser_environment.origin}/dashboard/login")
+    # base_minimal's skip-link precedes the RU/EN toggle everywhere (WCAG 2.4.1
+    # Bypass Blocks: the toggle is repeated chrome too), so it is the first tab
+    # stop on every page, login included.
+    page.keyboard.press("Tab")
+    assert page.evaluate("() => document.activeElement?.classList.contains('skip-link')") is True
+    _assert_visible_focus(page)
+    page.keyboard.press("Enter")
+    assert page.evaluate("() => document.activeElement?.id") == "main-content"
     page.keyboard.press("Tab")
     assert page.evaluate("() => document.activeElement?.id") == "credential"
     _assert_visible_focus(page)

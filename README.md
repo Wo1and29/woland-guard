@@ -284,7 +284,7 @@ counts, но не заявляет создание incident или delivery: п
 
 Автоматический verifier использует отдельный `compose.demo.yaml` и уникальные Compose project,
 ownership label, network и PostgreSQL volume. Он применяет миграции одним job, синхронизирует
-ровно восемь enabled version-one rules, отправляет все 32 canonical manifests через публичный
+ровно восемь enabled rules из `detection-rules/`, отправляет все 32 canonical manifests через публичный
 `POST /api/v1/events`, проверяет точные DB outcomes, запускает настоящий outbox worker с
 demo-only in-process Telegram transport, выполняет один desktop Chromium workflow над той же
 БД, replay и custom-format `pg_dump`/`pg_restore` smoke.

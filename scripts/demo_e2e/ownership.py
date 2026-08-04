@@ -9,6 +9,9 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
 from scripts.demo_e2e.commands import CommandResult, CommandRunner, DemoCommandError
 from scripts.demo_e2e.contracts import (
     COMPOSE_PROJECT_LABEL_KEY,
@@ -33,6 +36,15 @@ RECOVERY_POLL_SECONDS: Final = 0.1
 
 class DemoOwnershipError(DemoE2EError):
     """A Compose resource could not be attributed or removed safely."""
+
+
+def expected_migration_head(project_root: Path) -> str:
+    """Read the head from ``migrations/`` so a new revision never breaks the demo stand."""
+
+    head = ScriptDirectory.from_config(Config(str(project_root / "alembic.ini"))).get_current_head()
+    if head is None:
+        raise DemoOwnershipError("demo migration head could not be resolved")
+    return head
 
 
 class ComposeDemoEnvironment:
@@ -166,7 +178,7 @@ class ComposeDemoEnvironment:
             "current",
             timeout_seconds=60,
         ).text()
-        if "20260728_0009" not in current:
+        if expected_migration_head(self.project_root) not in current:
             raise DemoOwnershipError("demo database is not at the expected migration head")
         self._run(
             "run",

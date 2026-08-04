@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from scripts.demo_e2e.commands import CommandRunner, DemoCommandError
 from scripts.demo_e2e.contracts import DemoE2EError, DemoRunIdentity, SecretValue
-from scripts.demo_e2e.ownership import ComposeDemoEnvironment
+from scripts.demo_e2e.ownership import ComposeDemoEnvironment, expected_migration_head
 from scripts.demo_e2e.pipeline import (
     DemoProvisioning,
     PipelineSnapshot,
@@ -173,7 +173,7 @@ def restore_and_verify(
             restore_environment.database_configuration()
         )
         phase = "restore_revision"
-        _verify_revision(session_factory)
+        _verify_revision(session_factory, project_root)
         phase = "restore_snapshot"
         actual = database_snapshot(session_factory, provisioning)
         if actual != expected_snapshot:
@@ -286,10 +286,10 @@ def _verify_index_projection(
         raise DemoBackupError("restored index fingerprint did not match the source")
 
 
-def _verify_revision(session_factory: sessionmaker[Session]) -> None:
+def _verify_revision(session_factory: sessionmaker[Session], project_root: Path) -> None:
     with session_factory() as session:
         revision = session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    if revision != "20260728_0009":
+    if revision != expected_migration_head(project_root):
         raise DemoBackupError("restored migration revision is invalid")
 
 

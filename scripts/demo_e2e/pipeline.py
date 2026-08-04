@@ -195,11 +195,11 @@ def build_worker_settings(configuration: DemoDatabaseConfiguration) -> Settings:
 
 def verify_exact_rules(session_factory: sessionmaker[Session], project_root: Path) -> None:
     shipped = load_rules_directory(project_root / "detection-rules")
-    shipped_keys = frozenset(
-        rule.rule_key for rule in shipped if rule.enabled and rule.version == 1
-    )
-    if len(shipped) != 8 or shipped_keys != EXPECTED_RULE_KEYS:
-        raise DemoPipelineError("shipped demo rule catalog is not the expected version-one set")
+    # Versions are derived from the files, never pinned to a literal: a prose-only
+    # rule bump must not silently break the demo stand.
+    expected = {rule.rule_key: rule.version for rule in shipped if rule.enabled}
+    if len(shipped) != 8 or frozenset(expected) != EXPECTED_RULE_KEYS:
+        raise DemoPipelineError("shipped demo rule catalog is not the expected enabled set")
     with session_factory() as session:
         rows = session.execute(
             select(
@@ -208,9 +208,9 @@ def verify_exact_rules(session_factory: sessionmaker[Session], project_root: Pat
                 DetectionRuleVersion.enabled,
             ).where(DetectionRuleVersion.is_active.is_(True))
         ).all()
-    actual = frozenset(rule_key for rule_key, version, enabled in rows if version == 1 and enabled)
-    if len(rows) != 8 or actual != EXPECTED_RULE_KEYS:
-        raise DemoPipelineError("database active rule catalog is not the expected version-one set")
+    actual = {rule_key: version for rule_key, version, enabled in rows if enabled}
+    if len(rows) != 8 or actual != expected:
+        raise DemoPipelineError("database active rule catalog does not match the shipped files")
 
 
 def provision_demo(

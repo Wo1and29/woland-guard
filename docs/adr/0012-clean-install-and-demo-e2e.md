@@ -42,8 +42,10 @@ duplicate writes и превышение member/count/expanded-size limits. В c
 
 Внутренний state machine выполняет:
 
-1. PostgreSQL health, `alembic upgrade head`, `current=20260728_0009`, `alembic check`;
-2. штатный `sync-rules` и проверку ровно восьми active enabled version-one rules;
+1. PostgreSQL health, `alembic upgrade head`, `current` равен head из `ScriptDirectory`,
+   `alembic check`;
+2. штатный `sync-rules` и проверку того, что ровно восемь active enabled rules в БД совпадают
+   по `rule_key` и `version` с файлами `detection-rules/`;
 3. provisioning server/agent, analyst/admin/viewer и enabled low-severity Telegram destination
    через существующие application services;
 4. все 32 catalog-bound manifests через публичный `/api/v1/events`;
