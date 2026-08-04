@@ -21,6 +21,9 @@ class EventSource(StrEnum):
     """Supported event sources for the current contract version."""
 
     JOURNALD = "journald"
+    # A file-read event is never relabelled as journald: the two differ in what
+    # they can guarantee about ordering and rotation loss (ADR-0019).
+    SYSLOG_FILE = "syslog_file"
 
 
 class NormalizedEventV1(BaseModel):

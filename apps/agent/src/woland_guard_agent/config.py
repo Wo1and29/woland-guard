@@ -96,18 +96,48 @@ class RetrySettings(BaseModel):
         return self
 
 
+class SyslogFileSettings(BaseModel):
+    """Location of the plain-text syslog file to follow."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: Path
+
+    @model_validator(mode="after")
+    def path_is_absolute(self) -> Self:
+        if not self.path.is_absolute():
+            raise ValueError("syslog_file.path must be an absolute path")
+        return self
+
+
 class AgentSettings(BaseModel):
     """Complete versioned agent configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
-    source: Literal["journald"] = "journald"
+    source: Literal["journald", "syslog_file"] = "journald"
     http: HttpSettings
     spool: SpoolSettings
+    syslog_file: SyslogFileSettings | None = None
     retry: RetrySettings = Field(default_factory=RetrySettings)
     delivery_poll_seconds: float = Field(default=1.0, gt=0, le=60)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+    @model_validator(mode="after")
+    def source_settings_match_the_selected_source(self) -> Self:
+        """Keep exactly one source configured, and configured completely.
+
+        Two active sources on a systemd host would report every SSH failure
+        twice under different event ids, quietly halving every detection
+        threshold (ADR-0019 §1), so the schema cannot express that at all.
+        """
+
+        if self.source == "syslog_file" and self.syslog_file is None:
+            raise ValueError("syslog_file settings are required when source is syslog_file")
+        if self.source != "syslog_file" and self.syslog_file is not None:
+            raise ValueError("syslog_file settings require source: syslog_file")
+        return self
 
 
 def load_agent_settings(path: Path) -> AgentSettings:

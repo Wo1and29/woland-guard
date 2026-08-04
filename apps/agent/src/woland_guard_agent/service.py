@@ -1,4 +1,4 @@
-"""Agent lifecycle coordinating journald collection and durable delivery."""
+"""Agent lifecycle coordinating source collection and durable delivery."""
 
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ from threading import Event, Thread
 from types import FrameType
 
 from woland_guard_agent.delivery import DeliveryManager, DeliveryOutcome, close_transport
-from woland_guard_agent.normalization import normalize_journald_record
-from woland_guard_agent.sources import JournalRecord, JournalSource
-from woland_guard_agent.sources.journald import (
-    JournaldCursorUnavailableError,
-    JournaldUnavailableError,
+from woland_guard_agent.normalization import normalize_record
+from woland_guard_agent.sources import (
+    JournalRecord,
+    JournalSource,
+    SourceCursorUnavailableError,
+    SourceUnavailableError,
 )
 from woland_guard_agent.spool import (
     EnqueueResult,
@@ -84,7 +85,7 @@ class AgentService:
     def run(self) -> None:
         self._spool.initialize()
         self.install_signal_handlers()
-        self._collector = Thread(target=self._collector_entrypoint, name="journald-reader")
+        self._collector = Thread(target=self._collector_entrypoint, name="source-reader")
         self._collector.start()
         logger.info("agent_started source=%s", self._source.name)
         try:
@@ -99,7 +100,7 @@ class AgentService:
             self.close()
             logger.info("agent_stopped")
         if self._collector_failed:
-            raise AgentRuntimeError("journald collector failed")
+            raise AgentRuntimeError("source collector failed")
 
     def run_once(self, *, source_limit: int = 100) -> RunOnceResult:
         """Collect a bounded snapshot and make one delivery attempt for diagnostics."""
@@ -122,7 +123,7 @@ class AgentService:
                     collected += 1
                 else:
                     duplicates += 1
-        except JournaldCursorUnavailableError:
+        except SourceCursorUnavailableError:
             self._record_journal_gap()
         delivery = self._delivery.deliver_once()
         self._log_delivery(delivery)
@@ -142,10 +143,10 @@ class AgentService:
 
             try:
                 self._collect_cycle()
-            except JournaldCursorUnavailableError:
+            except SourceCursorUnavailableError:
                 self._record_journal_gap()
-            except JournaldUnavailableError:
-                logger.error("journald_unavailable")
+            except SourceUnavailableError:
+                logger.error("source_unavailable source=%s", self._source.name)
                 self._stop.wait(self._delivery_poll_seconds)
 
     def _collect_cycle(self) -> None:
@@ -180,7 +181,7 @@ class AgentService:
                 logger.info("journal_record_stored result=%s", result.value)
 
     def _persist_record(self, record: JournalRecord) -> EnqueueResult | None:
-        event = normalize_journald_record(record)
+        event = normalize_record(record, source=self._source.event_source)
         if event is None:
             self._spool.advance_cursor(
                 source_name=self._source.name,
@@ -196,14 +197,17 @@ class AgentService:
     def _record_journal_gap(self) -> None:
         self._spool.record_diagnostic("journal_gap")
         self._spool.clear_cursor(self._source.name)
-        logger.error("journald_cursor_gap diagnostic=journal_gap rebase=explicit")
+        logger.error(
+            "source_cursor_gap source=%s diagnostic=journal_gap rebase=explicit",
+            self._source.name,
+        )
 
     def _collector_entrypoint(self) -> None:
         try:
             self._collect_forever()
         except Exception:
             self._collector_failed = True
-            logger.error("journald_collector_failed")
+            logger.error("source_collector_failed source=%s", self._source.name)
             self._stop.set()
 
     def _log_delivery(self, outcome: DeliveryOutcome) -> None:

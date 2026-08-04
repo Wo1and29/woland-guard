@@ -156,6 +156,60 @@ def test_check_config_command_rejects_missing_token(tmp_path: Path) -> None:
     assert exit_code == 2
 
 
+def test_syslog_file_source_requires_its_own_settings(tmp_path: Path) -> None:
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        source="syslog_file",
+    )
+
+    # The safe message names only the failing location, never the reason.
+    with pytest.raises(AgentConfigurationError, match="invalid agent configuration"):
+        load_agent_settings(config_path)
+
+
+def test_syslog_settings_without_the_matching_source_are_rejected(tmp_path: Path) -> None:
+    """Leaving both configured would be read as a request to run two sources."""
+
+    log_path = (tmp_path / "auth.log").as_posix()
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        extra=f"syslog_file:\n  path: {log_path}",
+    )
+
+    with pytest.raises(AgentConfigurationError, match="invalid agent configuration"):
+        load_agent_settings(config_path)
+
+
+def test_syslog_file_source_is_accepted_with_an_absolute_path(tmp_path: Path) -> None:
+    log_path = tmp_path / "auth.log"
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        source="syslog_file",
+        extra=f"syslog_file:\n  path: {log_path.as_posix()}",
+    )
+
+    settings = load_agent_settings(config_path)
+
+    assert settings.source == "syslog_file"
+    assert settings.syslog_file is not None
+    assert settings.syslog_file.path == log_path
+
+
+def test_relative_syslog_path_is_rejected(tmp_path: Path) -> None:
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        source="syslog_file",
+        extra="syslog_file:\n  path: var/log/auth.log",
+    )
+
+    with pytest.raises(AgentConfigurationError, match="syslog_file"):
+        load_agent_settings(config_path)
+
+
 def private_token_file(tmp_path: Path) -> Path:
     path = tmp_path / "agent.token"
     path.write_text(SYNTHETIC_TOKEN, encoding="utf-8")
@@ -163,12 +217,19 @@ def private_token_file(tmp_path: Path) -> Path:
     return path
 
 
-def write_config(tmp_path: Path, *, token_path: Path) -> Path:
+def write_config(
+    tmp_path: Path,
+    *,
+    token_path: Path,
+    source: str = "journald",
+    extra: str = "",
+) -> Path:
     path = tmp_path / "agent.yaml"
     path.write_text(
         f"""
 schema_version: 1
-source: journald
+source: {source}
+{extra}
 http:
   base_url: https://control-plane.invalid
   token_file: {token_path.as_posix()}

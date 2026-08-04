@@ -5,6 +5,16 @@ from dataclasses import dataclass
 from threading import Event
 from typing import Protocol
 
+from woland_guard_contracts import EventSource
+
+
+class SourceUnavailableError(RuntimeError):
+    """A source cannot currently be read; the agent retries without losing state."""
+
+
+class SourceCursorUnavailableError(SourceUnavailableError):
+    """The saved resumption point is gone, so the agent must rebase explicitly."""
+
 
 @dataclass(frozen=True, slots=True)
 class JournalRecord:
@@ -18,6 +28,9 @@ class JournalSource(Protocol):
     """Common extension point for current and future journal adapters."""
 
     name: str
+    # Declared per adapter so a file-read event is never stored as journald:
+    # the two differ in their rotation and ordering guarantees (ADR-0019).
+    event_source: EventSource
 
     def backlog(
         self,

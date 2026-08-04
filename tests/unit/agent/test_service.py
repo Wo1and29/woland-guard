@@ -16,11 +16,12 @@ from woland_guard_agent.sources import JournalRecord, JournalSource
 from woland_guard_agent.sources.journald import JournaldCursorUnavailableError
 from woland_guard_agent.spool import SQLiteSpool
 from woland_guard_agent.transport import DeliveryClass, TransportResult
-from woland_guard_contracts import NormalizedEventV1
+from woland_guard_contracts import EventSource, NormalizedEventV1
 
 
 class SyntheticSource:
     name = "journald"
+    event_source = EventSource.JOURNALD
 
     def __init__(self, records: list[JournalRecord]) -> None:
         self._records = records
@@ -103,6 +104,7 @@ def test_repeated_run_once_respects_limit_and_continues_oldest_backlog(
 ) -> None:
     class PaginatedSource:
         name = "journald"
+        event_source = EventSource.JOURNALD
 
         def __init__(self) -> None:
             self.records = [
@@ -170,6 +172,7 @@ def test_repeated_run_once_respects_limit_and_continues_oldest_backlog(
 def test_restart_drains_ordered_backlog_then_follows_live_records(tmp_path: Path) -> None:
     class TwoPhaseSource:
         name = "journald"
+        event_source = EventSource.JOURNALD
 
         def __init__(self) -> None:
             self.backlog_cursor: str | None = None
@@ -316,6 +319,7 @@ def test_unexpected_collector_failure_exits_safely_for_systemd_restart(
 
     class FailingSource:
         name = "journald"
+        event_source = EventSource.JOURNALD
 
         def backlog(
             self,
@@ -348,7 +352,7 @@ def test_unexpected_collector_failure_exits_safely_for_systemd_restart(
         service.run()
 
     assert "synthetic-sensitive-payload" not in caplog.text
-    assert "journald_collector_failed" in caplog.text
+    assert "source_collector_failed" in caplog.text
 
 
 def make_service(

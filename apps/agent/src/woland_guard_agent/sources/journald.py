@@ -12,7 +12,12 @@ from threading import Event
 from typing import IO
 
 from woland_guard_agent.journald_fields import JOURNALD_OUTPUT_FIELDS
-from woland_guard_agent.sources.base import JournalRecord
+from woland_guard_agent.sources.base import (
+    JournalRecord,
+    SourceCursorUnavailableError,
+    SourceUnavailableError,
+)
+from woland_guard_contracts import EventSource
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +25,11 @@ JOURNALCTL_PATH = "/usr/bin/journalctl"
 _CURSOR_PATTERN = re.compile(r"^[A-Za-z0-9;=_:.+-]{1,4096}$")
 
 
-class JournaldUnavailableError(RuntimeError):
+class JournaldUnavailableError(SourceUnavailableError):
     """The fixed journald reader cannot be started or completed."""
 
 
-class JournaldCursorUnavailableError(JournaldUnavailableError):
+class JournaldCursorUnavailableError(JournaldUnavailableError, SourceCursorUnavailableError):
     """The saved cursor is no longer addressable by the local journal."""
 
 
@@ -32,6 +37,7 @@ class JournaldSource:
     """Read journald JSON and resume from a previously committed cursor."""
 
     name = "journald"
+    event_source = EventSource.JOURNALD
 
     def backlog(
         self,

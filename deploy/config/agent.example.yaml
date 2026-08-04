@@ -1,5 +1,18 @@
 schema_version: 1
+
+# Exactly one source. On a systemd host journald already carries the sshd, sudo
+# and useradd lines that /var/log/auth.log repeats, so enabling both would report
+# every login attempt twice under different event ids and halve every detection
+# threshold in practice. The schema refuses that combination (ADR-0019).
+#
+#   journald    - the default; reads the journal through /usr/bin/journalctl
+#   syslog_file - for hosts without a readable journal; needs the section below
 source: journald
+
+# Required only when source is syslog_file, and rejected otherwise.
+# The agent user needs read access to this file (group `adm` on Debian/Ubuntu).
+# syslog_file:
+#   path: /var/log/auth.log
 
 http:
   base_url: https://control-plane.example.invalid

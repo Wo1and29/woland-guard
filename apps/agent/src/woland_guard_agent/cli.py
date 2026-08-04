@@ -19,7 +19,7 @@ from woland_guard_agent.delivery import BackoffPolicy, DeliveryManager
 from woland_guard_agent.logging import configure_logging
 from woland_guard_agent.platform_support import UnsupportedPlatformError, require_ubuntu_2404
 from woland_guard_agent.service import AgentRuntimeError, AgentService
-from woland_guard_agent.sources import JournaldSource
+from woland_guard_agent.sources import JournaldSource, JournalSource, SyslogFileSource
 from woland_guard_agent.spool import SpoolSecurityError, SQLiteSpool
 from woland_guard_agent.transport import IngestionTransport
 
@@ -89,11 +89,21 @@ def _build_service(settings: AgentSettings, *, token: SecretToken) -> AgentServi
         authentication_retry_seconds=settings.retry.authentication_seconds,
     )
     return AgentService(
-        source=JournaldSource(),
+        source=_build_source(settings),
         spool=spool,
         delivery=delivery,
         delivery_poll_seconds=settings.delivery_poll_seconds,
     )
+
+
+def _build_source(settings: AgentSettings) -> JournalSource:
+    """Construct the one source the validated configuration selected."""
+
+    if settings.source == "syslog_file":
+        if settings.syslog_file is None:  # pragma: no cover - the validator forbids this
+            raise AgentConfigurationError("syslog_file settings are missing")
+        return SyslogFileSource(settings.syslog_file.path)
+    return JournaldSource()
 
 
 def _run_spool_command(arguments: argparse.Namespace, *, settings: AgentSettings) -> int:

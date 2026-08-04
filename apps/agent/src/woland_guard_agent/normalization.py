@@ -59,12 +59,18 @@ class ParsedSecurityEvent:
     attributes: dict[str, JsonValue] | None = None
 
 
-def normalize_journald_record(
+def normalize_record(
     record: JournalRecord,
     *,
+    source: EventSource = EventSource.JOURNALD,
     collected_at: datetime | None = None,
 ) -> NormalizedEventV1 | None:
-    """Return only a recognized security event; unknown messages are ignored."""
+    """Return only a recognized security event; unknown messages are ignored.
+
+    The parsers below read ``MESSAGE`` and the syslog identifier, never the
+    transport, so every adapter that can supply those two fields reuses the same
+    allowlist unchanged (ADR-0019).
+    """
 
     parsed = _parse_supported_message(record.fields)
     if parsed is None:
@@ -79,7 +85,7 @@ def normalize_journald_record(
         event_id=uuid5(EVENT_ID_NAMESPACE, record.cursor),
         occurred_at=occurred_at,
         collected_at=collection_time,
-        source=EventSource.JOURNALD,
+        source=source,
         event_type=parsed.event_type,
         actor=parsed.actor,
         source_ip=parsed.source_ip,
