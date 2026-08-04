@@ -22,10 +22,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the FastAPI application without connecting to PostgreSQL."""
 
     application_settings = settings or get_settings()
+    # README documents /docs as a local convenience, so it stays on outside
+    # production; there it would hand an anonymous caller the whole endpoint
+    # and schema map plus the exact build version. create_dashboard_app already
+    # disables all three unconditionally.
+    publish_schema = application_settings.app_env != "production"
     application = FastAPI(
         title=application_settings.app_name,
         version=application_settings.app_version,
         description="Defensive Linux security monitoring control plane.",
+        docs_url="/docs" if publish_schema else None,
+        redoc_url="/redoc" if publish_schema else None,
+        openapi_url="/openapi.json" if publish_schema else None,
     )
     application.state.settings = application_settings
     application.state.agent_rate_limiter = AgentRateLimiter(
