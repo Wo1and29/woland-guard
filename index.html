@@ -8,10 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Instrument Serif and Barlow from the template ship no Cyrillic at all, which
-     dropped every Russian word onto a system fallback. Playfair Display keeps the
-     high-contrast display italic and Inter keeps the neutral grotesque, both with
-     full Cyrillic. -->
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+     dropped every Russian word onto a system fallback. Inter covers both scripts
+     for everything on the page now that no heading uses a separate display face. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
@@ -25,7 +24,6 @@
     theme: {
       extend: {
         fontFamily: {
-          heading: ['Playfair Display', 'serif'],
           body: ['Inter', 'sans-serif'],
           mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
         },

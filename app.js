@@ -580,7 +580,7 @@ function Display({
   className = ""
 }) {
   return /*#__PURE__*/React.createElement("h2", {
-    className: `font-heading italic text-white text-6xl md:text-7xl lg:text-[6rem] leading-[0.9] tracking-[-3px] ${className}`
+    className: `font-body font-semibold not-italic text-white text-6xl md:text-7xl lg:text-[6rem] leading-[0.9] tracking-[-3px] ${className}`
   }, children);
 }
 
@@ -614,7 +614,7 @@ function Navbar({
     "aria-label": t("nav.toTop"),
     className: "liquid-glass liquid-glass-signal h-12 w-12 shrink-0 rounded-full flex items-center justify-center"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "font-heading italic text-white text-2xl leading-none"
+    className: "font-body font-semibold not-italic text-white text-2xl leading-none"
   }, "w")), /*#__PURE__*/React.createElement("div", {
     className: "hidden md:flex items-center"
   }, /*#__PURE__*/React.createElement("div", {
@@ -746,7 +746,7 @@ function Hero({
   }, t("hero.badge")))), /*#__PURE__*/React.createElement(BlurText, {
     key: t("hero.h1"),
     text: t("hero.h1"),
-    className: "mt-6 text-5xl md:text-7xl lg:text-[5.5rem] font-heading italic text-white leading-[0.8] max-w-3xl justify-center tracking-[-4px]"
+    className: "mt-6 text-5xl md:text-7xl lg:text-[5.5rem] font-body font-semibold not-italic text-white leading-[0.8] max-w-3xl justify-center tracking-[-4px]"
   }), /*#__PURE__*/React.createElement(motion.p, _extends({}, riseNow(0.8), {
     className: "mt-5 text-sm md:text-base text-white/85 max-w-2xl font-body font-light leading-snug"
   }), t("hero.lede")), /*#__PURE__*/React.createElement(motion.div, _extends({}, riseNow(1.1), {
@@ -775,7 +775,7 @@ function Hero({
     className: "flex flex-wrap justify-center gap-8 md:gap-14"
   }, stack.map(name => /*#__PURE__*/React.createElement("span", {
     key: name,
-    className: "font-heading italic text-white/90 text-2xl md:text-3xl tracking-tight"
+    className: "font-body font-semibold not-italic text-white/90 text-2xl md:text-3xl tracking-tight"
   }, name))))));
 }
 
@@ -805,7 +805,7 @@ function ServiceCard({
   }), /*#__PURE__*/React.createElement("div", {
     className: "mt-6"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "font-heading italic text-white text-3xl md:text-4xl tracking-[-1px] leading-none"
+    className: "font-body font-semibold not-italic text-white text-3xl md:text-4xl tracking-[-1px] leading-none"
   }, title), /*#__PURE__*/React.createElement("p", {
     className: "mt-3 text-sm text-white/85 font-body font-light leading-snug max-w-[34ch]"
   }, body)));
@@ -940,11 +940,11 @@ function Tier({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-start justify-between gap-3"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "font-heading italic text-white text-3xl md:text-4xl tracking-[-1px] leading-none"
+    className: "font-body font-semibold not-italic text-white text-3xl md:text-4xl tracking-[-1px] leading-none"
   }, title), badge ? /*#__PURE__*/React.createElement("span", {
     className: "bg-white text-black rounded-full px-3 py-1 text-[11px] font-semibold font-body whitespace-nowrap"
   }, badge) : null), /*#__PURE__*/React.createElement("div", {
-    className: "font-heading italic text-white text-4xl tracking-[-1px] leading-none mt-5"
+    className: "font-body font-semibold not-italic text-white text-4xl tracking-[-1px] leading-none mt-5"
   }, price), /*#__PURE__*/React.createElement("p", {
     className: "mt-3 text-sm text-white/85 font-body font-light leading-snug max-w-[34ch]"
   }, desc), /*#__PURE__*/React.createElement("div", {
@@ -1030,7 +1030,7 @@ function Contact({
   }, /*#__PURE__*/React.createElement("span", {
     className: "block font-mono text-[10px] text-white/50 uppercase tracking-[0.14em]"
   }, label), /*#__PURE__*/React.createElement("span", {
-    className: "block font-heading italic text-white text-2xl md:text-3xl tracking-[-1px] leading-tight break-all mt-0.5"
+    className: "block font-body font-semibold not-italic text-white text-2xl md:text-3xl tracking-[-1px] leading-tight break-all mt-0.5"
   }, value)), /*#__PURE__*/React.createElement(ArrowUpRight, {
     className: "h-6 w-6 text-signal shrink-0"
   })))))));
