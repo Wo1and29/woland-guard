@@ -30,7 +30,10 @@ a real browser (Chromium) through the project's browser-test infrastructure — 
 is the exact code any user would see. **The data in the screenshots is synthetic**: generated
 specifically for this demonstration in an isolated, temporary database, not captured from a live
 production instance — a real user will see their own servers and incidents. The UI text itself is
-Russian (the project has no i18n layer yet); captions below are in English.
+Russian: these screenshots were captured with the default RU locale, before re-shooting them under
+EN. The Dashboard itself is fully bilingual — a RU/EN toggle on every page, translated rule and
+incident prose, a per-operator language preference for the Telegram bot; captions below are in
+English.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" alt="Overview: servers, active incidents, notification queue" width="800">
