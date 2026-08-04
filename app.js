@@ -494,7 +494,9 @@ function BlurText({
     return () => io.disconnect();
   }, []);
   const words = text.split(" ");
-  return /*#__PURE__*/React.createElement("p", {
+  // h1: this is the page's only headline-level hero text and the sole
+  // caller (the hero on #top); the whole page otherwise has zero <h1>s.
+  return /*#__PURE__*/React.createElement("h1", {
     ref: ref,
     className: className,
     style: {
