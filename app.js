@@ -886,7 +886,9 @@ function Project({
     "aria-hidden": "true"
   }), /*#__PURE__*/React.createElement("div", {
     className: "relative z-10 px-8 md:px-16 lg:px-20 py-28"
-  }, /*#__PURE__*/React.createElement(motion.div, rise(0), /*#__PURE__*/React.createElement(Kicker, null, t("prj.kicker")), /*#__PURE__*/React.createElement(Display, null, "Woland", /*#__PURE__*/React.createElement("br", null), "Guard"), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement(motion.div, rise(0), /*#__PURE__*/React.createElement(Kicker, null, t("prj.kicker")), /*#__PURE__*/React.createElement("h2", {
+    className: "font-body font-semibold not-italic text-white text-6xl md:text-7xl lg:text-[6rem] leading-[0.9] tracking-[-3px]"
+  }, "Woland", /*#__PURE__*/React.createElement("br", null), "Guard"), /*#__PURE__*/React.createElement("p", {
     className: "mt-6 text-sm md:text-base text-white/85 font-body font-light leading-snug max-w-3xl"
   }, t("prj.lede"))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 md:grid-cols-4 gap-4 mt-12"
