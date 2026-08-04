@@ -6,7 +6,7 @@ Woland Guard — защитная система мониторинга Linux-с
 события, а control plane создаёт понятные инциденты и помогает оператору реагировать на них —
 через защищённый веб-Dashboard или интерактивно через Telegram.
 
-Реализовано и зафиксировано локально: ingestion API с Detection Engine (8 правил, MITRE ATT&CK),
+Реализовано и зафиксировано локально: ingestion API с Detection Engine (10 правил, MITRE ATT&CK),
 Linux-агент с durable delivery, RBAC и Dashboard с несколькими ролями, исходящие и входящие
 Telegram-уведомления (команды, кнопки статуса, диалог причины), dry-run-блокировка IP с allowlist
 и подтверждением второго администратора, три уровня demo-инфраструктуры (от ручного показа до
@@ -91,7 +91,8 @@ production-инстанса — у реального пользователя �
 - PostgreSQL integration-тесты в отдельном Docker target;
 - строгие версионированные YAML-правила с локальными командами validate/sync;
 - Detection Engine с условиями single, threshold, distinct_count, sequence и first_seen;
-- восемь journald-правил, атомарные incidents и уникальные evidence-связи;
+- десять правил (восемь journald и два для Nginx), атомарные incidents и уникальные
+  evidence-связи;
 - локальные Operator identities, независимо ротируемые `wgok_` API-ключи и фиксированный RBAC;
 - безопасные Incident/Audit API, optimistic `lock_version`, immutable history и audit;
 - operator-scoped идемпотентность status transitions с сохранёнными 200/404/409 outcomes;
@@ -115,9 +116,9 @@ production-инстанса — у реального пользователя �
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
-  boundary demo-сценариев для всех восьми detection rules.
+  boundary demo-сценариев для всех десяти detection rules.
 - отдельная demo-топология с PostgreSQL 17, единственным migration job, rule sync,
-  32-scenario ingestion, настоящим outbox worker, in-process fake Telegram boundary,
+  40-scenario ingestion, настоящим outbox worker, in-process fake Telegram boundary,
   HTTPS Dashboard smoke и synthetic backup/restore smoke.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
@@ -220,7 +221,7 @@ HTTP admin API намеренно отсутствует.
 
 ## Правила Detection Engine
 
-Проверка всех восьми файлов не обращается к PostgreSQL:
+Проверка всех десяти файлов не обращается к PostgreSQL:
 
 ```bash
 docker compose exec control-plane woland-guard-admin validate-rules \
@@ -240,8 +241,8 @@ Startup control plane намеренно не изменяет правила. Y
 изолированы по server и включают обе границы. Detection получает только строки, впервые
 вставленные через `ON CONFLICT DO NOTHING ... RETURNING`, в той же транзакции ingestion.
 
-Восемь текущих правил работают только с нормализованными journald-событиями SSH, sudo и
-account management. Nginx-правила не входят в этот набор.
+Восемь из десяти текущих правил работают с нормализованными journald-событиями SSH, sudo и
+account management; два остальных — с неуспешными HTTP-запросами Nginx (ADR-0020).
 
 ## Пример Ingestion API
 
@@ -256,7 +257,7 @@ X-Request-ID: local-example-001
 
 ## Синтетические demo-сценарии 8A
 
-Каталог содержит по четыре стабильных сценария для каждого из восьми текущих правил:
+Каталог содержит по четыре стабильных сценария для каждого из десяти текущих правил:
 `positive`, `negative`, `boundary_below` и `boundary_exact`. Список формируется только после
 строгой проверки каталога `detection-rules`.
 
@@ -284,7 +285,8 @@ counts, но не заявляет создание incident или delivery: п
 
 Автоматический verifier использует отдельный `compose.demo.yaml` и уникальные Compose project,
 ownership label, network и PostgreSQL volume. Он применяет миграции одним job, синхронизирует
-ровно восемь enabled rules из `detection-rules/`, отправляет все 32 canonical manifests через публичный
+ровно десять enabled rules из `detection-rules/`, отправляет все 40 canonical manifests
+через публичный
 `POST /api/v1/events`, проверяет точные DB outcomes, запускает настоящий outbox worker с
 demo-only in-process Telegram transport, выполняет один desktop Chromium workflow над той же
 БД, replay и custom-format `pg_dump`/`pg_restore` smoke.
@@ -621,9 +623,12 @@ Content-Type: application/json
 проверка journald здесь не заявляется: автоматические тесты используют только синтетические
 fixtures и локальный HTTP backend.
 
-Nginx source/parser и два правила, которым нужны его события, перенесены в следующий релиз.
-Они не считаются end-to-end функциями MVP; текущий Detection Engine содержит восемь
-journald-правил, а не десять end-to-end правил.
+Источник Nginx (ADR-0020) и два правила поверх него реализованы, но на реальном nginx в
+среде разработки не проверены — только на синтетических строках `combined`-формата.
+
+Источник Docker events **отклонён**, а не отложен: он требует доступа к Docker-сокету, что
+равносильно root на хосте ([ADR-0021](docs/adr/0021-no-docker-events-source.md)). Зависящее от
+него правило про остановку контейнера не будет реализовано.
 
 ## Входящий Telegram-бот
 
@@ -735,7 +740,7 @@ allowlist изменился с момента предложения, план 
 - [docs/architecture.md](docs/architecture.md) — компоненты и поток события от агента до
   уведомления;
 - [docs/threat-model.md](docs/threat-model.md) — модель угроз;
-- [docs/detection-rules.md](docs/detection-rules.md) — схема YAML-правил и текущий набор из 8;
+- [docs/detection-rules.md](docs/detection-rules.md) — схема YAML-правил и текущий набор из 10;
 - [docs/deployment.md](docs/deployment.md) — развёртывание на VPS, HTTPS, reverse proxy;
 - [docs/agent-installation.md](docs/agent-installation.md) — установка агента на Ubuntu Server 24.04;
 - [docs/demo.md](docs/demo.md) — три уровня demo-режима, от ручного до полного release gate;

@@ -40,19 +40,37 @@ def drain(path: Path) -> list[JournalRecord]:
     return list(source.backlog(after_cursor=None, stop_event=Event(), initial_limit=None))
 
 
-def test_failed_and_completed_requests_get_distinct_event_types(tmp_path: Path) -> None:
+def test_only_failed_requests_become_events(tmp_path: Path) -> None:
+    """A successful request feeds no rule and would dwarf every other source."""
+
     log = tmp_path / "access.log"
-    write(log, line(status=404), line(status=200, target="/"), line(status=500))
+    write(
+        log,
+        line(status=404),
+        line(status=200, target="/"),
+        line(status=301, target="/moved"),
+        line(status=500),
+    )
 
     events = [normalize_record(r, source=EventSource.NGINX_ACCESS) for r in drain(log)]
     recognised = [event for event in events if event is not None]
 
-    assert [event.event_type for event in recognised] == [
-        "web.nginx.request_failed",
-        "web.nginx.request_completed",
-        "web.nginx.request_failed",
-    ]
+    assert [event.attributes["status"] for event in recognised] == [404, 500]
+    assert {event.event_type for event in recognised} == {"web.nginx.request_failed"}
     assert all(event.source is EventSource.NGINX_ACCESS for event in recognised)
+
+
+def test_the_boundary_between_success_and_failure_is_400(tmp_path: Path) -> None:
+    log = tmp_path / "access.log"
+    write(log, line(status=399), line(status=400))
+
+    recognised = [
+        event
+        for event in (normalize_record(r, source=EventSource.NGINX_ACCESS) for r in drain(log))
+        if event is not None
+    ]
+
+    assert [event.attributes["status"] for event in recognised] == [400]
 
 
 def test_query_string_never_reaches_the_event(tmp_path: Path) -> None:
@@ -155,7 +173,7 @@ def test_timestamp_offset_is_honoured(tmp_path: Path) -> None:
     """nginx writes a local time plus offset; the event must be UTC-correct."""
 
     log = tmp_path / "access.log"
-    write(log, '198.51.100.7 - - [04/Aug/2026:15:00:00 +0300] "GET / HTTP/1.1" 200 1 "-" "-"')
+    write(log, '198.51.100.7 - - [04/Aug/2026:15:00:00 +0300] "GET / HTTP/1.1" 404 1 "-" "-"')
 
     event = normalize_record(drain(log)[0], source=EventSource.NGINX_ACCESS)
 

@@ -121,6 +121,20 @@ def _scenario(rule_key: str, *, positive: bool) -> Scenario:
             attributes=attributes,
         )
         return Scenario(trigger, (trigger,))
+    elif rule_key == "nginx_error_spike":
+        # The non-match keeps the same volume and moves one request to another
+        # status, so it fails on the grouping rather than on the count.
+        statuses = [404] * 15 if positive else [404] * 14 + [500]
+        history = tuple(
+            _event("web.nginx.request_failed", index - 14, attributes={"status": status})
+            for index, status in enumerate(statuses)
+        )
+    elif rule_key == "nginx_failed_requests_by_ip":
+        count = 12 if positive else 11
+        history = tuple(
+            _event("web.nginx.request_failed", offset, attributes={"status": 403})
+            for offset in range(-(count - 1), 1)
+        )
     else:  # pragma: no cover - the shipped rule key set is asserted separately
         raise AssertionError(f"unknown test scenario: {rule_key}")
     return Scenario(history[-1], history)
@@ -191,6 +205,7 @@ def test_each_default_rule_rejects_missing_correlation_field(rule_key: str) -> N
     [
         ("ssh_bruteforce_by_ip", 8, "linux.ssh.authentication_failed"),
         ("sudo_auth_failures", 5, "linux.sudo.authentication_failed"),
+        ("nginx_failed_requests_by_ip", 12, "web.nginx.request_failed"),
     ],
 )
 def test_threshold_rules_are_below_then_match_at_exact_count(

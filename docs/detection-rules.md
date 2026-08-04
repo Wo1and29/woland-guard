@@ -29,13 +29,17 @@ correlation_fields: [source_ip]  # непустой список без дубл
 
 ## Поддерживаемые типы событий
 
-Только пять `event_type`, которые реально производит агент:
+Только шесть `event_type`, которые реально производит агент:
 
 - `linux.ssh.authentication_failed`
 - `linux.ssh.login_succeeded`
 - `linux.sudo.authentication_failed`
 - `linux.account.user_created`
 - `linux.account.privileged_group_changed`
+- `web.nginx.request_failed` — ответ 4xx или 5xx; атрибуты `status`, `method`, `path`
+
+Успешный HTTP-запрос событием не становится: его не потребляет ни одно правило, а по объёму он
+на порядки превосходит все остальные источники вместе (ADR-0020 §7).
 
 ## Пять типов условий
 
@@ -57,7 +61,7 @@ correlation_fields: [source_ip]  # непустой список без дубл
 `filters` — только declarative `equals` (точное значение) или `one_of` (allowlist значений);
 никаких regex или сравнений через код.
 
-## Текущий набор правил (8)
+## Текущий набор правил (10)
 
 | `rule_key` | Тип | Severity | MITRE ATT&CK |
 |---|---|---|---|
@@ -69,10 +73,20 @@ correlation_fields: [source_ip]  # непустой список без дубл
 | `sudo_auth_failures` | threshold (5 за 600с, по `actor`) | medium | T1548.003 |
 | `user_account_created` | single | high | T1136.001 |
 | `privileged_group_membership_changed` | single (`group` ∈ {sudo, adm, wheel}) | high | T1098.007 |
+| `nginx_error_spike` | threshold (15 за 120с, по `status`) | medium | — |
+| `nginx_failed_requests_by_ip` | threshold (12 за 300с, по `source_ip`) | medium | T1595.003 |
 
-Nginx-источник и два зависящих от него правила (см. исходный концепт: 401/403/404/500-всплески,
-объём запросов с одного IP) перенесены на следующий релиз — агент их пока не производит, поэтому
-десять правил не заявляются как end-to-end MVP-функциональность (README, «Ограничения MVP»).
+Пороги двух Nginx-правил заданы для небольшого сайта и на нагруженном требуют пересмотра: 15
+ответов 404 за две минуты — обычное дело для публичного сайта, который непрерывно обходят боты.
+Это настройка YAML, а не кода.
+
+`nginx_error_spike` намеренно оставлен без `mitre_attack_ids`: всплеск ошибок одинаково вероятно
+означает сломанный деплой и сканирование, поэтому привязка к технике ATT&CK создавала бы
+видимость атрибуции, которой у правила нет.
+
+Правило «контейнер Docker остановлен или перезапущен» из исходного концепта **отклонено**, а не
+отложено: его источник требует доступа к Docker-сокету, то есть root на хосте
+([ADR-0021](adr/0021-no-docker-events-source.md)).
 
 ## Тестовые события
 

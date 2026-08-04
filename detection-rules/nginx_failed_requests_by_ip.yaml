@@ -1,0 +1,33 @@
+schema_version: 1
+rule_key: nginx_failed_requests_by_ip
+version: 1
+enabled: true
+severity: medium
+title: Много неуспешных HTTP-запросов с одного адреса
+title_en: Many failed HTTP requests from one address
+description: Двенадцать ответов 4xx или 5xx одному адресу за пять минут.
+description_en: Twelve 4xx or 5xx responses to one address within five minutes.
+explanation: >-
+  Один адрес, стабильно получающий ошибки, обычно перебирает пути: панели управления, файлы
+  конфигурации, резервные копии. В отличие от всплеска по коду ответа, здесь сигнал сосредоточен
+  на источнике, поэтому пути в связанных событиях сразу показывают, что именно искали.
+explanation_en: >-
+  One address that keeps receiving errors is usually probing paths: admin panels, configuration
+  files, backups. Unlike a spike grouped by status code, this signal is concentrated on the
+  source, so the paths in the linked events show directly what was being looked for.
+recommendation: >-
+  Посмотрите пути в связанных событиях: набор из /wp-admin, /.env, /.git/config говорит о
+  сканировании, а повторы одного пути — о сломанном клиенте. За обратным прокси адрес будет
+  адресом прокси, если на стороне Nginx не настроены set_real_ip_from и real_ip_header.
+recommendation_en: >-
+  Review the paths in the linked events: a set such as /wp-admin, /.env and /.git/config means
+  scanning, while repeats of one path mean a broken client. Behind a reverse proxy the address
+  is the proxy's own unless set_real_ip_from and real_ip_header are configured in nginx.
+mitre_attack_ids: [T1595.003]
+condition:
+  type: threshold
+  event_type: web.nginx.request_failed
+  threshold: 12
+  window_seconds: 300
+  group_by: [source_ip]
+correlation_fields: [source_ip]

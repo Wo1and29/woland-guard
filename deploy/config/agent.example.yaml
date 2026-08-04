@@ -17,7 +17,8 @@ source: journald
 # Independent of `source` above and safe to enable alongside it: an access log
 # shares no record with the system journal, so there is nothing to double-count
 # (ADR-0020). Only the nginx default `combined` format is parsed. The query
-# string is dropped before an event is built and never leaves the host.
+# string is dropped before an event is built and never leaves the host, and only
+# a 4xx or 5xx response becomes an event at all.
 # nginx_access:
 #   path: /var/log/nginx/access.log
 

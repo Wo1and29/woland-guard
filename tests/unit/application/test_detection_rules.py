@@ -29,12 +29,14 @@ def test_public_rule_key_validator_is_the_rule_definition_contract() -> None:
         validate_rule_key("Non_Canonical")
 
 
-def test_eight_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:
+def test_ten_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:
     """The shipped set has the agreed identities and no executable condition language."""
 
     rules = load_rules_directory(RULES_DIR)
 
     assert {rule.rule_key for rule in rules} == {
+        "nginx_error_spike",
+        "nginx_failed_requests_by_ip",
         "privileged_group_membership_changed",
         "ssh_bruteforce_by_ip",
         "ssh_login_from_new_ip",
@@ -160,7 +162,7 @@ def test_validate_rules_cli_checks_files_without_opening_database(
 
     cli.main()
 
-    assert capsys.readouterr().out == "Правила корректны: 8\n"
+    assert capsys.readouterr().out == "Правила корректны: 10\n"
 
 
 def test_validate_rules_cli_returns_safe_error_for_invalid_yaml(

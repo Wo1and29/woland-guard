@@ -1,4 +1,4 @@
-"""Synthetic scenarios derived from the eight shipped detection-rule definitions."""
+"""Synthetic scenarios derived from the ten shipped detection-rule definitions."""
 
 from __future__ import annotations
 
@@ -40,6 +40,8 @@ RULES_DIRECTORY = next(
 )
 EXPECTED_RULE_KEYS = frozenset(
     {
+        "nginx_error_spike",
+        "nginx_failed_requests_by_ip",
         "privileged_group_membership_changed",
         "ssh_bruteforce_by_ip",
         "ssh_login_from_new_ip",
@@ -52,6 +54,8 @@ EXPECTED_RULE_KEYS = frozenset(
 )
 
 _EVIDENCE_COUNTS = {
+    "nginx_error_spike": 15,
+    "nginx_failed_requests_by_ip": 12,
     "privileged_group_membership_changed": 1,
     "ssh_bruteforce_by_ip": 8,
     "ssh_login_from_new_ip": 2,
@@ -61,6 +65,9 @@ _EVIDENCE_COUNTS = {
     "sudo_auth_failures": 5,
     "user_account_created": 1,
 }
+# Fifteen distinct codes, so the nginx_error_spike non-match reaches the rule's
+# event count while leaving every status group at one.
+_NEGATIVE_STATUSES = (400, 401, 402, 403, 404, 405, 406, 408, 409, 410, 500, 501, 502, 503, 504)
 _CASE_ORDER = (
     DemoCaseType.POSITIVE,
     DemoCaseType.NEGATIVE,
@@ -198,6 +205,8 @@ def _build_event_specs(
     anchor: datetime,
 ) -> tuple[_EventSpec, ...]:
     builders: dict[str, Callable[[DemoCaseType, datetime, int], tuple[_EventSpec, ...]]] = {
+        "nginx_error_spike": _error_spike_specs,
+        "nginx_failed_requests_by_ip": _failed_requests_specs,
         "privileged_group_membership_changed": _privileged_group_specs,
         "ssh_bruteforce_by_ip": _bruteforce_specs,
         "ssh_login_from_new_ip": _first_seen_specs,
@@ -208,6 +217,46 @@ def _build_event_specs(
         "user_account_created": _user_created_specs,
     }
     return builders[definition.rule_key](definition.case_type, anchor, definition.ordinal)
+
+
+def _error_spike_specs(case: DemoCaseType, anchor: datetime, index: int) -> tuple[_EventSpec, ...]:
+    # Every request comes from its own address on purpose: fifteen failures from
+    # one address would also satisfy nginx_failed_requests_by_ip, and a scenario
+    # is required to produce exactly its own incident and nothing else.
+    if case is DemoCaseType.NEGATIVE:
+        return tuple(
+            _request_spec(
+                anchor + timedelta(seconds=slot - 14), _NEGATIVE_STATUSES[slot], index, slot
+            )
+            for slot in range(15)
+        )
+    if case is DemoCaseType.BOUNDARY_EXACT:
+        offsets: tuple[int, ...] = (-120, *range(-13, 1))
+    else:
+        offsets = tuple(range(-13 if case is DemoCaseType.BOUNDARY_BELOW else -14, 1))
+    return tuple(
+        _request_spec(anchor + timedelta(seconds=offset), 404, index, slot)
+        for slot, offset in enumerate(offsets)
+    )
+
+
+def _failed_requests_specs(
+    case: DemoCaseType, anchor: datetime, index: int
+) -> tuple[_EventSpec, ...]:
+    # Twelve failures stay below the fifteen nginx_error_spike needs, so sharing
+    # one status code across them cannot trigger the other rule as well.
+    if case is DemoCaseType.NEGATIVE:
+        return tuple(
+            _request_spec(anchor + timedelta(seconds=slot - 11), 403, index, slot)
+            for slot in range(12)
+        )
+    if case is DemoCaseType.BOUNDARY_EXACT:
+        offsets: tuple[int, ...] = (-300, *range(-10, 1))
+    else:
+        offsets = tuple(range(-10 if case is DemoCaseType.BOUNDARY_BELOW else -11, 1))
+    return tuple(
+        _request_spec(anchor + timedelta(seconds=offset), 403, index, 0) for offset in offsets
+    )
 
 
 def _privileged_group_specs(
@@ -382,6 +431,18 @@ def _spec(
     return _EventSpec(event_type, occurred_at, actor, source_ip, attributes or {})
 
 
+def _request_spec(occurred_at: datetime, status: int, index: int, slot: int) -> _EventSpec:
+    # No path attribute: the manifest contract rejects any value that looks like
+    # a path or URL, and neither nginx rule reads one. A real event carries it.
+    return _spec(
+        "web.nginx.request_failed",
+        occurred_at,
+        None,
+        _documentation_ip(index, slot),
+        {"status": status, "method": "GET"},
+    )
+
+
 def _event_from_spec(
     spec: _EventSpec,
     *,
@@ -399,7 +460,11 @@ def _event_from_spec(
         event_id=demo_event_id(run_id, scenario_id, ordinal),
         occurred_at=spec.occurred_at,
         collected_at=spec.occurred_at,
-        source=EventSource.JOURNALD,
+        source=(
+            EventSource.NGINX_ACCESS
+            if spec.event_type.startswith("web.nginx.")
+            else EventSource.JOURNALD
+        ),
         event_type=spec.event_type,
         actor=spec.actor,
         source_ip=None if spec.source_ip is None else ip_address(spec.source_ip),
@@ -426,8 +491,8 @@ def _load_exact_rule_catalog() -> dict[str, RuleDefinition]:
     except RuleValidationError:
         raise DemoManifestError("shipped detection rules are unavailable") from None
     by_key = {rule.rule_key: rule for rule in rules}
-    if len(rules) != 8 or frozenset(by_key) != EXPECTED_RULE_KEYS:
-        raise DemoManifestError("demo catalog requires the exact eight shipped detection rules")
+    if len(rules) != 10 or frozenset(by_key) != EXPECTED_RULE_KEYS:
+        raise DemoManifestError("demo catalog requires the exact ten shipped detection rules")
     if any(not rule.enabled for rule in rules):
         raise DemoManifestError("demo catalog requires the shipped detection rules to be enabled")
     return by_key

@@ -18,7 +18,7 @@ docker compose exec control-plane woland-guard-admin create-test-agent \
 ```
 
 Сохраните выведенный `wgak_...` токен, затем сгенерируйте и отправьте один из 32 канонических
-сценариев (по 4 на каждое из 8 правил: `positive`, `negative`, `boundary_below`,
+сценариев (по 4 на каждое из 10 правил: `positive`, `negative`, `boundary_below`,
 `boundary_exact`):
 
 ```bash

@@ -95,7 +95,7 @@ comment form:
 - PostgreSQL integration tests in a separate Docker target;
 - strict versioned YAML rules with local validate/sync commands;
 - a Detection Engine with single, threshold, distinct_count, sequence, and first_seen conditions;
-- eight journald rules, atomic incidents, and unique evidence links;
+- ten rules (eight journald, two nginx), atomic incidents, and unique evidence links;
 - local operator identities, independently rotatable `wgok_` API keys, and a fixed RBAC matrix;
 - safe Incident/Audit APIs, optimistic `lock_version`, immutable history, and audit;
 - operator-scoped idempotency for status transitions with persisted 200/404/409 outcomes;
@@ -122,7 +122,7 @@ comment form:
 - an isolated Chromium browser harness: loopback HTTPS, an ephemeral trustme CA, a dedicated
   PostgreSQL 17 instance, and synthetic data without persistent browser artifacts;
 - a closed canonical manifest and a loopback-only sender for synthetic positive, negative, and
-  boundary demo scenarios covering all eight detection rules;
+  boundary demo scenarios covering all ten detection rules;
 - a separate demo topology with PostgreSQL 17, a single migration job, rule sync, 32-scenario
   ingestion, a real outbox worker, an in-process fake Telegram boundary, an HTTPS Dashboard smoke
   check, and a synthetic backup/restore smoke check.
@@ -228,7 +228,7 @@ no HTTP admin API by design.
 
 ## Detection Engine rules
 
-Validating all eight files never touches PostgreSQL:
+Validating all ten files never touches PostgreSQL:
 
 ```bash
 docker compose exec control-plane woland-guard-admin validate-rules \
@@ -248,8 +248,8 @@ condition types and never evaluates expressions. Time windows are computed from 
 scoped per server, and inclusive on both ends. Detection only sees rows that were freshly inserted
 via `ON CONFLICT DO NOTHING ... RETURNING`, in the same ingestion transaction.
 
-The eight current rules only work with normalized journald events for SSH, sudo, and account
-management. Nginx-sourced rules are not part of this set.
+Eight of the ten current rules work on normalized journald events for SSH, sudo, and account
+management; the other two work on failed nginx requests (ADR-0020).
 
 ## Ingestion API example
 
@@ -264,7 +264,7 @@ X-Request-ID: local-example-001
 
 ## Synthetic demo scenarios (stage 8A)
 
-The catalog holds four stable scenarios for each of the eight current rules: `positive`,
+The catalog holds four stable scenarios for each of the ten current rules: `positive`,
 `negative`, `boundary_below`, and `boundary_exact`. The list is only produced after the
 `detection-rules` directory passes strict validation.
 
@@ -292,7 +292,7 @@ ingestion, not distributed exactly-once semantics.
 
 The automated verifier uses a separate `compose.demo.yaml` with a unique Compose project,
 ownership label, network, and PostgreSQL volume. It applies migrations in one job, syncs exactly
-eight enabled rules from `detection-rules/`, sends all 32 canonical manifests through the public
+ten enabled rules from `detection-rules/`, sends all 40 canonical manifests through the public
 `POST /api/v1/events`, checks exact DB outcomes, runs a real outbox worker against a demo-only
 in-process Telegram transport, runs one desktop Chromium workflow against the same database,
 replay, and a custom-format `pg_dump`/`pg_restore` smoke check.
@@ -635,9 +635,12 @@ The current Windows/Docker environment does not include an Ubuntu 24.04 host wit
 No real journald verification is claimed here: the automated tests only use synthetic fixtures and
 a local HTTP backend.
 
-The nginx source/parser and the two rules that need its events are deferred to a future release.
-They do not count as MVP end-to-end features; the current Detection Engine ships eight journald
-rules, not ten end-to-end rules.
+The nginx source (ADR-0020) and the two rules built on it are implemented, but never verified
+against a real nginx in this development environment -- only against synthetic `combined` lines.
+
+A Docker events source is **rejected**, not deferred: it requires access to the Docker socket,
+which is equivalent to root on the host ([ADR-0021](docs/adr/0021-no-docker-events-source.md)).
+The container-stop rule that would depend on it will not be implemented.
 
 ## Inbound Telegram bot
 

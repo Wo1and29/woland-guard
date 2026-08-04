@@ -1,0 +1,33 @@
+schema_version: 1
+rule_key: nginx_error_spike
+version: 1
+enabled: true
+severity: medium
+title: Всплеск HTTP-ошибок одного кода
+title_en: Spike of HTTP errors with one status code
+description: Пятнадцать ответов с одним и тем же кодом 4xx или 5xx за две минуты.
+description_en: Fifteen responses sharing one 4xx or 5xx status code within two minutes.
+explanation: >-
+  Группировка по коду ответа отделяет разные причины: всплеск 404 обычно означает перебор путей,
+  401 и 403 — попытки обойти авторизацию, 5xx — отказ приложения либо исчерпание его ресурсов.
+  Сработавшее правило называет только код и объём; кто и зачем это делал, определяет оператор.
+explanation_en: >-
+  Grouping by status code separates distinct causes: a spike of 404 usually means path probing,
+  401 and 403 mean attempts to get past authorization, and 5xx means the application is failing
+  or running out of resources. The rule reports only the code and the volume; who did it and
+  why is for the operator to determine.
+recommendation: >-
+  Сопоставьте всплеск с деплоями и работами по расписанию, прежде чем считать его атакой. Если
+  совпадений нет, посмотрите пути и адреса в связанных событиях. Порог задан для небольшого сайта
+  и на нагруженном требует пересмотра.
+recommendation_en: >-
+  Check the spike against deployments and scheduled work before treating it as an attack. If
+  nothing matches, review the paths and addresses in the linked events. The threshold is set for
+  a small site and needs revisiting on a busy one.
+condition:
+  type: threshold
+  event_type: web.nginx.request_failed
+  threshold: 15
+  window_seconds: 120
+  group_by: [status]
+correlation_fields: [status]

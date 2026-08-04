@@ -179,6 +179,11 @@ def _parse_nginx_request(fields: Mapping[str, object]) -> ParsedSecurityEvent | 
 
     The adapter dropped the query string, the referer and the user agent before
     this point, so there is nothing here to redact (ADR-0020 §1, §3).
+
+    Only failed requests become events. A successful one is not consumed by any
+    rule, and on a live web server it outnumbers every other event source by
+    orders of magnitude, so shipping it would fill the spool and the events
+    table with rows nothing ever reads (ADR-0020 §7).
     """
 
     status = fields.get("NGINX_STATUS")
@@ -194,10 +199,12 @@ def _parse_nginx_request(fields: Mapping[str, object]) -> ParsedSecurityEvent | 
     if source_ip is None:
         return None
 
-    failed = status >= 400
+    if status < 400:
+        return None
+
     return ParsedSecurityEvent(
-        event_type="web.nginx.request_failed" if failed else "web.nginx.request_completed",
-        summary="HTTP request failed" if failed else "HTTP request completed",
+        event_type="web.nginx.request_failed",
+        summary="HTTP request failed",
         source_ip=source_ip,
         attributes={"status": status, "method": method, "path": path},
     )
