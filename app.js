@@ -897,7 +897,7 @@ function Project({
   }, rise(i * 0.06), {
     className: "liquid-glass rounded-[1.25rem] p-5 flex flex-col justify-end min-h-[136px]"
   }), /*#__PURE__*/React.createElement("div", {
-    className: "font-heading italic text-white text-4xl tracking-[-1px] leading-none"
+    className: "font-body font-semibold not-italic text-white text-4xl tracking-[-1px] leading-none"
   }, value), /*#__PURE__*/React.createElement("div", {
     className: "text-xs text-white/80 font-body font-light mt-2"
   }, label)))), /*#__PURE__*/React.createElement("div", {
