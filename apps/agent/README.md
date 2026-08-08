@@ -111,8 +111,3 @@ sudo usermod -a -G systemd-journal woland-guard
 
 Batch содержит от 1 до 100 событий. Каждый запрос получает новый `X-Request-ID`. Production
 конфигурация принимает только HTTPS URL и отдельные connect/read timeout.
-
-## Отложенные источники
-
-Nginx source/parser и два зависящих от него detection-правила перенесены в следующий релиз.
-До отдельной реализации нельзя считать десять правил end-to-end возможностями MVP.
