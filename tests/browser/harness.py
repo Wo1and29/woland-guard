@@ -428,7 +428,7 @@ class ApplicationProcess:
         )
         process.start()
         child_connection.close()
-        self._connection = cast(Connection, parent_connection)
+        self._connection = parent_connection
         self._process = cast(_ManagedProcess, process)
         try:
             port = self._wait_for_bound_port()

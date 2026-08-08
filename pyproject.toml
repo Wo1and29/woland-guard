@@ -69,6 +69,7 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.mypy]
 python_version = "3.12"
+platform = "linux"
 files = ["apps/agent/src", "apps/control-plane/src", "packages/contracts/src", "scripts", "tests"]
 strict = true
 warn_unreachable = true

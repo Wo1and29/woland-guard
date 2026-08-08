@@ -703,7 +703,7 @@ def _kill_unassigned_process(process: subprocess.Popen[bytes]) -> None:
 def _windows_kernel32() -> Any:
     from ctypes import wintypes
 
-    kernel32: Any = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32: Any = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
     kernel32.CreateJobObjectW.restype = wintypes.HANDLE
     kernel32.SetInformationJobObject.argtypes = [

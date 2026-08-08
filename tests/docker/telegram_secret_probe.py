@@ -18,11 +18,11 @@ TOKEN_FILE_NAME = "docker-canary.token"  # noqa: S105
 
 
 def _effective_uid() -> int:
-    return int(os.geteuid())  # type: ignore[attr-defined]
+    return int(os.geteuid())
 
 
 def _effective_gid() -> int:
-    return int(os.getegid())  # type: ignore[attr-defined]
+    return int(os.getegid())
 
 
 def _capabilities_are_empty() -> bool:

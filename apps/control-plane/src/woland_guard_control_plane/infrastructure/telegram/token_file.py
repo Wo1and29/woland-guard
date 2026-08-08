@@ -327,6 +327,6 @@ def _write_all(descriptor: int, value: bytes) -> None:
 
 def _set_descriptor_mode(descriptor: int, path: Path, mode: int) -> None:
     if os.name == "posix":
-        os.fchmod(descriptor, mode)  # type: ignore[attr-defined]
+        os.fchmod(descriptor, mode)
     else:  # pragma: no cover - production worker is a Linux container
         os.chmod(path, mode)
