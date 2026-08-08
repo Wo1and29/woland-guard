@@ -50,6 +50,17 @@ RUN groupadd --gid 10001 woland-guard \
     && useradd --uid 10001 --gid woland-guard --no-create-home \
         --shell /usr/sbin/nologin woland-guard
 
+# The app's own dependencies live in the .venv copied in below (uv-managed,
+# excludes pip by design); this strips the base image's *system* pip and its
+# installer siblings, which the runtime never invokes (uv, not pip, built the
+# venv) but which otherwise sit in the image as unused attack surface, e.g.
+# CVE-2026-8643. ensurepip installs these outside dpkg's database, so removing
+# the files directly doesn't leave dpkg in an inconsistent state.
+RUN rm -rf /usr/local/lib/python3.12/site-packages/pip* \
+           /usr/local/lib/python3.12/site-packages/setuptools* \
+           /usr/local/lib/python3.12/site-packages/wheel* \
+    && rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12
+
 WORKDIR /workspace
 
 COPY --from=builder --chown=woland-guard:woland-guard /workspace/.venv /workspace/.venv
@@ -60,5 +71,8 @@ COPY --chown=woland-guard:woland-guard detection-rules ./detection-rules
 USER 10001:10001
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
 
 CMD ["uvicorn", "woland_guard_control_plane.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,99 @@
+# Documented, dated, owned suppressions — not a blanket ignore. Every entry
+# names the exact package, the reachability reason the app never exercises
+# the vulnerable code path, and an expiry: past that date CI stops ignoring
+# it and the finding reappears for re-review, so a stale rationale can't
+# silently persist forever. Owner for all entries: project maintainer.
+#
+# All CVEs below share one root cause: they're in Debian OS packages bundled
+# by python:3.12-slim-bookworm, not in anything apps/agent or
+# apps/control-plane import or shell out to, and Debian has not shipped a
+# patched package for any of them yet (Trivy reports empty "Fixed Version"
+# for all). Re-run this review whenever the base image digest is bumped, in
+# case a fix has landed by then.
+
+vulnerabilities:
+  # perl-base: the runtime image never invokes perl, Archive::Tar,
+  # IO::Compress, or Storable — perl-base is pulled in transitively by
+  # Debian's own packaging tooling (dpkg/apt maintainer scripts), not by
+  # anything in deploy/docker/control-plane.Dockerfile.
+  - id: CVE-2026-8376 # Perl_study_chunk regex compilation heap overflow
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "perl never invoked by the app; transitive via dpkg/apt tooling in the base image. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-57433 # Storable::retrieve SX_HOOK integer overflow
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "Storable is never used; app has no Perl deserialization path. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-42496 # Archive::Tar symlink extraction outside target dir
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "Archive::Tar never invoked; the app never extracts tar archives via Perl. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-13221 # Perl_study_chunk trie miscompilation
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "perl never invoked by the app. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-9538 # Archive::Tar memory exhaustion via crafted entry size
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "Archive::Tar never invoked. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-57432 # S_measure_struct pack/unpack integer overflow
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "pack/unpack never invoked by the app; no Perl code runs in this image. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-48962 # IO::Compress::File::GlobMapper code execution
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "IO::Compress never invoked. No Debian fix yet."
+    expired_at: 2027-02-08
+  - id: CVE-2026-42497 # Archive::Tar hardlink extraction outside target dir
+    purls: ["pkg:deb/debian/perl-base"]
+    statement: "Archive::Tar never invoked. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # zlib1g: only MiniZip's zipOpenNewFileInZip4_64 is affected, which the
+  # advisory itself calls out as unsupported; the app links zlib only for
+  # generic DEFLATE (via Python's zlib/gzip modules), never MiniZip's ZIP API.
+  - id: CVE-2023-45853 # MiniZip zipOpenNewFileInZip4_64 buffer overflow
+    purls: ["pkg:deb/debian/zlib1g"]
+    statement: "MiniZip API is not used anywhere in this codebase; advisory itself notes MiniZip is unsupported. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # libsqlite3-0: requires the attacker already having arbitrary SQL
+  # execution as a precondition. All application data goes through
+  # PostgreSQL (see database.py); nothing in this project executes
+  # attacker-influenced SQL against SQLite.
+  - id: CVE-2025-7458 # sqlite3KeyInfoFromExprList integer overflow DoS
+    purls: ["pkg:deb/debian/libsqlite3-0"]
+    statement: "Requires attacker-controlled arbitrary SQL execution as a precondition; app uses PostgreSQL exclusively, never exposes SQLite to untrusted SQL. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # util-linux-extra: libblkid partition-table parsing needs block-device
+  # access, which the container never has (no privileged mode, no device
+  # mounts) and the app never calls blkid/lsblk or their libraries.
+  - id: CVE-2026-53615 # libblkid dos.c partition parsing integer overflow
+    purls: ["pkg:deb/debian/util-linux-extra"]
+    statement: "Requires block-device access this container never has; app never calls blkid. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # ncurses-bin: only affects the infocmp CLI tool, which nothing in this
+  # project invokes (no terminfo compilation, no interactive terminal UI).
+  - id: CVE-2025-69720 # infocmp analyze_string stack buffer overflow
+    purls: ["pkg:deb/debian/ncurses-bin"]
+    statement: "infocmp is never invoked by the app. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # libacl1: affects acl_get_file/acl_set_file/etc.; the app never calls
+  # POSIX ACL functions (file permissions are managed via plain chmod/chown
+  # in the Dockerfile and at deploy time, not ACLs).
+  - id: CVE-2026-54369 # libacl symlink traversal in pathname-based functions
+    purls: ["pkg:deb/debian/libacl1"]
+    statement: "App never calls POSIX ACL functions; file permissions are managed via chmod/chown only. No Debian fix yet."
+    expired_at: 2027-02-08
+
+  # gzip: the vulnerable path is LZH-format decompression specifically: an
+  # obscure legacy format flag the app never requests. Any gzip use in this
+  # project goes through Python's stdlib gzip module (linked against zlib
+  # directly), never the standalone CLI with attacker-chosen format flags.
+  - id: CVE-2026-41992 # GNU gzip LZH decompression global buffer overflow
+    purls: ["pkg:deb/debian/gzip"]
+    statement: "Vulnerable path is LZH-format decompression, never requested; app uses Python's stdlib gzip module, not attacker-controlled CLI flags. No Debian fix yet."
+    expired_at: 2027-02-08
