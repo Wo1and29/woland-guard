@@ -10,7 +10,7 @@ Implemented and committed locally: an ingestion API with a Detection Engine (8 r
 ATT&CK), a Linux agent with durable delivery, RBAC and a multi-role Dashboard, outbound and
 inbound Telegram notifications (commands, status buttons, reason prompt), a dry-run IP block flow
 with an allowlist and a second-administrator approval, three levels of demo infrastructure (from a
-manual walkthrough to a full release gate), and 22 ADRs documenting every architectural decision —
+manual walkthrough to a full release gate), and 23 ADRs documenting every architectural decision —
 including a dedicated decision not to automate IP block execution (ADR-0016).
 
 ## License
@@ -119,7 +119,7 @@ comment form:
 - a Linux agent for Ubuntu Server 24.04: two-phase journald reading, an SQLite spool, explicit safe
   parsers, and HTTPS delivery;
 - baseline Ruff, mypy, and pytest configuration;
-- 22 ADRs documenting the confirmed architectural decisions of every implemented stage;
+- 23 ADRs documenting the confirmed architectural decisions of every implemented stage;
 - an isolated Chromium browser harness: loopback HTTPS, an ephemeral trustme CA, a dedicated
   PostgreSQL 17 instance, and synthetic data without persistent browser artifacts;
 - a closed canonical manifest and a loopback-only sender for synthetic positive, negative, and

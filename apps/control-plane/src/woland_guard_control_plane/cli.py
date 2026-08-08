@@ -3,7 +3,7 @@
 import argparse
 import getpass
 import sys
-from datetime import datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -42,11 +42,17 @@ from woland_guard_control_plane.application.operators import (
     rotate_operator_api_key,
 )
 from woland_guard_control_plane.application.provisioning import provision_test_server
+from woland_guard_control_plane.application.report_rendering import render_html, render_markdown
 from woland_guard_control_plane.application.telegram_identity import (
     TelegramIdentityError,
     link_telegram_user,
     list_telegram_links,
     revoke_telegram_link,
+)
+from woland_guard_control_plane.application.weekly_report import (
+    ReportPeriodError,
+    build_weekly_report,
+    week_ending,
 )
 from woland_guard_control_plane.database import get_session_factory
 from woland_guard_control_plane.infrastructure.database.models import (
@@ -200,6 +206,23 @@ def build_parser() -> argparse.ArgumentParser:
         "list-ip-allowlist-entries",
         help="show active IP block allowlist entries",
     )
+    weekly_report = subcommands.add_parser(
+        "weekly-report",
+        help="print an aggregate seven-day report to stdout (redirect it to a file)",
+    )
+    weekly_report.add_argument(
+        "--week-ending",
+        type=date.fromisoformat,
+        required=True,
+        metavar="YYYY-MM-DD",
+        help="midnight UTC of this day ends the seven-day window, exclusive",
+    )
+    weekly_report.add_argument(
+        "--format",
+        choices=("markdown", "html"),
+        default="markdown",
+        help="html is laid out for printing to PDF from a browser",
+    )
     return parser
 
 
@@ -222,7 +245,33 @@ def main() -> None:
     if arguments.command in _IP_ALLOWLIST_COMMANDS:
         _run_ip_allowlist_command(arguments)
         return
+    if arguments.command == "weekly-report":
+        _run_weekly_report(arguments)
+        return
     _run_create_test_agent(arguments)
+
+
+def _run_weekly_report(arguments: argparse.Namespace) -> None:
+    """Print the report to stdout; the operator redirects it (ADR-0023 §5)."""
+
+    try:
+        period = week_ending(arguments.week_ending)
+        with get_session_factory()() as session:
+            report = build_weekly_report(session, period=period, now=datetime.now(UTC))
+    except ReportPeriodError:
+        print("Период отчёта задан неверно.", file=sys.stderr)
+        raise SystemExit(2) from None
+    except SQLAlchemyError:
+        # The stack trace would carry table names and file paths into whatever
+        # the operator was redirecting into; every other command here is quiet
+        # about failures for the same reason.
+        print(
+            "Не удалось собрать отчёт: база данных недоступна или миграции не применены.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
+    rendered = render_html(report) if arguments.format == "html" else render_markdown(report)
+    print(rendered)
 
 
 def _run_rules_command(arguments: argparse.Namespace) -> None:

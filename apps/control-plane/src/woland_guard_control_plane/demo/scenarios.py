@@ -243,8 +243,13 @@ def _error_spike_specs(case: DemoCaseType, anchor: datetime, index: int) -> tupl
         offsets: tuple[int, ...] = (-120, *range(-13, 1))
     else:
         offsets = tuple(range(-13 if case is DemoCaseType.BOUNDARY_BELOW else -14, 1))
+    # The status is also this rule's only correlation field, so the two matching
+    # cases must not share one: an incident is looked up by correlation without a
+    # time bound, and reusing 404 made boundary_exact attach its evidence to the
+    # incident positive had already opened instead of opening its own.
+    status = 500 if case is DemoCaseType.BOUNDARY_EXACT else 404
     return tuple(
-        _request_spec(anchor + timedelta(seconds=offset), 404, index, slot)
+        _request_spec(anchor + timedelta(seconds=offset), status, index, slot)
         for slot, offset in enumerate(offsets)
     )
 

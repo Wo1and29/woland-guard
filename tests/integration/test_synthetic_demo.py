@@ -275,8 +275,18 @@ def test_all_scenarios_on_one_server_remain_cross_rule_isolated(
         assert session.scalar(select(func.count()).select_from(IncidentEvent)) == sum(
             manifest.expected_outcomes.evidence_link_count for manifest in manifests
         )
-        assert session.scalar(select(func.count()).select_from(IncidentHistoryEntry)) == 16
-        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 16
+        # Derived, not pinned: one baseline history entry and one outbox message
+        # per created incident. A literal here silently went stale as rules were
+        # added, which is exactly what this assertion exists to catch.
+        expected_incidents = sum(
+            manifest.expected_outcomes.new_incident_count for manifest in manifests
+        )
+        assert session.scalar(select(func.count()).select_from(IncidentHistoryEntry)) == (
+            expected_incidents
+        )
+        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == sum(
+            manifest.expected_outcomes.outbox_count_delta for manifest in manifests
+        )
     assert sum(summary.accepted for summary in summaries) == sum(
         len(manifest.events) for manifest in manifests
     )
