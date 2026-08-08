@@ -15,6 +15,7 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/deploy/docker"
+      - "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
