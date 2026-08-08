@@ -804,7 +804,7 @@ The full list of current MVP-level technical limitations follows below.
   notification;
 - [docs/threat-model.md](docs/threat-model.md) — the threat model;
 - [docs/detection-rules.md](docs/detection-rules.md) — the YAML rule schema and the current set of
-  8;
+  13;
 - [docs/deployment.md](docs/deployment.md) — VPS deployment, HTTPS, reverse proxy;
 - [docs/agent-installation.md](docs/agent-installation.md) — installing the agent on Ubuntu Server
   24.04;

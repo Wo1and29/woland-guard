@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag matches the package version
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $pkg_version"
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.30"
+
+      - name: Build the control-plane runtime image
+        run: |
+          docker build --target runtime \
+            -f deploy/docker/control-plane.Dockerfile \
+            -t "woland-guard-control-plane:${GITHUB_REF_NAME}" .
+
+      - name: SBOM — source dependency tree (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom-source.cdx.json
+
+      - name: SBOM — runtime image (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: "woland-guard-control-plane:${{ github.ref_name }}"
+          format: cyclonedx-json
+          output-file: sbom-image.cdx.json
+
+      - name: Checksums
+        run: sha256sum sbom-source.cdx.json sbom-image.cdx.json > checksums.txt
+
+      - name: Render release notes
+        run: |
+          set -euo pipefail
+          rule_count=$(ls detection-rules/*.yaml | wc -l | tr -d ' ')
+          adr_count=$(ls docs/adr/*.md | wc -l | tr -d ' ')
+          tagged_at="$(date -u +%Y-%m-%d)"
+          commit="${GITHUB_SHA}"
+          checks_url="https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/checks"
+
+          cat > release-notes.md <<EOF
+          First tagged release of Woland Guard — a defensive Linux server monitoring system.
+          An agent reads permitted system events, the control plane turns them into readable
+          incidents, and an operator responds through a role-based web Dashboard or
+          interactively through Telegram.
+
+          ## What's included
+
+          - Detection Engine: ${rule_count} YAML rules across five condition types
+            (single, threshold, distinct_count, sequence, first_seen), each mapped to
+            MITRE ATT&CK. Rules are structurally non-executable — no \`eval\`/\`exec\` path
+            exists in the schema.
+          - Linux agent: journald, Nginx access log, auth.log/secure, cron/systemd, and
+            file-integrity sources; durable SQLite spool surviving restarts and network
+            outages; runs unprivileged, systemd-hardened.
+          - Control plane: FastAPI ingestion API over PostgreSQL, RBAC (viewer/analyst/admin),
+            an append-only audit trail, and a server-rendered Dashboard (Jinja2, no JS
+            framework).
+          - Telegram: outbound incident alerts plus an interactive bot (inline buttons,
+            per-operator \`/lang\`, a reason-prompt flow for false positives).
+          - Dry-run IP blocking with mandatory second-administrator approval — the plan is
+            never auto-executed; see
+            [ADR-0016](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/adr/0016-no-automated-block-execution.md).
+          - Weekly incident reports (Markdown/HTML).
+          - ${adr_count} architecture decision records documenting every trust-boundary
+            decision made along the way, including two reasoned refusals to expand agent
+            privileges.
+          - A three-tier demo/verification setup, from a manual walkthrough to a full
+            release gate covering 52 synthetic scenarios end-to-end.
+          - The portfolio site (wo1and29.github.io/woland-guard) rebuilt as a reproducible
+            Vite build with no runtime CDN dependencies.
+
+          ## Known limitations
+
+          Not exhaustive here by design — see the maintained list:
+          [MVP limitations](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/README.md#ограничения-mvp)
+          and [the threat model](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/threat-model.md).
+          Most notably: IP blocking is *always* dry-run and is never executed by the project
+          itself; there is no HTTP API for server/key management; delivery is at-least-once.
+
+          ## Verification
+
+          - Commit: \`${commit}\`
+          - Tagged: ${tagged_at}
+          - CI status for this commit: ${checks_url}
+          - Rule and ADR counts above are counted directly from this commit's tree, not
+            hand-typed.
+          - \`pip-audit\` dependency scan ran against this commit in CI (see the CI link
+            above) — 0 known vulnerabilities at tag time.
+          - SBOM (CycloneDX) attached below for both the source dependency tree and the
+            built runtime image, with SHA-256 checksums.
+
+          Licensed under AGPL-3.0-or-later.
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Woland Guard ${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            sbom-source.cdx.json sbom-image.cdx.json checksums.txt

@@ -808,7 +808,7 @@ docker compose exec control-plane woland-guard-admin weekly-report \
 - [docs/architecture.md](docs/architecture.md) — компоненты и поток события от агента до
   уведомления;
 - [docs/threat-model.md](docs/threat-model.md) — модель угроз;
-- [docs/detection-rules.md](docs/detection-rules.md) — схема YAML-правил и текущий набор из 10;
+- [docs/detection-rules.md](docs/detection-rules.md) — схема YAML-правил и текущий набор из 13;
 - [docs/deployment.md](docs/deployment.md) — развёртывание на VPS, HTTPS, reverse proxy;
 - [docs/agent-installation.md](docs/agent-installation.md) — установка агента на Ubuntu Server 24.04;
 - [docs/demo.md](docs/demo.md) — три уровня demo-режима, от ручного до полного release gate;
