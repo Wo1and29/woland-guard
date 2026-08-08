@@ -66,21 +66,23 @@ vulnerabilities:
     statement: "Requires attacker-controlled arbitrary SQL execution as a precondition; app uses PostgreSQL exclusively, never exposes SQLite to untrusted SQL. No Debian fix yet."
     expired_at: 2027-02-08
 
-  # util-linux/util-linux-extra: same source package, two sub-packages both
-  # linking libblkid. Partition-table parsing needs block-device access,
-  # which the container never has (no privileged mode, no device mounts),
-  # and the app never calls blkid/lsblk or their libraries.
+  # util-linux's source package ships libblkid across a dozen binary
+  # sub-packages (util-linux, util-linux-extra, mount, bsdutils, libblkid1,
+  # libmount1, libuuid1, libsmartcols1, ...) that each surface as a separate
+  # Trivy finding for the same CVE. No purls list here is safe against a
+  # future Debian point release adding another; the reachability argument
+  # (no block-device access, app never calls blkid/lsblk) applies to all of
+  # them equally, so this is ignored by CVE ID, not by an enumerable package
+  # list.
   - id: CVE-2026-53615 # libblkid dos.c partition parsing integer overflow
-    purls: ["pkg:deb/debian/util-linux-extra", "pkg:deb/debian/util-linux"]
-    statement: "Requires block-device access this container never has; app never calls blkid. No Debian fix yet."
+    statement: "Requires block-device access this container never has; app never calls blkid, across any util-linux sub-package. No Debian fix yet."
     expired_at: 2027-02-08
 
-  # ncurses-bin/ncurses-base: same source package, two sub-packages; only
-  # affects the infocmp CLI tool, which nothing in this project invokes (no
-  # terminfo compilation, no interactive terminal UI).
+  # Same reasoning, ncurses's source package (ncurses-bin, ncurses-base,
+  # libtinfo6, libncursesw6, ...): only affects the infocmp CLI tool, never
+  # invoked by this project regardless of which sub-package carries it.
   - id: CVE-2025-69720 # infocmp analyze_string stack buffer overflow
-    purls: ["pkg:deb/debian/ncurses-bin", "pkg:deb/debian/ncurses-base"]
-    statement: "infocmp is never invoked by the app. No Debian fix yet."
+    statement: "infocmp is never invoked by the app, across any ncurses sub-package. No Debian fix yet."
     expired_at: 2027-02-08
 
   # libacl1: affects acl_get_file/acl_set_file/etc.; the app never calls
