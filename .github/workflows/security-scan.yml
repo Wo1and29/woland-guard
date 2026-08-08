@@ -22,9 +22,14 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Run Trivy (filesystem + misconfig)
-        id: trivy
-        continue-on-error: true # upload SARIF below even when this finds something; the final step still fails the job
+      # Two separate invocations, not one: trivy-action's SARIF output does
+      # not consistently respect --ignorefile for its own exit-code decision
+      # (confirmed by hand — the identical scan with format:table honors the
+      # ignore list and exits 0, format:sarif does not and exits 1 on the
+      # same, already-ignored findings). SARIF still needs uploading for the
+      # Security tab, so it stays non-blocking (exit-code 0); a second,
+      # non-SARIF run is the actual gate.
+      - name: Run Trivy (filesystem + misconfig, SARIF for the Security tab)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -34,14 +39,21 @@ jobs:
           output: trivy-repo.sarif
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore.yaml
-          exit-code: "1"
+          exit-code: "0"
       - uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           sarif_file: trivy-repo.sarif
           category: trivy-repo
-      - name: Fail on unignored critical/high findings
-        if: steps.trivy.outcome == 'failure'
-        run: exit 1
+      - name: Run Trivy (filesystem + misconfig, blocking gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          format: table
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore.yaml
+          exit-code: "1"
 
   trivy-image:
     name: Trivy — runtime image
@@ -57,9 +69,7 @@ jobs:
           docker build --target runtime \
             -f deploy/docker/control-plane.Dockerfile \
             -t woland-guard-control-plane:scan .
-      - name: Run Trivy (image)
-        id: trivy
-        continue-on-error: true # upload SARIF below even when this finds something; the final step still fails the job
+      - name: Run Trivy (image, SARIF for the Security tab)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -69,13 +79,12 @@ jobs:
           output: trivy-image.sarif
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore.yaml
-          exit-code: "1"
+          exit-code: "0"
       - uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
-      - name: DEBUG table output
-        if: steps.trivy.outcome == 'failure'
+      - name: Run Trivy (image, blocking gate)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -84,10 +93,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           trivyignores: .trivyignore.yaml
-          exit-code: "0"
-      - name: Fail on unignored critical/high findings
-        if: steps.trivy.outcome == 'failure'
-        run: exit 1
+          exit-code: "1"
 
   codeql:
     name: CodeQL (${{ matrix.language }})
