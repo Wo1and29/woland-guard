@@ -2,7 +2,7 @@ name: woland-guard
 
 services:
   postgres:
-    image: postgres:17-bookworm
+    image: postgres:17-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
     environment:
       POSTGRES_DB: ${WG_POSTGRES_DB:-woland_guard}
       POSTGRES_USER: ${WG_POSTGRES_USER:-woland_guard}
@@ -60,7 +60,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${WG_HTTP_PORT:-8000}:8000"
+      - "${WG_HTTP_BIND:-127.0.0.1}:${WG_HTTP_PORT:-8000}:8000"
     healthcheck:
       test:
         [
@@ -242,7 +242,7 @@ services:
 
   postgres-test-setup:
     profiles: ["test"]
-    image: postgres:17-bookworm
+    image: postgres:17-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
     environment:
       POSTGRES_USER: ${WG_POSTGRES_USER:-woland_guard}
       POSTGRES_PASSWORD: ${WG_POSTGRES_PASSWORD:?Set WG_POSTGRES_PASSWORD in .env}

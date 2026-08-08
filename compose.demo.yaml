@@ -2,7 +2,7 @@ name: woland-guard-demo
 
 services:
   demo-postgres:
-    image: postgres:17-bookworm
+    image: postgres:17-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
     environment:
       POSTGRES_DB: wg_demo
       POSTGRES_USER: wg_demo
