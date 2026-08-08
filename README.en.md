@@ -6,7 +6,7 @@ Woland Guard is a defensive Linux server monitoring system. An agent reads permi
 events, and the control plane turns them into readable incidents and helps an operator respond —
 through a protected web Dashboard or interactively through Telegram.
 
-Implemented and committed locally: an ingestion API with a Detection Engine (13 rules, MITRE
+Implemented: an ingestion API with a Detection Engine (13 rules, MITRE
 ATT&CK), a Linux agent with durable delivery, RBAC and a multi-role Dashboard, outbound and
 inbound Telegram notifications (commands, status buttons, reason prompt), a dry-run IP block flow
 with an allowlist and a second-administrator approval, three levels of demo infrastructure (from a
@@ -21,7 +21,9 @@ Licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-o
 code may be freely copied, studied, and modified — including for commercial purposes. AGPL's key
 difference from MIT/Apache: if you modify the code and offer it as a network service (including
 SaaS, without distributing binaries), you must make your version's source available under the same
-license. This discourages closed-source competing forks without banning commercial use itself.
+license. This stops the project being quietly turned into a closed-source SaaS competitor, but it
+bans neither commercial use nor a closed internal fork that is never offered to third parties as a
+network service.
 
 ## What it looks like
 
@@ -213,7 +215,8 @@ After a successful start:
 
 - <http://localhost:8000/health/live>
 - <http://localhost:8000/health/ready>
-- <http://localhost:8000/docs>
+- <http://localhost:8000/docs> — only when `WG_APP_ENV=development`; in production the OpenAPI
+  schema and `/docs` are disabled (see `main.py`)
 
 ## Creating a local test key
 
