@@ -26,6 +26,7 @@
   <a{% if active_navigation == "servers" %} aria-current="page"{% endif %} href="{{ paths.servers }}">{{ t(lang, 'nav.servers') }}</a>
   <a{% if active_navigation == "incidents" %} aria-current="page"{% endif %} href="{{ paths.incidents }}">{{ t(lang, 'nav.incidents') }}</a>
   <a{% if active_navigation == "rules" %} aria-current="page"{% endif %} href="{{ paths.rules }}">{{ t(lang, 'nav.rules') }}</a>
+  {% if can_manage_telegram %}<a{% if active_navigation == "notifications" %} aria-current="page"{% endif %} href="{{ paths.notifications }}">{{ t(lang, 'nav.notifications') }}</a>{% endif %}
   {% if can_view_audit %}<a{% if active_navigation == "audit" %} aria-current="page"{% endif %} href="{{ paths.audit }}">{{ t(lang, 'nav.audit') }}</a>{% endif %}
 </nav>
 <section id="dashboard-content" class="dashboard-content" tabindex="-1">

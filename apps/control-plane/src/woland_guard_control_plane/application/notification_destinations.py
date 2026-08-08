@@ -1,4 +1,9 @@
-"""Local-only management of provider-neutral Telegram destinations."""
+"""Management of provider-neutral Telegram destinations.
+
+Most mutations here are local-CLI-only by design; the two dashboard-facing
+functions at the bottom exist because they need no staging filesystem access,
+unlike enabling a destination (ADR-0024).
+"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -8,7 +13,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from woland_guard_control_plane.application.audit import record_local_cli_action
+from woland_guard_control_plane.application.audit import (
+    record_local_cli_action,
+    record_operator_action,
+)
+from woland_guard_control_plane.application.operator_principal import OperatorPrincipal
 from woland_guard_control_plane.infrastructure.database.models import (
     NotificationAdapterKind,
     NotificationDestination,
@@ -198,6 +207,81 @@ def update_telegram_destination(
     )
     session.flush()
     return _summary(destination, config, staging_readiness)
+
+
+def disable_notification_destination_by_operator(
+    session: Session,
+    *,
+    actor: OperatorPrincipal,
+    destination_id: UUID,
+    request_id: str,
+    now: datetime | None = None,
+) -> DestinationSummary:
+    """Disable from the Dashboard: the one mutation that needs no staging check.
+
+    Enabling is deliberately not offered here -- it requires confirming the
+    token staging file is actually present, and control-plane has no filesystem
+    access to that staging directory by design (ADR-0024 §1-§2).
+    """
+
+    destination, config = _load_pair(session, destination_id=destination_id, lock=True)
+    if destination.adapter_kind != NotificationAdapterKind.TELEGRAM.value:
+        raise NotificationDestinationManagementError("Telegram destination is not configured.")
+    if destination.enabled:
+        destination.enabled = False
+        destination.updated_at = now or datetime.now(UTC)
+        record_operator_action(
+            session,
+            actor=actor,
+            action="notification_destination.disabled_by_operator",
+            target_type="notification_destination",
+            target_id=destination.id,
+            request_id=request_id,
+            incident_history_id=None,
+            details={
+                "adapter_kind": destination.adapter_kind,
+                "minimum_severity": destination.minimum_severity,
+            },
+        )
+        session.flush()
+    return _summary(destination, config, lambda _name: False)
+
+
+def update_notification_destination_severity_by_operator(
+    session: Session,
+    *,
+    actor: OperatorPrincipal,
+    destination_id: UUID,
+    minimum_severity: NotificationSeverity,
+    request_id: str,
+    now: datetime | None = None,
+) -> DestinationSummary:
+    """Change the delivery threshold; routing (chat_id, token) stays CLI-only."""
+
+    destination, config = _load_pair(session, destination_id=destination_id, lock=True)
+    if destination.adapter_kind != NotificationAdapterKind.TELEGRAM.value:
+        raise NotificationDestinationManagementError("Telegram destination is not configured.")
+    from_severity = destination.minimum_severity
+    to_severity = minimum_severity.value
+    if from_severity != to_severity:
+        destination.minimum_severity = to_severity
+        destination.updated_at = now or datetime.now(UTC)
+        record_operator_action(
+            session,
+            actor=actor,
+            action="notification_destination.minimum_severity_changed_by_operator",
+            target_type="notification_destination",
+            target_id=destination.id,
+            request_id=request_id,
+            incident_history_id=None,
+            details={
+                "adapter_kind": destination.adapter_kind,
+                "from_minimum_severity": from_severity,
+                "to_minimum_severity": to_severity,
+            },
+        )
+        session.flush()
+    return _summary(destination, config, lambda _name: False)
 
 
 def _load_pair(

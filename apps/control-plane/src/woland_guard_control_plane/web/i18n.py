@@ -45,6 +45,7 @@ _STRINGS: dict[str, dict[Language, str]] = {
     "nav.servers": {"ru": "Серверы", "en": "Servers"},
     "nav.incidents": {"ru": "Инциденты", "en": "Incidents"},
     "nav.rules": {"ru": "Правила", "en": "Rules"},
+    "nav.notifications": {"ru": "Уведомления", "en": "Notifications"},
     "nav.audit": {"ru": "Аудит", "en": "Audit"},
     # shared table headers
     "th.created": {"ru": "Создан", "en": "Created"},
@@ -197,6 +198,34 @@ _STRINGS: dict[str, dict[Language, str]] = {
     # rules
     "rules.title": {"ru": "Правила — Woland Guard", "en": "Rules — Woland Guard"},
     "rules.h1": {"ru": "Активные версии правил", "en": "Active rule versions"},
+    "notifications.title": {
+        "ru": "Уведомления — Woland Guard",
+        "en": "Notifications — Woland Guard",
+    },
+    "notifications.h1": {"ru": "Получатели уведомлений", "en": "Notification destinations"},
+    "notifications.enable_note": {
+        "ru": (
+            "Включение получателя и создание нового, а также смена chat ID или файла токена "
+            "доступны только через локальный CLI (telegram-admin) — для этого нужна проверка "
+            "файла токена, которую control-plane выполнить не может."
+        ),
+        "en": (
+            "Enabling a destination, creating a new one, and changing the chat ID or token "
+            "file are CLI-only (telegram-admin) — they require a token-file check that "
+            "control-plane cannot perform."
+        ),
+    },
+    "notifications.enabled": {"ru": "Включён", "en": "Enabled"},
+    "notifications.disabled": {"ru": "Отключён", "en": "Disabled"},
+    "notifications.configured": {"ru": "настроен", "en": "configured"},
+    "notifications.not_configured": {"ru": "не настроен", "en": "not configured"},
+    "notifications.minimum_severity_label": {
+        "ru": "Минимальная severity:",
+        "en": "Minimum severity:",
+    },
+    "notifications.updated_at_label": {"ru": "Изменён:", "en": "Updated:"},
+    "notifications.disable_button": {"ru": "Отключить", "en": "Disable"},
+    "notifications.save_severity_button": {"ru": "Сохранить", "en": "Save"},
     "filter.rule_key_prefix": {"ru": "Префикс rule key", "en": "Rule key prefix"},
     "filter.enabled": {"ru": "Enabled", "en": "Enabled"},
     "filter.condition": {"ru": "Condition", "en": "Condition"},
@@ -270,6 +299,14 @@ _STRINGS: dict[str, dict[Language, str]] = {
         "en": "Invalid search parameters.",
     },
     "err.incident_not_found": {"ru": "Инцидент не найден.", "en": "Incident not found."},
+    "err.destination_not_found": {
+        "ru": "Получатель уведомлений не найден.",
+        "en": "Notification destination not found.",
+    },
+    "err.destination_mutation_unavailable": {
+        "ru": "Не удалось изменить получателя уведомлений.",
+        "en": "Could not update the notification destination.",
+    },
     "err.invalid_evidence_page_size": {
         "ru": "Некорректный размер страницы evidence.",
         "en": "Invalid evidence page size.",

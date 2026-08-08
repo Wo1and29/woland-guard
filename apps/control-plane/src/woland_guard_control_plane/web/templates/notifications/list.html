@@ -1,0 +1,21 @@
+{% extends "base_dashboard.html" %}
+{% block title %}{{ t(lang, 'notifications.title') }}{% endblock %}
+{% block dashboard_content %}
+<h1>{{ t(lang, 'notifications.h1') }}</h1>
+<p>{{ t(lang, 'notifications.enable_note') }}</p>
+{% if destinations %}<div class="card-grid">{% for item in destinations %}<article>
+  <h2>{{ item.adapter_kind }}</h2>
+  <p>{% if item.enabled %}<span class="pill" data-state="enabled">{{ t(lang, 'notifications.enabled') }}</span>{% else %}<span class="pill" data-state="disabled">{{ t(lang, 'notifications.disabled') }}</span>{% endif %} · {% if item.configured %}{{ t(lang, 'notifications.configured') }}{% else %}{{ t(lang, 'notifications.not_configured') }}{% endif %}</p>
+  <p>{{ t(lang, 'notifications.minimum_severity_label') }} <span class="pill" data-severity="{{ item.minimum_severity }}">{{ item.minimum_severity }}</span></p>
+  <p><small>{{ t(lang, 'notifications.updated_at_label') }} {{ item.updated_at.isoformat() }}</small></p>
+  {% if item.enabled %}<form class="mutation-form" method="post" action="{{ paths.notifications }}/{{ item.destination_id }}/disable" accept-charset="UTF-8">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button type="submit">{{ t(lang, 'notifications.disable_button') }}</button>
+  </form>{% endif %}
+  <form class="mutation-form" method="post" action="{{ paths.notifications }}/{{ item.destination_id }}/severity" accept-charset="UTF-8">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label>{{ t(lang, 'notifications.minimum_severity_label') }} <select name="minimum_severity">{% for severity in severities %}<option value="{{ severity }}"{% if severity == item.minimum_severity %} selected{% endif %}>{{ severity }}</option>{% endfor %}</select></label>
+    <button type="submit">{{ t(lang, 'notifications.save_severity_button') }}</button>
+  </form>
+</article>{% endfor %}</div>{% else %}{% include "components/empty_state.html" %}{% endif %}
+{% endblock %}

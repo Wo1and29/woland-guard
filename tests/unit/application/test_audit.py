@@ -133,6 +133,22 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
         {"adapter_kind": "telegram", "minimum_severity": "critical"},
     ),
     (
+        "notification_destination.disabled_by_operator",
+        AuditActorType.OPERATOR,
+        "notification_destination",
+        {"adapter_kind": "telegram", "minimum_severity": "critical"},
+    ),
+    (
+        "notification_destination.minimum_severity_changed_by_operator",
+        AuditActorType.OPERATOR,
+        "notification_destination",
+        {
+            "adapter_kind": "telegram",
+            "from_minimum_severity": "critical",
+            "to_minimum_severity": "high",
+        },
+    ),
+    (
         "ip_block_plan.proposed",
         AuditActorType.OPERATOR,
         "ip_block_plan",
@@ -396,6 +412,10 @@ def _auth_method_for(
 ) -> OperatorAuthMethodType | None:
     if actor_type is AuditActorType.LOCAL_CLI:
         return None
-    if action == "operator_web_session.ended":
+    if action in {
+        "operator_web_session.ended",
+        "notification_destination.disabled_by_operator",
+        "notification_destination.minimum_severity_changed_by_operator",
+    }:
         return OperatorAuthMethodType.WEB_SESSION
     return OperatorAuthMethodType.OPERATOR_API_KEY

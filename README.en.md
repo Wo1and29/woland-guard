@@ -6,11 +6,11 @@ Woland Guard is a defensive Linux server monitoring system. An agent reads permi
 events, and the control plane turns them into readable incidents and helps an operator respond —
 through a protected web Dashboard or interactively through Telegram.
 
-Implemented and committed locally: an ingestion API with a Detection Engine (8 rules, MITRE
+Implemented and committed locally: an ingestion API with a Detection Engine (13 rules, MITRE
 ATT&CK), a Linux agent with durable delivery, RBAC and a multi-role Dashboard, outbound and
 inbound Telegram notifications (commands, status buttons, reason prompt), a dry-run IP block flow
 with an allowlist and a second-administrator approval, three levels of demo infrastructure (from a
-manual walkthrough to a full release gate), and 23 ADRs documenting every architectural decision —
+manual walkthrough to a full release gate), and 24 ADRs documenting every architectural decision —
 including a dedicated decision not to automate IP block execution (ADR-0016).
 
 ## License
@@ -101,6 +101,9 @@ comment form:
 - safe Incident/Audit APIs, optimistic `lock_version`, immutable history, and audit;
 - operator-scoped idempotency for status transitions with persisted 200/404/409 outcomes;
 - provider-neutral notification destinations without provider credentials or seed rows;
+- a `/dashboard/notifications` page (`admin` only): Telegram destination status, disable, and a
+  minimum_severity change from the Dashboard with operator-attributed audit; enabling stays
+  CLI-only, since it requires a staging check `control-plane` cannot perform (ADR-0024);
 - a transactional outbox, atomic with the new incident, its baseline history, and evidence;
 - a concurrent worker with `FOR UPDATE SKIP LOCKED`, claim tokens, lease recovery, and equal
   jitter;
@@ -119,12 +122,12 @@ comment form:
 - a Linux agent for Ubuntu Server 24.04: two-phase journald reading, an SQLite spool, explicit safe
   parsers, and HTTPS delivery;
 - baseline Ruff, mypy, and pytest configuration;
-- 23 ADRs documenting the confirmed architectural decisions of every implemented stage;
+- 24 ADRs documenting the confirmed architectural decisions of every implemented stage;
 - an isolated Chromium browser harness: loopback HTTPS, an ephemeral trustme CA, a dedicated
   PostgreSQL 17 instance, and synthetic data without persistent browser artifacts;
 - a closed canonical manifest and a loopback-only sender for synthetic positive, negative, and
-  boundary demo scenarios covering all ten detection rules;
-- a separate demo topology with PostgreSQL 17, a single migration job, rule sync, 32-scenario
+  boundary demo scenarios covering all thirteen detection rules;
+- a separate demo topology with PostgreSQL 17, a single migration job, rule sync, 52-scenario
   ingestion, a real outbox worker, an in-process fake Telegram boundary, an HTTPS Dashboard smoke
   check, and a synthetic backup/restore smoke check.
 
@@ -478,6 +481,14 @@ docker compose --profile telegram-notifications run --rm telegram-admin \
 `update-telegram-destination` are also available. There is no delete command, to preserve delivery
 history. To change the chat ID, the update command uses `--change-chat-id` and a hidden prompt; a
 new token is set only through a new `--token-file-name`, never through its contents.
+
+**The `/dashboard/notifications` page** (`admin` only) shows destination status and lets an
+operator disable it or change `minimum_severity` from the Dashboard -- both mutations go through
+the same Origin/CSRF machinery as every other Dashboard action and are audited with the operator
+who made the change. **Enabling stays CLI-only**: it requires confirming the token staging file
+is present, and `control-plane` deliberately has no access to that staging directory -- the same
+architectural decision as above, applied to a different action
+([ADR-0024](docs/adr/0024-telegram-destination-dashboard-settings.md)).
 
 The worker is started separately:
 

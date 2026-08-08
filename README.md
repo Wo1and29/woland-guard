@@ -10,7 +10,7 @@ Woland Guard — защитная система мониторинга Linux-с
 Linux-агент с durable delivery, RBAC и Dashboard с несколькими ролями, исходящие и входящие
 Telegram-уведомления (команды, кнопки статуса, диалог причины), dry-run-блокировка IP с allowlist
 и подтверждением второго администратора, три уровня demo-инфраструктуры (от ручного показа до
-полного release-гейта) и 23 ADR с обоснованием каждого архитектурного решения — включая
+полного release-гейта) и 24 ADR с обоснованием каждого архитектурного решения — включая
 отдельное решение не автоматизировать исполнение блокировки IP (ADR-0016).
 
 ## Лицензия
@@ -97,6 +97,9 @@ production-инстанса — у реального пользователя �
 - безопасные Incident/Audit API, optimistic `lock_version`, immutable history и audit;
 - operator-scoped идемпотентность status transitions с сохранёнными 200/404/409 outcomes;
 - provider-neutral notification destinations без provider credentials и seed-записей;
+- страница `/dashboard/notifications` (только `admin`): статус Telegram destination, disable и
+  смена minimum_severity через дашборд с audit-записью оператора; включение остаётся CLI-only,
+  потому что требует staging-проверки, недоступной `control-plane` (ADR-0024);
 - transactional outbox, атомарный с новым incident, baseline history и evidence;
 - конкурентный worker с `FOR UPDATE SKIP LOCKED`, claim token, lease recovery и equal jitter;
 - безопасные outbox CLI-команды run/run-once/status/recovery/manual requeue;
@@ -112,7 +115,7 @@ production-инстанса — у реального пользователя �
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- 23 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
+- 24 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
@@ -470,6 +473,14 @@ docker compose --profile telegram-notifications run --rm telegram-admin \
 `update-telegram-destination`. Удаление отсутствует, чтобы сохранять историю доставок. Для
 смены chat ID команда update использует `--change-chat-id` и скрытый prompt; новый token
 задаётся только новым `--token-file-name`, но не его содержимым.
+
+**Страница `/dashboard/notifications`** (только `admin`) показывает статус destination и
+позволяет отключить его или изменить `minimum_severity` прямо из дашборда — обе мутации
+проходят через тот же Origin/CSRF-механизм, что и остальные действия дашборда, и пишутся в
+audit с указанием оператора. **Включение остаётся только CLI-командой**: оно требует проверки
+staging-файла токена, а `control-plane` намеренно не получает доступа к staging-каталогу — то
+же архитектурное решение, что и выше в этом разделе, только для другого действия
+([ADR-0024](docs/adr/0024-telegram-destination-dashboard-settings.md)).
 
 Worker запускается отдельно:
 

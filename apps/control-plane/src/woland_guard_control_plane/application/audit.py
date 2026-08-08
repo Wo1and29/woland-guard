@@ -183,6 +183,28 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
                 minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
             ),
         ),
+        # Distinct from the CLI actions above: the registry ties one actor type to
+        # one action name, so an operator mutation cannot reuse a LOCAL_CLI action
+        # without the audit log misattributing who made the change (ADR-0024 §5).
+        "notification_destination.disabled_by_operator": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+            ),
+            allowed_auth_methods=frozenset({OperatorAuthMethodType.WEB_SESSION}),
+        ),
+        "notification_destination.minimum_severity_changed_by_operator": AuditActionSpec(
+            actor_type=AuditActorType.OPERATOR,
+            target_type="notification_destination",
+            detail_fields=_fields(
+                adapter_kind=AuditDetailType.NOTIFICATION_ADAPTER_KIND,
+                from_minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+                to_minimum_severity=AuditDetailType.NOTIFICATION_SEVERITY,
+            ),
+            allowed_auth_methods=frozenset({OperatorAuthMethodType.WEB_SESSION}),
+        ),
         "ip_block_plan.proposed": AuditActionSpec(
             actor_type=AuditActorType.OPERATOR,
             target_type="ip_block_plan",

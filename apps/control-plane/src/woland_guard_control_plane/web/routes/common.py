@@ -48,6 +48,9 @@ def dashboard_context(
     return {
         "active_navigation": active_navigation,
         "can_view_audit": role_has_permission(principal.role, Permission.VIEW_AUDIT_LOG),
+        "can_manage_telegram": role_has_permission(
+            principal.role, Permission.MANAGE_TELEGRAM_DESTINATIONS
+        ),
         "csrf_token": csrf_token,
         "lang": current_language(request),
         "operator_role": principal.role.value,
@@ -59,6 +62,7 @@ def dashboard_context(
             "lang_en": page_url(request, "/lang/en", {"next": next_url}),
             "lang_ru": page_url(request, "/lang/ru", {"next": next_url}),
             "logout": external_path(request, "/logout"),
+            "notifications": external_path(request, "/notifications"),
             "rules": external_path(request, "/rules"),
             "servers": external_path(request, "/servers"),
             "static_css": external_path(request, "/static/dashboard.css"),
