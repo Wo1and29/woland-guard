@@ -74,6 +74,17 @@ jobs:
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
+      - name: DEBUG table output
+        if: steps.trivy.outcome == 'failure'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: woland-guard-control-plane:scan
+          scanners: vuln
+          format: table
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore.yaml
+          exit-code: "0"
       - name: Fail on unignored critical/high findings
         if: steps.trivy.outcome == 'failure'
         run: exit 1
