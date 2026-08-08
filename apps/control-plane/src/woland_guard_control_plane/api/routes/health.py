@@ -6,7 +6,7 @@ from fastapi import APIRouter, Response, status
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
-from woland_guard_control_plane.database import check_database
+from woland_guard_control_plane.database import MigrationDriftError, check_database
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -21,7 +21,7 @@ class ReadinessResponse(BaseModel):
     """Response describing dependency readiness."""
 
     status: Literal["ready", "not_ready"]
-    database: Literal["ok", "unavailable"]
+    database: Literal["ok", "unavailable", "not_migrated"]
 
 
 @router.get("/live", response_model=LivenessResponse)
@@ -37,10 +37,13 @@ def liveness() -> LivenessResponse:
     responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
 )
 def readiness(response: Response) -> ReadinessResponse:
-    """Report readiness only after PostgreSQL accepts a simple query."""
+    """Report readiness only once PostgreSQL is reachable and migrated to head."""
 
     try:
         check_database()
+    except MigrationDriftError:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return ReadinessResponse(status="not_ready", database="not_migrated")
     except SQLAlchemyError:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadinessResponse(status="not_ready", database="unavailable")

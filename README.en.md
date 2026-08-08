@@ -10,7 +10,7 @@ Implemented: an ingestion API with a Detection Engine (13 rules, MITRE
 ATT&CK), a Linux agent with durable delivery, RBAC and a multi-role Dashboard, outbound and
 inbound Telegram notifications (commands, status buttons, reason prompt), a dry-run IP block flow
 with an allowlist and a second-administrator approval, three levels of demo infrastructure (from a
-manual walkthrough to a full release gate), and 24 ADRs documenting every architectural decision —
+manual walkthrough to a full release gate), and 25 ADRs documenting every architectural decision —
 including a dedicated decision not to automate IP block execution (ADR-0016).
 
 ## License
@@ -83,7 +83,7 @@ comment form:
 - Python 3.12 and a uv workspace;
 - a minimal FastAPI application;
 - a liveness endpoint `GET /health/live`;
-- a readiness endpoint `GET /health/ready` that checks PostgreSQL;
+- a readiness endpoint `GET /health/ready` that checks PostgreSQL and that the schema is migrated;
 - Docker Compose for the control plane and PostgreSQL;
 - a workspace package with a Pydantic contract for the version-1 normalized event;
 - models for servers, agent keys, events, and the transactional outbox;
@@ -124,7 +124,7 @@ comment form:
 - a Linux agent for Ubuntu Server 24.04: two-phase journald reading, an SQLite spool, explicit safe
   parsers, and HTTPS delivery;
 - baseline Ruff, mypy, and pytest configuration;
-- 24 ADRs documenting the confirmed architectural decisions of every implemented stage;
+- 25 ADRs documenting the confirmed architectural decisions of every implemented stage;
 - an isolated Chromium browser harness: loopback HTTPS, an ephemeral trustme CA, a dedicated
   PostgreSQL 17 instance, and synthetic data without persistent browser artifacts;
 - a closed canonical manifest and a loopback-only sender for synthetic positive, negative, and
@@ -207,9 +207,13 @@ Without PostgreSQL, liveness returns 200 and readiness returns 503. This differe
 ```bash
 docker compose config
 docker compose up --build -d
-docker compose exec control-plane alembic upgrade head
 docker compose ps
 ```
+
+Migrations run automatically: `control-plane` only starts once a separate one-shot `migrate`
+service has brought the schema to head (`depends_on: service_completed_successfully`), and
+`/health/ready` checks the same condition at runtime instead of just connectivity — so a container
+stuck on an old schema can't report itself as ready.
 
 After a successful start:
 
@@ -400,7 +404,6 @@ tests. Full check:
 
 ```bash
 docker compose up -d postgres control-plane
-docker compose exec control-plane alembic upgrade head
 docker compose --profile test run --rm integration-tests
 ```
 
@@ -794,7 +797,6 @@ The full list of current MVP-level technical limitations follows below.
 - rule sync runs only through an explicit local CLI command, never at startup;
 - history queries run separately for trigger/rule; that optimization is deferred until it is
   actually measured;
-- readiness checks the PostgreSQL connection but not yet whether the migration is current;
 - Python dependencies are pinned in `uv.lock`;
 - production deployment has not been set up.
 

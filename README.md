@@ -10,7 +10,7 @@ Woland Guard — защитная система мониторинга Linux-с
 Linux-агент с durable delivery, RBAC и Dashboard с несколькими ролями, исходящие и входящие
 Telegram-уведомления (команды, кнопки статуса, диалог причины), dry-run-блокировка IP с allowlist
 и подтверждением второго администратора, три уровня demo-инфраструктуры (от ручного показа до
-полного release-гейта) и 24 ADR с обоснованием каждого архитектурного решения — включая
+полного release-гейта) и 25 ADR с обоснованием каждого архитектурного решения — включая
 отдельное решение не автоматизировать исполнение блокировки IP (ADR-0016).
 
 ## Лицензия
@@ -78,7 +78,7 @@ production-инстанса — у реального пользователя �
 - Python 3.12 и uv workspace;
 - минимальное FastAPI-приложение;
 - liveness endpoint `GET /health/live`;
-- readiness endpoint `GET /health/ready` с проверкой PostgreSQL;
+- readiness endpoint `GET /health/ready` с проверкой PostgreSQL и актуальности миграции;
 - Docker Compose для control plane и PostgreSQL;
 - workspace-пакет с Pydantic-контрактом нормализованного события версии 1;
 - модели серверов, ключей агентов, событий и transactional outbox;
@@ -116,7 +116,7 @@ production-инстанса — у реального пользователя �
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- 24 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
+- 25 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
@@ -198,9 +198,14 @@ uv run uvicorn woland_guard_control_plane.main:app --app-dir apps/control-plane/
 ```bash
 docker compose config
 docker compose up --build -d
-docker compose exec control-plane alembic upgrade head
 docker compose ps
 ```
+
+Миграции применяются автоматически: `control-plane` стартует только после того, как отдельный
+одноразовый сервис `migrate` успешно доведёт схему до head (`depends_on:
+service_completed_successfully`), а `/health/ready` проверяет это же условие в рантайме, а не
+только доступность соединения — так что застрявший на старой схеме контейнер не притворяется
+готовым.
 
 После успешного запуска:
 
@@ -392,7 +397,6 @@ integration-тесты. Полная проверка:
 
 ```bash
 docker compose up -d postgres control-plane
-docker compose exec control-plane alembic upgrade head
 docker compose --profile test run --rm integration-tests
 ```
 
@@ -799,7 +803,6 @@ docker compose exec control-plane woland-guard-admin weekly-report \
 - нет автоматической ротации ключей и очистки старых событий;
 - синхронизация правил выполняется явно локальной CLI-командой и не запускается при startup;
 - запросы истории выполняются отдельно для trigger/rule; оптимизация отложена до измерений;
-- readiness проверяет соединение с PostgreSQL, но пока не проверяет актуальность миграции;
 - зависимости Python зафиксированы в `uv.lock`;
 - production deployment не подготовлен.
 

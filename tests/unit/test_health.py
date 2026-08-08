@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
 
 from woland_guard_control_plane.api.routes import health
+from woland_guard_control_plane.database import MigrationDriftError
 from woland_guard_control_plane.main import create_app
 
 
@@ -67,3 +68,20 @@ def test_readiness_fails_without_leaking_database_error(
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready", "database": "unavailable"}
     assert "synthetic" not in response.text
+
+
+def test_readiness_reports_pending_migration_distinctly(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reachable-but-unmigrated database is not the same failure as no database."""
+
+    def raise_drift_error() -> None:
+        raise MigrationDriftError("database schema is at revision 'old', code expects 'new'")
+
+    monkeypatch.setattr(health, "check_database", raise_drift_error)
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready", "database": "not_migrated"}

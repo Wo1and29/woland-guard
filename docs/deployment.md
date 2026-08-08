@@ -30,10 +30,10 @@
 3. Установите `WG_APP_ENV=production` и `WG_WEB_PUBLIC_ORIGIN` на точный HTTPS-адрес, под
    которым будет доступен Dashboard (без пути). Dashboard cookies обязательно `Secure` — без
    HTTPS они не будут установлены браузером.
-4. Поднимите стек и примените миграции:
+4. Поднимите стек — миграции применяются автоматически одноразовым сервисом `migrate`
+   до старта `control-plane`:
    ```bash
    docker compose up -d --build
-   docker compose exec control-plane alembic upgrade head
    ```
 5. Создайте сервер и агентский ключ, затем разверните агента — см.
    [docs/agent-installation.md](agent-installation.md).

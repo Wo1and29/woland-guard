@@ -11,13 +11,12 @@ Telegram или внешним сетям за пределами loopback (READ
 
 ```bash
 docker compose up --build -d
-docker compose exec control-plane alembic upgrade head
 docker compose exec control-plane woland-guard-admin sync-rules --rules-dir /workspace/detection-rules
 docker compose exec control-plane woland-guard-admin create-test-agent \
   --name demo-server --hostname demo.invalid --label local-demo
 ```
 
-Сохраните выведенный `wgak_...` токен, затем сгенерируйте и отправьте один из 32 канонических
+Сохраните выведенный `wgak_...` токен, затем сгенерируйте и отправьте один из 52 канонических
 сценариев (по 4 на каждое из 13 правил: `positive`, `negative`, `boundary_below`,
 `boundary_exact`):
 

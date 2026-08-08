@@ -46,10 +46,8 @@ jobs:
       WG_POSTGRES_PASSWORD: ci-ephemeral-not-a-secret
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Start PostgreSQL and control plane
+      - name: Start PostgreSQL and control plane (migrations run automatically via the migrate service)
         run: docker compose up -d --wait postgres control-plane
-      - name: Apply migrations
-        run: docker compose exec -T control-plane alembic upgrade head
       - name: Check for undetected model/migration drift
         run: docker compose exec -T control-plane alembic check
       - name: Run integration test suite against real PostgreSQL
