@@ -1,0 +1,37 @@
+schema_version: 1
+rule_key: system_file_changed
+version: 1
+enabled: true
+severity: high
+title: Изменён наблюдаемый системный файл
+title_en: A watched system file changed
+description: Файл из списка наблюдения изменился, появился, исчез или сменил права.
+description_en: A watched file changed, appeared, disappeared or had its permissions changed.
+explanation: >-
+  Конфигурация SSH, список пользователей и правила sudo меняются редко и осмысленно, поэтому
+  само изменение — уже повод посмотреть. Событие сообщает только факт: ни содержимого, ни diff,
+  ни хэша агент не передаёт, поэтому что именно изменилось, видно только на самом хосте.
+  Атрибут monitoring показывает, насколько сигналу можно верить: content означает сравнение
+  содержимого, metadata — что файл недоступен агенту на чтение и сравнивались только размер,
+  время и права.
+explanation_en: >-
+  SSH configuration, the user list and sudo rules change rarely and deliberately, so the change
+  itself is already worth a look. The event reports only the fact: the agent transmits neither
+  the contents, a diff, nor the hash, so what actually changed is visible only on the host
+  itself. The monitoring attribute shows how much the signal can be trusted: content means the
+  contents were compared, metadata means the agent cannot read the file and only size, time and
+  permissions were compared.
+recommendation: >-
+  Сравните время изменения с плановыми работами, обновлениями пакетов и запусками систем
+  управления конфигурацией — это самые частые законные причины. Если совпадений нет, посмотрите
+  сам файл на хосте. Для monitoring=metadata помните, что этот режим обходится восстановлением
+  mtime, поэтому отсутствие события не доказывает отсутствие изменения.
+recommendation_en: >-
+  Check the time of the change against planned work, package upgrades and configuration
+  management runs -- those are the most common legitimate causes. If nothing matches, inspect
+  the file on the host. For monitoring=metadata remember that the mode is evaded by restoring
+  mtime, so the absence of an event does not prove the absence of a change.
+condition:
+  type: single
+  event_type: linux.file.changed
+correlation_fields: [path]

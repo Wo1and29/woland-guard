@@ -29,7 +29,7 @@ def test_public_rule_key_validator_is_the_rule_definition_contract() -> None:
         validate_rule_key("Non_Canonical")
 
 
-def test_twelve_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:
+def test_thirteen_default_rules_are_strict_and_cover_exactly_five_condition_types() -> None:
     """The shipped set has the agreed identities and no executable condition language."""
 
     rules = load_rules_directory(RULES_DIR)
@@ -46,6 +46,7 @@ def test_twelve_default_rules_are_strict_and_cover_exactly_five_condition_types(
         "ssh_root_login_success",
         "ssh_success_after_failures",
         "sudo_auth_failures",
+        "system_file_changed",
         "user_account_created",
     }
     assert {type(rule.condition) for rule in rules} == {
@@ -164,7 +165,7 @@ def test_validate_rules_cli_checks_files_without_opening_database(
 
     cli.main()
 
-    assert capsys.readouterr().out == "Правила корректны: 12\n"
+    assert capsys.readouterr().out == "Правила корректны: 13\n"
 
 
 def test_validate_rules_cli_returns_safe_error_for_invalid_yaml(

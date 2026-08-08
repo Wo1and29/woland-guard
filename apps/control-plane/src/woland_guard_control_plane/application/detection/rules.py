@@ -57,6 +57,9 @@ class SupportedEventType(StrEnum):
     NGINX_REQUEST_FAILED = "web.nginx.request_failed"
     CRON_JOB_CHANGED = "linux.cron.job_changed"
     SYSTEMD_UNIT_STOPPED = "linux.systemd.unit_stopped"
+    # Carries the fact of a change and nothing about the new contents: neither the
+    # bytes, a diff, nor even the hash leaves the host (ADR-0022 §4).
+    FILE_CHANGED = "linux.file.changed"
 
 
 class StrictModel(BaseModel):

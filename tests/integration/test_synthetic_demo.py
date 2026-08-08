@@ -51,11 +51,11 @@ RUN_ID = UUID("55555555-5555-4555-8555-555555555555")
 
 def _prepare_environment() -> None:
     rules = load_rules_directory(RULES_DIR)
-    assert len(rules) == 12
+    assert len(rules) == 13
     assert {rule.rule_key for rule in rules} == EXPECTED_RULE_KEYS
     unique = uuid4()
     with get_session_factory().begin() as session:
-        assert sync_rules(session, rules) == 12
+        assert sync_rules(session, rules) == 13
         destination = NotificationDestination(
             adapter_kind="telegram",
             enabled=False,

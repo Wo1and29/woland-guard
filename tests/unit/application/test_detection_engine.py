@@ -121,6 +121,19 @@ def _scenario(rule_key: str, *, positive: bool) -> Scenario:
             attributes=attributes,
         )
         return Scenario(trigger, (trigger,))
+    elif rule_key == "system_file_changed":
+        trigger = _event(
+            "linux.file.changed" if positive else "linux.file.accessed",
+            0,
+            actor=None,
+            source_ip=None,
+            attributes={
+                "path": "/etc/ssh/sshd_config",
+                "change": "content",
+                "monitoring": "content",
+            },
+        )
+        return Scenario(trigger, (trigger,))
     elif rule_key == "cron_job_changed":
         trigger = _event(
             "linux.cron.job_changed",

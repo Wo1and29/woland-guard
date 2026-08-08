@@ -117,9 +117,15 @@ def normalize_record(
     )
 
 
+_FILE_CHANGES = frozenset({"content", "permissions", "metadata", "appeared", "disappeared"})
+_FILE_MONITORING = frozenset({"content", "metadata"})
+
+
 def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:
     if "NGINX_STATUS" in fields:
         return _parse_nginx_request(fields)
+    if "FILE_INTEGRITY_PATH" in fields:
+        return _parse_file_integrity(fields)
 
     message = fields.get("MESSAGE")
     if not isinstance(message, str) or "\x00" in message:
@@ -256,6 +262,30 @@ def _parse_nginx_request(fields: Mapping[str, object]) -> ParsedSecurityEvent | 
         summary="HTTP request failed",
         source_ip=source_ip,
         attributes={"status": status, "method": method, "path": path},
+    )
+
+
+def _parse_file_integrity(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:
+    """Report that a watched path changed, never what it now contains.
+
+    The source compared digests locally; neither the content, a diff, nor the
+    hash itself reaches this point, so there is nothing here to redact
+    (ADR-0022 §4). The path is the one the operator configured, never a name
+    discovered on disk (ADR-0022 §6).
+    """
+
+    path = fields.get("FILE_INTEGRITY_PATH")
+    change = fields.get("FILE_INTEGRITY_CHANGE")
+    monitoring = fields.get("FILE_INTEGRITY_MONITORING")
+    if not isinstance(path, str) or "\x00" in path or not path.isprintable():
+        return None
+    if change not in _FILE_CHANGES or monitoring not in _FILE_MONITORING:
+        return None
+
+    return ParsedSecurityEvent(
+        event_type="linux.file.changed",
+        summary="Watched system file changed",
+        attributes={"path": path, "change": change, "monitoring": monitoring},
     )
 
 

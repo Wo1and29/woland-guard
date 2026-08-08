@@ -1,4 +1,4 @@
-"""Synthetic scenarios derived from the twelve shipped detection-rule definitions."""
+"""Synthetic scenarios derived from the thirteen shipped detection-rule definitions."""
 
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ EXPECTED_RULE_KEYS = frozenset(
         "ssh_root_login_success",
         "ssh_success_after_failures",
         "sudo_auth_failures",
+        "system_file_changed",
         "user_account_created",
     }
 )
@@ -67,6 +68,7 @@ _EVIDENCE_COUNTS = {
     "ssh_root_login_success": 1,
     "ssh_success_after_failures": 4,
     "sudo_auth_failures": 5,
+    "system_file_changed": 1,
     "user_account_created": 1,
 }
 # Fifteen distinct codes, so the nginx_error_spike non-match reaches the rule's
@@ -220,6 +222,7 @@ def _build_event_specs(
         "ssh_root_login_success": _root_login_specs,
         "ssh_success_after_failures": _sequence_specs,
         "sudo_auth_failures": _sudo_specs,
+        "system_file_changed": _file_changed_specs,
         "user_account_created": _user_created_specs,
     }
     return builders[definition.rule_key](definition.case_type, anchor, definition.ordinal)
@@ -263,6 +266,24 @@ def _failed_requests_specs(
     return tuple(
         _request_spec(anchor + timedelta(seconds=offset), 403, index, 0) for offset in offsets
     )
+
+
+def _file_changed_specs(case: DemoCaseType, anchor: datetime, index: int) -> tuple[_EventSpec, ...]:
+    # Not a real path: the manifest contract rejects anything that looks like one,
+    # which is exactly the protection that keeps operator file layouts out of
+    # shipped demo data. A real event carries the configured absolute path.
+    attributes: dict[str, object] = {
+        "path": f"synthetic-watched-file-{index:02d}",
+        "change": "disappeared" if case is DemoCaseType.BOUNDARY_EXACT else "content",
+        "monitoring": "content",
+    }
+    if case is DemoCaseType.BOUNDARY_BELOW:
+        # Filter-valid but missing the only correlation field, so it exercises
+        # "matched the condition, cannot be correlated" rather than repeating
+        # what NEGATIVE already covers.
+        del attributes["path"]
+    event_type = "linux.file.accessed" if case is DemoCaseType.NEGATIVE else "linux.file.changed"
+    return (_spec(event_type, anchor, None, None, attributes),)
 
 
 def _cron_job_changed_specs(
@@ -496,17 +517,23 @@ def _event_from_spec(
         event_id=demo_event_id(run_id, scenario_id, ordinal),
         occurred_at=spec.occurred_at,
         collected_at=spec.occurred_at,
-        source=(
-            EventSource.NGINX_ACCESS
-            if spec.event_type.startswith("web.nginx.")
-            else EventSource.JOURNALD
-        ),
+        source=_source_for(spec.event_type),
         event_type=spec.event_type,
         actor=spec.actor,
         source_ip=None if spec.source_ip is None else ip_address(spec.source_ip),
         summary="Synthetic Woland Guard demo event",
         attributes=cast(dict[str, JsonValue], attributes),
     )
+
+
+def _source_for(event_type: str) -> EventSource:
+    """Label a synthetic event with the source that really produces its type."""
+
+    if event_type.startswith("web.nginx."):
+        return EventSource.NGINX_ACCESS
+    if event_type.startswith("linux.file."):
+        return EventSource.FILE_INTEGRITY
+    return EventSource.JOURNALD
 
 
 def _actor(index: int, slot: int = 0) -> str:
@@ -527,8 +554,8 @@ def _load_exact_rule_catalog() -> dict[str, RuleDefinition]:
     except RuleValidationError:
         raise DemoManifestError("shipped detection rules are unavailable") from None
     by_key = {rule.rule_key: rule for rule in rules}
-    if len(rules) != 12 or frozenset(by_key) != EXPECTED_RULE_KEYS:
-        raise DemoManifestError("demo catalog requires the exact twelve shipped detection rules")
+    if len(rules) != 13 or frozenset(by_key) != EXPECTED_RULE_KEYS:
+        raise DemoManifestError("demo catalog requires the exact thirteen shipped detection rules")
     if any(not rule.enabled for rule in rules):
         raise DemoManifestError("demo catalog requires the shipped detection rules to be enabled")
     return by_key

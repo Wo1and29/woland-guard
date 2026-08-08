@@ -210,6 +210,63 @@ def test_relative_syslog_path_is_rejected(tmp_path: Path) -> None:
         load_agent_settings(config_path)
 
 
+def test_file_integrity_is_accepted_alongside_the_journal_source(tmp_path: Path) -> None:
+    """It reads no log, so it cannot duplicate the journal source (ADR-0022)."""
+
+    watched = tmp_path / "sshd_config"
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        extra=f"file_integrity:\n  paths:\n    - {watched.as_posix()}",
+    )
+
+    settings = load_agent_settings(config_path)
+
+    assert settings.source == "journald"
+    assert settings.file_integrity is not None
+    assert settings.file_integrity.paths == (watched,)
+    assert settings.file_integrity.poll_seconds == 60.0
+
+
+def test_relative_watched_path_is_rejected(tmp_path: Path) -> None:
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        extra="file_integrity:\n  paths:\n    - etc/ssh/sshd_config",
+    )
+
+    with pytest.raises(AgentConfigurationError, match="file_integrity"):
+        load_agent_settings(config_path)
+
+
+def test_repeated_watched_path_is_rejected(tmp_path: Path) -> None:
+    """A duplicate would occupy cursor length twice for the same file."""
+
+    watched = (tmp_path / "sshd_config").as_posix()
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        extra=f"file_integrity:\n  paths:\n    - {watched}\n    - {watched}",
+    )
+
+    with pytest.raises(AgentConfigurationError, match="file_integrity"):
+        load_agent_settings(config_path)
+
+
+def test_more_watched_paths_than_the_cursor_can_hold_are_rejected(tmp_path: Path) -> None:
+    """Checked at parse time, so the spool cursor CHECK can never be hit at runtime."""
+
+    listed = "\n".join(f"    - {(tmp_path / f'file-{index}').as_posix()}" for index in range(65))
+    config_path = write_config(
+        tmp_path,
+        token_path=private_token_file(tmp_path),
+        extra=f"file_integrity:\n  paths:\n{listed}",
+    )
+
+    with pytest.raises(AgentConfigurationError, match="file_integrity"):
+        load_agent_settings(config_path)
+
+
 def private_token_file(tmp_path: Path) -> Path:
     path = tmp_path / "agent.token"
     path.write_text(SYNTHETIC_TOKEN, encoding="utf-8")

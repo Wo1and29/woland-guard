@@ -22,6 +22,23 @@ source: journald
 # nginx_access:
 #   path: /var/log/nginx/access.log
 
+# Reads no log at all: it compares each file against the state it remembered and
+# reports only that something changed -- never the contents, a diff or the hash
+# (ADR-0022). Files the agent can read are compared by content; files it cannot
+# are compared by size, mtime and permissions, which is a weaker guarantee that
+# `touch -r` defeats. The agent never asks for `root` or the `shadow` group.
+#
+# /etc/shadow is deliberately absent below: it changes whenever any user changes
+# their password, so on a multi-user host it reports routine activity.
+# file_integrity:
+#   poll_seconds: 60
+#   paths:
+#     - /etc/ssh/sshd_config     # readable: compared by content
+#     - /etc/passwd
+#     - /etc/group
+#     - /etc/crontab
+#     - /etc/sudoers             # not readable: compared by metadata only
+
 http:
   base_url: https://control-plane.example.invalid
   token_file: /etc/woland-guard/agent.token

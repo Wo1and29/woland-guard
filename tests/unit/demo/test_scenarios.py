@@ -32,11 +32,11 @@ DOCUMENTATION_NETWORKS = tuple(
 )
 
 
-def test_catalog_contains_exactly_four_cases_for_each_of_twelve_rules() -> None:
+def test_catalog_contains_exactly_four_cases_for_each_of_thirteen_rules() -> None:
     definitions = list_scenarios()
 
-    assert len(definitions) == 48
-    assert len({item.scenario_id for item in definitions}) == 48
+    assert len(definitions) == 52
+    assert len({item.scenario_id for item in definitions}) == 52
     assert {item.rule_key for item in definitions} == EXPECTED_RULE_KEYS
     counts = Counter(item.rule_key for item in definitions)
     assert set(counts.values()) == {4}
@@ -74,7 +74,7 @@ def test_catalog_validation_rejects_changed_metadata_without_reflection() -> Non
 def test_catalog_metadata_is_derived_from_the_exact_enabled_yaml_rules() -> None:
     rules = {rule.rule_key: rule for rule in load_rules_directory(RULES_DIRECTORY)}
 
-    assert len(rules) == 12
+    assert len(rules) == 13
     assert set(rules) == EXPECTED_RULE_KEYS
     # Deliberately not pinned to a literal version: expected outcomes are derived
     # from each rule's condition at manifest build time and re-verified by the

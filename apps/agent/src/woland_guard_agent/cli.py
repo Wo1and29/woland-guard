@@ -20,6 +20,7 @@ from woland_guard_agent.logging import configure_logging
 from woland_guard_agent.platform_support import UnsupportedPlatformError, require_ubuntu_2404
 from woland_guard_agent.service import AgentRuntimeError, AgentService
 from woland_guard_agent.sources import (
+    FileIntegritySource,
     JournaldSource,
     JournalSource,
     NginxAccessSource,
@@ -116,6 +117,15 @@ def _build_sources(settings: AgentSettings) -> list[JournalSource]:
     # than instead of it (ADR-0020 §5).
     if settings.nginx_access is not None:
         sources.append(NginxAccessSource(settings.nginx_access.path))
+
+    # Reads no log at all, so it cannot duplicate another source (ADR-0022).
+    if settings.file_integrity is not None:
+        sources.append(
+            FileIntegritySource(
+                settings.file_integrity.paths,
+                poll_seconds=settings.file_integrity.poll_seconds,
+            )
+        )
     return sources
 
 

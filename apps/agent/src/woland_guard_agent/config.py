@@ -11,6 +11,8 @@ from typing import Literal, Self, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, model_validator
 
+from woland_guard_agent.sources.file_integrity import MAX_WATCHED_PATHS
+
 _TOKEN_PATTERN = re.compile(r"^wgak_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
 _MAX_TOKEN_BYTES = 4_096
 
@@ -124,6 +126,25 @@ class NginxAccessSettings(BaseModel):
         return self
 
 
+class FileIntegritySettings(BaseModel):
+    """Explicit list of system files to compare against a remembered state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Bounded so the serialized baseline always fits the spool cursor column,
+    # which is checked at parse time rather than at write time (ADR-0022 §8).
+    paths: tuple[Path, ...] = Field(min_length=1, max_length=MAX_WATCHED_PATHS)
+    poll_seconds: float = Field(default=60.0, gt=0, le=3_600)
+
+    @model_validator(mode="after")
+    def paths_are_absolute_and_unique(self) -> Self:
+        if any(not path.is_absolute() for path in self.paths):
+            raise ValueError("file_integrity.paths must all be absolute")
+        if len(set(self.paths)) != len(self.paths):
+            raise ValueError("file_integrity.paths must not repeat a path")
+        return self
+
+
 class AgentSettings(BaseModel):
     """Complete versioned agent configuration."""
 
@@ -140,6 +161,9 @@ class AgentSettings(BaseModel):
     # Independent of the journal source: an access log shares no record with it,
     # and a web host almost always needs SSH monitoring too (ADR-0020 §5).
     nginx_access: NginxAccessSettings | None = None
+    # Also independent: this source reads no log at all, it compares file state
+    # against what it remembered, so it cannot double-count anything (ADR-0022).
+    file_integrity: FileIntegritySettings | None = None
     retry: RetrySettings = Field(default_factory=RetrySettings)
     delivery_poll_seconds: float = Field(default=1.0, gt=0, le=60)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

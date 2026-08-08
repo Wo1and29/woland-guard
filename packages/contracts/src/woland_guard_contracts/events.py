@@ -25,6 +25,10 @@ class EventSource(StrEnum):
     # they can guarantee about ordering and rotation loss (ADR-0019).
     SYSLOG_FILE = "syslog_file"
     NGINX_ACCESS = "nginx_access"
+    # Not a log at all but a periodic comparison against remembered state, so its
+    # completeness depends on the poll interval rather than on log rotation
+    # (ADR-0022).
+    FILE_INTEGRITY = "file_integrity"
 
 
 class NormalizedEventV1(BaseModel):

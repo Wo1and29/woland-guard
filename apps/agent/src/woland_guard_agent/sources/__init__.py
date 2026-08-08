@@ -6,6 +6,7 @@ from woland_guard_agent.sources.base import (
     SourceCursorUnavailableError,
     SourceUnavailableError,
 )
+from woland_guard_agent.sources.file_integrity import FileIntegritySource
 from woland_guard_agent.sources.journald import (
     JournaldCursorUnavailableError,
     JournaldSource,
@@ -18,6 +19,7 @@ from woland_guard_agent.sources.syslog_file import (
 )
 
 __all__ = [
+    "FileIntegritySource",
     "JournalRecord",
     "JournaldCursorUnavailableError",
     "JournaldSource",

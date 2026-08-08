@@ -6,11 +6,11 @@ Woland Guard — защитная система мониторинга Linux-с
 события, а control plane создаёт понятные инциденты и помогает оператору реагировать на них —
 через защищённый веб-Dashboard или интерактивно через Telegram.
 
-Реализовано и зафиксировано локально: ingestion API с Detection Engine (12 правил, MITRE ATT&CK),
+Реализовано и зафиксировано локально: ingestion API с Detection Engine (13 правил, MITRE ATT&CK),
 Linux-агент с durable delivery, RBAC и Dashboard с несколькими ролями, исходящие и входящие
 Telegram-уведомления (команды, кнопки статуса, диалог причины), dry-run-блокировка IP с allowlist
 и подтверждением второго администратора, три уровня demo-инфраструктуры (от ручного показа до
-полного release-гейта) и 18 ADR с обоснованием каждого архитектурного решения — включая
+полного release-гейта) и 22 ADR с обоснованием каждого архитектурного решения — включая
 отдельное решение не автоматизировать исполнение блокировки IP (ADR-0016).
 
 ## Лицензия
@@ -91,8 +91,8 @@ production-инстанса — у реального пользователя �
 - PostgreSQL integration-тесты в отдельном Docker target;
 - строгие версионированные YAML-правила с локальными командами validate/sync;
 - Detection Engine с условиями single, threshold, distinct_count, sequence и first_seen;
-- двенадцать правил (восемь journald, два для Nginx, cron и systemd-юниты), атомарные
-  incidents и уникальные evidence-связи;
+- тринадцать правил (journald, Nginx, cron, systemd-юниты и контроль целостности файлов),
+  атомарные incidents и уникальные evidence-связи;
 - локальные Operator identities, независимо ротируемые `wgok_` API-ключи и фиксированный RBAC;
 - безопасные Incident/Audit API, optimistic `lock_version`, immutable history и audit;
 - operator-scoped идемпотентность status transitions с сохранёнными 200/404/409 outcomes;
@@ -112,13 +112,13 @@ production-инстанса — у реального пользователя �
 - Linux Agent для Ubuntu Server 24.04: двухфазное чтение journald, SQLite spool,
   явные безопасные парсеры и HTTPS-доставка;
 - базовые настройки Ruff, mypy и pytest;
-- 18 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
+- 22 ADR с подтверждёнными архитектурными решениями каждого реализованного этапа;
 - изолированный browser harness для Chromium: loopback HTTPS, временный trustme CA,
   отдельный PostgreSQL 17 и синтетические данные без постоянных browser artifacts.
 - закрытый canonical manifest и loopback-only sender синтетических positive, negative и
-  boundary demo-сценариев для всех двенадцати detection rules.
+  boundary demo-сценариев для всех тринадцати detection rules.
 - отдельная demo-топология с PostgreSQL 17, единственным migration job, rule sync,
-  48-scenario ingestion, настоящим outbox worker, in-process fake Telegram boundary,
+  52-scenario ingestion, настоящим outbox worker, in-process fake Telegram boundary,
   HTTPS Dashboard smoke и synthetic backup/restore smoke.
 
 Изолированная HTML-граница `/dashboard` использует вход существующим operator API-ключом,
@@ -221,7 +221,7 @@ HTTP admin API намеренно отсутствует.
 
 ## Правила Detection Engine
 
-Проверка всех двенадцати файлов не обращается к PostgreSQL:
+Проверка всех тринадцати файлов не обращается к PostgreSQL:
 
 ```bash
 docker compose exec control-plane woland-guard-admin validate-rules \
@@ -241,9 +241,9 @@ Startup control plane намеренно не изменяет правила. Y
 изолированы по server и включают обе границы. Detection получает только строки, впервые
 вставленные через `ON CONFLICT DO NOTHING ... RETURNING`, в той же транзакции ingestion.
 
-Десять из двенадцати текущих правил работают с нормализованными journald-событиями SSH,
-sudo, account management, cron и systemd-юнитами; два остальных — с неуспешными HTTP-запросами
-Nginx (ADR-0020).
+Десять из тринадцати текущих правил работают с нормализованными journald-событиями SSH,
+sudo, account management, cron и systemd-юнитами; два — с неуспешными HTTP-запросами Nginx
+(ADR-0020), одно — с изменениями наблюдаемых системных файлов (ADR-0022).
 
 ## Пример Ingestion API
 
@@ -258,7 +258,7 @@ X-Request-ID: local-example-001
 
 ## Синтетические demo-сценарии 8A
 
-Каталог содержит по четыре стабильных сценария для каждого из двенадцати текущих правил:
+Каталог содержит по четыре стабильных сценария для каждого из тринадцати текущих правил:
 `positive`, `negative`, `boundary_below` и `boundary_exact`. Список формируется только после
 строгой проверки каталога `detection-rules`.
 
@@ -286,7 +286,7 @@ counts, но не заявляет создание incident или delivery: п
 
 Автоматический verifier использует отдельный `compose.demo.yaml` и уникальные Compose project,
 ownership label, network и PostgreSQL volume. Он применяет миграции одним job, синхронизирует
-ровно двенадцать enabled rules из `detection-rules/`, отправляет все 48 canonical manifests
+ровно тринадцать enabled rules из `detection-rules/`, отправляет все 52 canonical manifests
 через публичный
 `POST /api/v1/events`, проверяет точные DB outcomes, запускает настоящий outbox worker с
 demo-only in-process Telegram transport, выполняет один desktop Chromium workflow над той же

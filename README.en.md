@@ -10,7 +10,7 @@ Implemented and committed locally: an ingestion API with a Detection Engine (8 r
 ATT&CK), a Linux agent with durable delivery, RBAC and a multi-role Dashboard, outbound and
 inbound Telegram notifications (commands, status buttons, reason prompt), a dry-run IP block flow
 with an allowlist and a second-administrator approval, three levels of demo infrastructure (from a
-manual walkthrough to a full release gate), and 18 ADRs documenting every architectural decision —
+manual walkthrough to a full release gate), and 22 ADRs documenting every architectural decision —
 including a dedicated decision not to automate IP block execution (ADR-0016).
 
 ## License
@@ -95,8 +95,8 @@ comment form:
 - PostgreSQL integration tests in a separate Docker target;
 - strict versioned YAML rules with local validate/sync commands;
 - a Detection Engine with single, threshold, distinct_count, sequence, and first_seen conditions;
-- twelve rules (eight journald, two nginx, cron and systemd units), atomic incidents, and
-  unique evidence links;
+- thirteen rules (journald, nginx, cron, systemd units and file integrity), atomic incidents,
+  and unique evidence links;
 - local operator identities, independently rotatable `wgok_` API keys, and a fixed RBAC matrix;
 - safe Incident/Audit APIs, optimistic `lock_version`, immutable history, and audit;
 - operator-scoped idempotency for status transitions with persisted 200/404/409 outcomes;
@@ -119,7 +119,7 @@ comment form:
 - a Linux agent for Ubuntu Server 24.04: two-phase journald reading, an SQLite spool, explicit safe
   parsers, and HTTPS delivery;
 - baseline Ruff, mypy, and pytest configuration;
-- 18 ADRs documenting the confirmed architectural decisions of every implemented stage;
+- 22 ADRs documenting the confirmed architectural decisions of every implemented stage;
 - an isolated Chromium browser harness: loopback HTTPS, an ephemeral trustme CA, a dedicated
   PostgreSQL 17 instance, and synthetic data without persistent browser artifacts;
 - a closed canonical manifest and a loopback-only sender for synthetic positive, negative, and
@@ -249,8 +249,9 @@ condition types and never evaluates expressions. Time windows are computed from 
 scoped per server, and inclusive on both ends. Detection only sees rows that were freshly inserted
 via `ON CONFLICT DO NOTHING ... RETURNING`, in the same ingestion transaction.
 
-Ten of the twelve current rules work on normalized journald events for SSH, sudo, account
-management, cron and systemd units; the other two work on failed nginx requests (ADR-0020).
+Ten of the thirteen current rules work on normalized journald events for SSH, sudo, account
+management, cron and systemd units; two work on failed nginx requests (ADR-0020), and one on
+changes to watched system files (ADR-0022).
 
 ## Ingestion API example
 
@@ -265,7 +266,7 @@ X-Request-ID: local-example-001
 
 ## Synthetic demo scenarios (stage 8A)
 
-The catalog holds four stable scenarios for each of the twelve current rules: `positive`,
+The catalog holds four stable scenarios for each of the thirteen current rules: `positive`,
 `negative`, `boundary_below`, and `boundary_exact`. The list is only produced after the
 `detection-rules` directory passes strict validation.
 
@@ -293,7 +294,7 @@ ingestion, not distributed exactly-once semantics.
 
 The automated verifier uses a separate `compose.demo.yaml` with a unique Compose project,
 ownership label, network, and PostgreSQL volume. It applies migrations in one job, syncs exactly
-twelve enabled rules from `detection-rules/`, sends all 48 canonical manifests through the public
+thirteen enabled rules from `detection-rules/`, sends all 52 canonical manifests through the public
 `POST /api/v1/events`, checks exact DB outcomes, runs a real outbox worker against a demo-only
 in-process Telegram transport, runs one desktop Chromium workflow against the same database,
 replay, and a custom-format `pg_dump`/`pg_restore` smoke check.
