@@ -64,10 +64,38 @@ jobs:
           checks_url="https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/checks"
 
           cat > release-notes.md <<EOF
-          First tagged release of Woland Guard — a defensive Linux server monitoring system.
-          An agent reads permitted system events, the control plane turns them into readable
-          incidents, and an operator responds through a role-based web Dashboard or
-          interactively through Telegram.
+          Security and reliability update to Woland Guard — a defensive Linux server
+          monitoring system. An agent reads permitted system events, the control plane
+          turns them into readable incidents, and an operator responds through a
+          role-based web Dashboard or interactively through Telegram.
+
+          ## What changed since v0.1.0
+
+          - Fixed an open-redirect vulnerability in the Dashboard's \`/lang\` switcher
+            (CodeQL \`py/url-redirection\`): the denylist-based next-path check is replaced
+            with an allowlist regex that also rejects browser-normalized bypasses
+            (backslash-to-slash, embedded tab/newline/CR).
+          - Added a migration-readiness gate: the control plane now refuses to serve
+            traffic if the database schema is behind the code's expected Alembic head,
+            instead of failing unpredictably later; Compose brings up a one-shot
+            \`migrate\` service ahead of the application services.
+          - CI now runs CodeQL (Python + JavaScript/TypeScript) and Trivy (filesystem +
+            runtime image, vulnerabilities and misconfig) on every push, both gating on
+            critical/high findings; the previously open CodeQL alert and Trivy dependency
+            backlog are resolved or explicitly documented in \`.trivyignore.yaml\` with a
+            rationale and expiry.
+          - Supply-chain hardening: every GitHub Action is pinned to a full commit SHA,
+            \`curl | sh\` installers are replaced with \`astral-sh/setup-uv\`, the runtime
+            Docker base image is pinned by digest, and every workflow job declares
+            \`permissions\` and \`timeout-minutes\`.
+          - Branch protection tightened (\`enforce_admins\`, no force-push, no deletion) and
+            Dependabot now also covers the Docker ecosystem.
+          - Dependency updates: \`psycopg[binary]\`, \`uvicorn[standard]\`, \`httpx2\`, and
+            \`mypy\` bumped to their latest compatible releases; \`alembic\` pinned below
+            1.19 pending a follow-up for its autogenerate constraint-naming change
+            (tracked in issue #11).
+          - The portfolio site (wo1and29.github.io/woland-guard) rebuilt as a reproducible
+            Vite build with no runtime CDN dependencies.
 
           ## What's included
 
@@ -92,8 +120,6 @@ jobs:
             privileges.
           - A three-tier demo/verification setup, from a manual walkthrough to a full
             release gate covering 52 synthetic scenarios end-to-end.
-          - The portfolio site (wo1and29.github.io/woland-guard) rebuilt as a reproducible
-            Vite build with no runtime CDN dependencies.
 
           ## Known limitations
 

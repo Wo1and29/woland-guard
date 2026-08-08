@@ -842,7 +842,7 @@ wheels = [
 
 [[package]]
 name = "woland-guard-agent"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/agent" }
 dependencies = [
     { name = "httpx2" },
@@ -861,7 +861,7 @@ requires-dist = [
 
 [[package]]
 name = "woland-guard-contracts"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/contracts" }
 dependencies = [
     { name = "pydantic" },
@@ -872,7 +872,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2.10,<3" }]
 
 [[package]]
 name = "woland-guard-control-plane"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/control-plane" }
 dependencies = [
     { name = "alembic" },
@@ -903,7 +903,7 @@ requires-dist = [
 
 [[package]]
 name = "woland-guard-workspace"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 
 [package.dev-dependencies]
