@@ -736,6 +736,40 @@ most dangerous misunderstanding in this flow. Full reasoning is in
 [ADR-0015](docs/adr/0015-dry-run-ip-block-plans.md) and
 [ADR-0016](docs/adr/0016-no-automated-block-execution.md).
 
+## Roadmap
+
+This is not a list of promises — it is an honest summary of what has already been decided against,
+and what is deferred until real usage justifies it. Every item traces back to an ADR or to the
+limitations section below; they are just collected here in one place.
+
+**Rejected outright** (the decision is made, and the reasoning does not expire from lack of time):
+
+- executing an IP block, by the agent or the control plane —
+  [ADR-0016](docs/adr/0016-no-automated-block-execution.md);
+- a Docker events source (`docker events`) — would require access to the Docker socket, i.e. root
+  on the host — [ADR-0021](docs/adr/0021-no-docker-events-source.md).
+
+**Deliberately deferred** (the implementation is clear, but the cost is not yet justified by
+actual usage):
+
+- generating PDF with a dedicated library instead of printing from HTML — would need a new
+  dependency and an embedded Cyrillic font — [ADR-0023](docs/adr/0023-weekly-report.md);
+- detecting a new file appearing in a watched directory (today only explicitly listed paths are
+  watched) — [ADR-0022](docs/adr/0022-file-integrity-source.md);
+- reading nginx's `error.log` and an arbitrary `log_format` —
+  [ADR-0020](docs/adr/0020-nginx-access-log-source.md);
+- RFC5424 and already-rotated, compressed files (`auth.log.1.gz`) for `syslog_file` —
+  [ADR-0019](docs/adr/0019-syslog-file-source.md);
+- adding an incident comment through Telegram (today, only through the Dashboard);
+- an HTTP API for managing servers and agent keys (today, local CLI only);
+- tracking and automating IP block removal;
+- coordinating the rate limiter across multiple control-plane instances;
+- automatic key rotation and old-event cleanup;
+- checking that the applied migration is current in `/health/ready` (today it only checks the
+  PostgreSQL connection).
+
+The full list of current MVP-level technical limitations follows below.
+
 ## MVP limitations
 
 - Telegram cannot add a comment to an incident yet — a future stage, if it gets built;
