@@ -95,7 +95,8 @@ comment form:
 - PostgreSQL integration tests in a separate Docker target;
 - strict versioned YAML rules with local validate/sync commands;
 - a Detection Engine with single, threshold, distinct_count, sequence, and first_seen conditions;
-- ten rules (eight journald, two nginx), atomic incidents, and unique evidence links;
+- twelve rules (eight journald, two nginx, cron and systemd units), atomic incidents, and
+  unique evidence links;
 - local operator identities, independently rotatable `wgok_` API keys, and a fixed RBAC matrix;
 - safe Incident/Audit APIs, optimistic `lock_version`, immutable history, and audit;
 - operator-scoped idempotency for status transitions with persisted 200/404/409 outcomes;
@@ -248,8 +249,8 @@ condition types and never evaluates expressions. Time windows are computed from 
 scoped per server, and inclusive on both ends. Detection only sees rows that were freshly inserted
 via `ON CONFLICT DO NOTHING ... RETURNING`, in the same ingestion transaction.
 
-Eight of the ten current rules work on normalized journald events for SSH, sudo, and account
-management; the other two work on failed nginx requests (ADR-0020).
+Ten of the twelve current rules work on normalized journald events for SSH, sudo, account
+management, cron and systemd units; the other two work on failed nginx requests (ADR-0020).
 
 ## Ingestion API example
 
@@ -264,7 +265,7 @@ X-Request-ID: local-example-001
 
 ## Synthetic demo scenarios (stage 8A)
 
-The catalog holds four stable scenarios for each of the ten current rules: `positive`,
+The catalog holds four stable scenarios for each of the twelve current rules: `positive`,
 `negative`, `boundary_below`, and `boundary_exact`. The list is only produced after the
 `detection-rules` directory passes strict validation.
 
@@ -292,7 +293,7 @@ ingestion, not distributed exactly-once semantics.
 
 The automated verifier uses a separate `compose.demo.yaml` with a unique Compose project,
 ownership label, network, and PostgreSQL volume. It applies migrations in one job, syncs exactly
-ten enabled rules from `detection-rules/`, sends all 40 canonical manifests through the public
+twelve enabled rules from `detection-rules/`, sends all 48 canonical manifests through the public
 `POST /api/v1/events`, checks exact DB outcomes, runs a real outbox worker against a demo-only
 in-process Telegram transport, runs one desktop Chromium workflow against the same database,
 replay, and a custom-format `pg_dump`/`pg_restore` smoke check.

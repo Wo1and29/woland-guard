@@ -31,7 +31,7 @@ def test_list_scenarios_is_offline_stable_and_safe(capsys: pytest.CaptureFixture
     cli.main(["list-scenarios"])
 
     output = capsys.readouterr().out
-    assert len(output.splitlines()) == 40
+    assert len(output.splitlines()) == 48
     assert "wgak_" not in output
     assert "positive" in output
     assert "boundary_exact" in output
@@ -122,7 +122,7 @@ def test_generate_all_writes_exact_catalog(tmp_path: Path) -> None:
         ]
     )
 
-    assert len(tuple(output.glob("*.json"))) == 40
+    assert len(tuple(output.glob("*.json"))) == 48
 
 
 @pytest.mark.parametrize(

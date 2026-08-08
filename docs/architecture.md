@@ -75,7 +75,7 @@ flowchart LR
   outbox, аутентификация операторов, agent/operator key management, аудит, пагинация, rate
   limiting;
 - `infrastructure/` — SQLAlchemy-модели, Telegram HTTP-адаптер и protocol-уровневая защита;
-- `demo/` — генератор синтетических сценариев для 10 правил (не часть production runtime).
+- `demo/` — генератор синтетических сценариев для 12 правил (не часть production runtime).
 
 Это модульный монолит (см. ADR-0001): один процесс/образ, разделение — модулями, а не
 отдельными сетевыми сервисами.

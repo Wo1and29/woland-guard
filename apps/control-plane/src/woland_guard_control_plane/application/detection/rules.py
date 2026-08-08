@@ -55,6 +55,8 @@ class SupportedEventType(StrEnum):
     # Only the failed request exists as an event: a successful one feeds no rule
     # and would outnumber every other source by orders of magnitude (ADR-0020 §7).
     NGINX_REQUEST_FAILED = "web.nginx.request_failed"
+    CRON_JOB_CHANGED = "linux.cron.job_changed"
+    SYSTEMD_UNIT_STOPPED = "linux.systemd.unit_stopped"
 
 
 class StrictModel(BaseModel):

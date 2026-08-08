@@ -29,17 +29,28 @@ correlation_fields: [source_ip]  # непустой список без дубл
 
 ## Поддерживаемые типы событий
 
-Только шесть `event_type`, которые реально производит агент:
+Только восемь `event_type`, которые реально производит агент:
 
 - `linux.ssh.authentication_failed`
 - `linux.ssh.login_succeeded`
 - `linux.sudo.authentication_failed`
 - `linux.account.user_created`
 - `linux.account.privileged_group_changed`
+- `linux.cron.job_changed` — атрибут `action` (`replace` или `delete`); `crontab -e` без
+  сохранения и `crontab -l` не порождают событие, потому что не меняют таблицу
+- `linux.systemd.unit_stopped` — атрибут `unit`, только для пяти критичных юнитов (`ssh.service`,
+  `rsyslog.service`, `systemd-journald.service`, `cron.service`, `auditd.service`); только через
+  `source: journald` — `syslog_file` не переносит структурные поля `MESSAGE_ID`/`UNIT`, которых
+  требует этот парсер, поэтому на источнике без journald сигнала не будет вовсе
 - `web.nginx.request_failed` — ответ 4xx или 5xx; атрибуты `status`, `method`, `path`
 
 Успешный HTTP-запрос событием не становится: его не потребляет ни одно правило, а по объёму он
 на порядки превосходит все остальные источники вместе (ADR-0020 §7).
+
+Формат `MESSAGE_ID`/`UNIT` для `linux.systemd.unit_stopped` сверен по первоисточнику —
+[systemd.journal-fields(7)](https://man7.org/linux/man-pages/man7/systemd.journal-fields.7.html)
+и каталогу `catalog/systemd.catalog.in` в самом репозитории systemd, — но, как и Nginx-источник,
+не проверен на реальном запущенном Ubuntu-хосте: среда разработки проекта не содержит systemd.
 
 ## Пять типов условий
 
@@ -61,7 +72,7 @@ correlation_fields: [source_ip]  # непустой список без дубл
 `filters` — только declarative `equals` (точное значение) или `one_of` (allowlist значений);
 никаких regex или сравнений через код.
 
-## Текущий набор правил (10)
+## Текущий набор правил (12)
 
 | `rule_key` | Тип | Severity | MITRE ATT&CK |
 |---|---|---|---|
@@ -75,6 +86,8 @@ correlation_fields: [source_ip]  # непустой список без дубл
 | `privileged_group_membership_changed` | single (`group` ∈ {sudo, adm, wheel}) | high | T1098.007 |
 | `nginx_error_spike` | threshold (15 за 120с, по `status`) | medium | — |
 | `nginx_failed_requests_by_ip` | threshold (12 за 300с, по `source_ip`) | medium | T1595.003 |
+| `cron_job_changed` | single (`action` ∈ {replace, delete}) | medium | T1053.003 |
+| `critical_systemd_unit_stopped` | single (`unit` ∈ {5 критичных юнитов}) | high | T1562.001 |
 
 Пороги двух Nginx-правил заданы для небольшого сайта и на нагруженном требуют пересмотра: 15
 ответов 404 за две минуты — обычное дело для публичного сайта, который непрерывно обходят боты.
@@ -83,6 +96,15 @@ correlation_fields: [source_ip]  # непустой список без дубл
 `nginx_error_spike` намеренно оставлен без `mitre_attack_ids`: всплеск ошибок одинаково вероятно
 означает сломанный деплой и сканирование, поэтому привязка к технике ATT&CK создавала бы
 видимость атрибуции, которой у правила нет.
+
+`cron_job_changed` намеренно держит severity `medium`, а не `high`: редактирование cron —
+и распространённый механизм закрепления (T1053.003), и рутинная работа деплой-скриптов, правило
+называет факт изменения, а не его законность.
+
+`critical_systemd_unit_stopped` объединяет пять разных по смыслу юнитов одним правилом:
+остановка `rsyslog`/`systemd-journald`/`auditd` — способ скрыть дальнейшие действия (T1562.001),
+а остановка `ssh`/`cron` — вопрос доступности и запланированных задач; их объединяет не смысл
+угрозы, а источник сигнала — событие жизненного цикла systemd-юнита.
 
 Правило «контейнер Docker остановлен или перезапущен» из исходного концепта **отклонено**, а не
 отложено: его источник требует доступа к Docker-сокету, то есть root на хосте

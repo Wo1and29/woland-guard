@@ -121,6 +121,22 @@ def _scenario(rule_key: str, *, positive: bool) -> Scenario:
             attributes=attributes,
         )
         return Scenario(trigger, (trigger,))
+    elif rule_key == "cron_job_changed":
+        trigger = _event(
+            "linux.cron.job_changed",
+            0,
+            source_ip=None,
+            attributes={"action": "replace" if positive else "list"},
+        )
+        return Scenario(trigger, (trigger,))
+    elif rule_key == "critical_systemd_unit_stopped":
+        trigger = _event(
+            "linux.systemd.unit_stopped",
+            0,
+            source_ip=None,
+            attributes={"unit": "ssh.service" if positive else "logrotate.service"},
+        )
+        return Scenario(trigger, (trigger,))
     elif rule_key == "nginx_error_spike":
         # The non-match keeps the same volume and moves one request to another
         # status, so it fails on the grouping rather than on the count.

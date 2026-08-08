@@ -1,4 +1,4 @@
-"""Synthetic scenarios derived from the ten shipped detection-rule definitions."""
+"""Synthetic scenarios derived from the twelve shipped detection-rule definitions."""
 
 from __future__ import annotations
 
@@ -40,6 +40,8 @@ RULES_DIRECTORY = next(
 )
 EXPECTED_RULE_KEYS = frozenset(
     {
+        "critical_systemd_unit_stopped",
+        "cron_job_changed",
         "nginx_error_spike",
         "nginx_failed_requests_by_ip",
         "privileged_group_membership_changed",
@@ -54,6 +56,8 @@ EXPECTED_RULE_KEYS = frozenset(
 )
 
 _EVIDENCE_COUNTS = {
+    "critical_systemd_unit_stopped": 1,
+    "cron_job_changed": 1,
     "nginx_error_spike": 15,
     "nginx_failed_requests_by_ip": 12,
     "privileged_group_membership_changed": 1,
@@ -205,6 +209,8 @@ def _build_event_specs(
     anchor: datetime,
 ) -> tuple[_EventSpec, ...]:
     builders: dict[str, Callable[[DemoCaseType, datetime, int], tuple[_EventSpec, ...]]] = {
+        "critical_systemd_unit_stopped": _critical_unit_stopped_specs,
+        "cron_job_changed": _cron_job_changed_specs,
         "nginx_error_spike": _error_spike_specs,
         "nginx_failed_requests_by_ip": _failed_requests_specs,
         "privileged_group_membership_changed": _privileged_group_specs,
@@ -257,6 +263,36 @@ def _failed_requests_specs(
     return tuple(
         _request_spec(anchor + timedelta(seconds=offset), 403, index, 0) for offset in offsets
     )
+
+
+def _cron_job_changed_specs(
+    case: DemoCaseType, anchor: datetime, index: int
+) -> tuple[_EventSpec, ...]:
+    # BOUNDARY_BELOW drops the actor (the only correlation field) while keeping a
+    # filter-valid action, so it specifically exercises "filter passed, correlation
+    # missing" rather than repeating what NEGATIVE already covers.
+    actor = None if case is DemoCaseType.BOUNDARY_BELOW else _actor(index)
+    action = (
+        "list"
+        if case is DemoCaseType.NEGATIVE
+        else ("delete" if case is DemoCaseType.BOUNDARY_EXACT else "replace")
+    )
+    return (_spec("linux.cron.job_changed", anchor, actor, None, {"action": action}),)
+
+
+def _critical_unit_stopped_specs(
+    case: DemoCaseType, anchor: datetime, index: int
+) -> tuple[_EventSpec, ...]:
+    if case is DemoCaseType.POSITIVE:
+        attributes: dict[str, object] = {"unit": "ssh.service"}
+    elif case is DemoCaseType.NEGATIVE:
+        # Outside the allowlist: a host stops many non-critical units routinely.
+        attributes = {"unit": "logrotate.service"}
+    elif case is DemoCaseType.BOUNDARY_BELOW:
+        attributes = {}
+    else:
+        attributes = {"unit": "auditd.service"}
+    return (_spec("linux.systemd.unit_stopped", anchor, None, None, attributes),)
 
 
 def _privileged_group_specs(
@@ -491,8 +527,8 @@ def _load_exact_rule_catalog() -> dict[str, RuleDefinition]:
     except RuleValidationError:
         raise DemoManifestError("shipped detection rules are unavailable") from None
     by_key = {rule.rule_key: rule for rule in rules}
-    if len(rules) != 10 or frozenset(by_key) != EXPECTED_RULE_KEYS:
-        raise DemoManifestError("demo catalog requires the exact ten shipped detection rules")
+    if len(rules) != 12 or frozenset(by_key) != EXPECTED_RULE_KEYS:
+        raise DemoManifestError("demo catalog requires the exact twelve shipped detection rules")
     if any(not rule.enabled for rule in rules):
         raise DemoManifestError("demo catalog requires the shipped detection rules to be enabled")
     return by_key

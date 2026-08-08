@@ -174,7 +174,7 @@ def _positive_events(rule_key: str, base: datetime) -> list[dict[str, Any]]:
     raise AssertionError(f"unknown default rule: {rule_key}")
 
 
-def test_sync_rules_cli_activates_exactly_ten_validated_defaults(
+def test_sync_rules_cli_activates_exactly_twelve_validated_defaults(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -187,7 +187,7 @@ def test_sync_rules_cli_activates_exactly_ten_validated_defaults(
 
     cli.main()
 
-    assert capsys.readouterr().out == "Активировано правил: 10\n"
+    assert capsys.readouterr().out == "Активировано правил: 12\n"
     with get_session_factory()() as session:
         assert (
             session.scalar(
@@ -195,7 +195,7 @@ def test_sync_rules_cli_activates_exactly_ten_validated_defaults(
                 .select_from(DetectionRuleVersion)
                 .where(DetectionRuleVersion.is_active.is_(True))
             )
-            == 10
+            == 12
         )
 
 

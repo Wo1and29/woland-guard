@@ -48,6 +48,29 @@ _GPASSWD_GROUP = re.compile(
     rf"{_ACCOUNT} (?P<direction>to|from) group (?P<group>sudo|adm|wheel)$",
     re.IGNORECASE,
 )
+# BEGIN EDIT/LIST/END EDIT bracket an interactive session and fire even when the
+# user cancels without saving; only REPLACE (crontab installed, interactively or
+# via `crontab file`) and DELETE (`crontab -r`) mean the table actually changed.
+_CRON_CHANGED = re.compile(
+    rf"^\((?P<actor>{_ACCOUNT})\) (?P<action>REPLACE|DELETE) \({_ACCOUNT}\)$"
+)
+
+# The catalog entry systemd assigns to "a unit stop job has finished, successfully
+# or not" -- verified against systemd's own catalog source (catalog/systemd.catalog.in),
+# not against a live journalctl, since this environment has no running systemd.
+_UNIT_STOPPED_MESSAGE_ID = "9d1aaa27d60140bd96365438aad20286"
+# A fixed allowlist, not "any unit": a normal host stops and restarts many timer-
+# triggered oneshot units every day, and reporting every one would both flood the
+# spool and bury the units that actually matter for security.
+_CRITICAL_UNITS = frozenset(
+    {
+        "ssh.service",
+        "rsyslog.service",
+        "systemd-journald.service",
+        "cron.service",
+        "auditd.service",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,7 +194,33 @@ def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEven
                 },
             )
 
+    if identifier == "crontab":
+        cron_changed = _CRON_CHANGED.fullmatch(message)
+        if cron_changed is not None:
+            return ParsedSecurityEvent(
+                event_type="linux.cron.job_changed",
+                summary="Crontab modified",
+                actor=cron_changed.group("actor").lower(),
+                attributes={"action": cron_changed.group("action").lower()},
+            )
+
+    if identifier == "systemd":
+        return _systemd_unit_stopped(fields)
+
     return None
+
+
+def _systemd_unit_stopped(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:
+    if fields.get("MESSAGE_ID") != _UNIT_STOPPED_MESSAGE_ID:
+        return None
+    unit = fields.get("UNIT")
+    if not isinstance(unit, str) or unit not in _CRITICAL_UNITS:
+        return None
+    return ParsedSecurityEvent(
+        event_type="linux.systemd.unit_stopped",
+        summary="Security-relevant systemd unit stopped",
+        attributes={"unit": unit},
+    )
 
 
 def _parse_nginx_request(fields: Mapping[str, object]) -> ParsedSecurityEvent | None:

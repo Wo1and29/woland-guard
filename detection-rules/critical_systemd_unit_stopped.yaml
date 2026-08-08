@@ -1,0 +1,37 @@
+schema_version: 1
+rule_key: critical_systemd_unit_stopped
+version: 1
+enabled: true
+severity: high
+title: Остановлена критичная служба
+title_en: A critical systemd unit has stopped
+description: Служба SSH, системного журнала, syslog, cron или auditd прекратила работу.
+description_en: The SSH, journal, syslog, cron or auditd service has stopped running.
+explanation: >-
+  Пять служб в этом правиле объединяет то, что их остановка сама по себе является угрозой:
+  rsyslog, systemd-journald и auditd — это то, чем система вообще что-либо записывает, и их
+  отключение — стандартный способ скрыть дальнейшие действия. Остановка ssh и cron — это уже не
+  про сокрытие, а про доступность и закреплённые задания, но входит в тот же список, потому что
+  сигнал и его источник (событие жизненного цикла systemd-юнита) одни и те же.
+explanation_en: >-
+  What ties these five services together is that stopping them is itself the threat: rsyslog,
+  systemd-journald and auditd are what the system records anything with at all, and disabling
+  them is a standard way to hide what happens next. Stopping ssh and cron is not about hiding
+  activity but about availability and scheduled jobs -- they are on the same list because the
+  signal and its source, a systemd unit lifecycle event, are the same.
+recommendation: >-
+  Установите, кто и почему остановил службу: плановое обслуживание, сбой конфигурации или
+  чужие действия. Если это rsyslog, systemd-journald или auditd, в первую очередь проверьте,
+  не потерян ли журнал за время простоя.
+recommendation_en: >-
+  Determine who stopped the service and why: planned maintenance, a configuration failure, or
+  someone else's actions. If it is rsyslog, systemd-journald or auditd, first check whether the
+  log was lost for the duration of the outage.
+mitre_attack_ids: [T1562.001]
+condition:
+  type: single
+  event_type: linux.systemd.unit_stopped
+  filters:
+    unit:
+      one_of: [ssh.service, rsyslog.service, systemd-journald.service, cron.service, auditd.service]
+correlation_fields: [unit]

@@ -58,6 +58,16 @@ def test_normalizes_supported_ssh_fixture_with_fixed_fields() -> None:
             "add 'bob' to group 'sudo'",
             "linux.account.privileged_group_changed",
         ),
+        (
+            "crontab",
+            "(alice) REPLACE (alice)",
+            "linux.cron.job_changed",
+        ),
+        (
+            "crontab",
+            "(alice) DELETE (alice)",
+            "linux.cron.job_changed",
+        ),
     ],
 )
 def test_supported_messages_have_specific_event_types(
@@ -74,6 +84,74 @@ def test_supported_messages_have_specific_event_types(
 
     assert event is not None
     assert event.event_type == event_type
+
+
+def test_cron_edit_session_without_a_save_is_not_a_change() -> None:
+    """BEGIN EDIT/LIST/END EDIT bracket a session and fire even without a save."""
+
+    for message in (
+        "(alice) BEGIN EDIT (alice)",
+        "(alice) LIST (alice)",
+        "(alice) END EDIT (alice)",
+    ):
+        event = normalize_record(
+            JournalRecord(
+                cursor=f"s=synthetic;i={message}",
+                fields={"SYSLOG_IDENTIFIER": "crontab", "MESSAGE": message},
+            )
+        )
+
+        assert event is None
+
+
+@pytest.mark.parametrize(
+    ("fields", "should_match"),
+    [
+        (
+            {"MESSAGE_ID": "9d1aaa27d60140bd96365438aad20286", "UNIT": "ssh.service"},
+            True,
+        ),
+        (
+            {"MESSAGE_ID": "9d1aaa27d60140bd96365438aad20286", "UNIT": "rsyslog.service"},
+            True,
+        ),
+        (
+            # Right catalog entry, but not a unit this project treats as critical:
+            # a normal host stops many timer-triggered units every day.
+            {"MESSAGE_ID": "9d1aaa27d60140bd96365438aad20286", "UNIT": "logrotate.service"},
+            False,
+        ),
+        (
+            # A different, unrelated catalog entry (unit start job began) reusing
+            # the same UNIT= value must not be mistaken for a stop.
+            {"MESSAGE_ID": "7d4958e842da4a758f6c1cdc7b36dcc5", "UNIT": "ssh.service"},
+            False,
+        ),
+        (
+            {"UNIT": "ssh.service"},
+            False,
+        ),
+    ],
+)
+def test_only_critical_units_stopping_becomes_an_event(
+    fields: dict[str, str],
+    should_match: bool,
+) -> None:
+    event = normalize_record(
+        JournalRecord(
+            cursor="s=synthetic;i=systemd",
+            fields={
+                "SYSLOG_IDENTIFIER": "systemd",
+                "MESSAGE": "Stopped Some Unit.",
+                **fields,
+            },
+        )
+    )
+
+    assert (event is not None) is should_match
+    if event is not None:
+        assert event.event_type == "linux.systemd.unit_stopped"
+        assert event.attributes == {"unit": fields["UNIT"]}
 
 
 def test_arbitrary_command_in_message_is_not_transmitted() -> None:

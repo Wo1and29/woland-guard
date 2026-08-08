@@ -1,0 +1,32 @@
+schema_version: 1
+rule_key: cron_job_changed
+version: 1
+enabled: true
+severity: medium
+title: Изменена таблица cron
+title_en: Crontab modified
+description: Пользователь установил или удалил свою crontab.
+description_en: A user installed or removed their crontab.
+explanation: >-
+  Cron — распространённый механизм закрепления в системе: задание, запускаемое по расписанию,
+  переживает перезагрузку и легко теряется среди обычных плановых задач. Severity умеренная,
+  потому что редактирование cron — ещё и рутинная работа администраторов и деплой-скриптов;
+  правило называет факт изменения, а не его законность.
+explanation_en: >-
+  Cron is a common persistence mechanism: a scheduled job survives a reboot and is easy to miss
+  among routine scheduled work. Severity is kept moderate because editing cron is also ordinary
+  administrative and deployment work; the rule names the fact of a change, not its legitimacy.
+recommendation: >-
+  Проверьте содержимое crontab пользователя и сопоставьте изменение с плановыми работами. Особое
+  внимание — если это учётная запись, для которой такие изменения нетипичны.
+recommendation_en: >-
+  Review the user's crontab contents and check the change against scheduled work. Pay particular
+  attention if this account does not normally make such changes.
+mitre_attack_ids: [T1053.003]
+condition:
+  type: single
+  event_type: linux.cron.job_changed
+  filters:
+    action:
+      one_of: [replace, delete]
+correlation_fields: [actor]

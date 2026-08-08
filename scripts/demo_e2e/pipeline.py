@@ -258,8 +258,8 @@ def build_all_manifests(*, anchor_utc: datetime | None = None) -> tuple[DemoMani
     anchor = (anchor_utc or datetime.now(UTC)).astimezone(UTC).replace(microsecond=0)
     run_id = uuid4()
     definitions = list_scenarios()
-    if len(definitions) != 40:
-        raise DemoPipelineError("demo catalog does not contain exactly 40 scenarios")
+    if len(definitions) != 48:
+        raise DemoPipelineError("demo catalog does not contain exactly 48 scenarios")
     return tuple(
         validate_catalog_manifest(
             build_manifest(definition.scenario_id, run_id=run_id, anchor_utc=anchor)

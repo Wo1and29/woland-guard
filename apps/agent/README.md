@@ -35,9 +35,13 @@ cursor исчез после ротации, агент сохраняет по�
 ## Защита данных
 
 - `journalctl --output-fields` запрашивает только `MESSAGE`, `PRIORITY`,
-  `SYSLOG_IDENTIFIER`, `_SYSTEMD_UNIT`, `_TRANSPORT`, `_UID`, `_GID` и `_COMM`;
+  `SYSLOG_IDENTIFIER`, `_SYSTEMD_UNIT`, `_TRANSPORT`, `_UID`, `_GID`, `_COMM`, `MESSAGE_ID`
+  и `UNIT`;
 - `MESSAGE` никогда не копируется в `summary` или `attributes`: он локально сопоставляется
-  только с явными шаблонами SSH, sudo, useradd, usermod и gpasswd;
+  только с явными шаблонами SSH, sudo, useradd, usermod, gpasswd и crontab;
+- `MESSAGE_ID`/`UNIT` (события systemd о жизненном цикле юнита) сопоставляются только с
+  фиксированным каталожным идентификатором «unit stop job finished» и только для пяти
+  захардкоженных критичных юнитов — остальные не порождают событие;
 - распознанное событие получает фиксированный summary и только контролируемые атрибуты
   метода аутентификации, invalid-user, UID/GID либо привилегированной группы и действия;
 - неизвестный или содержащий U+0000 `MESSAGE` пропускается без отправки;
