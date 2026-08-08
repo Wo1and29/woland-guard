@@ -19,6 +19,8 @@ venv/
 dist/
 build/
 *.egg-info/
+node_modules/
+site/src/stats.generated.json
 
 # Local configuration and secrets
 .env

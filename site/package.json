@@ -1,0 +1,25 @@
+{
+  "name": "woland-guard-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "stats": "node scripts/compute-stats.mjs",
+    "build": "npm run stats && vite build",
+    "dev": "npm run stats && vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "framer-motion": "11.11.17",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.5.26",
+    "tailwindcss": "3.4.19",
+    "vite": "6.4.3"
+  }
+}
