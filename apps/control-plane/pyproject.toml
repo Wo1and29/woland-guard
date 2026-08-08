@@ -13,7 +13,7 @@ dependencies = [
     "pydantic-settings>=2.7,<3",
     "PyYAML>=6,<7",
     "sqlalchemy>=2.0,<3",
-    "uvicorn[standard]>=0.34,<1",
+    "uvicorn[standard]>=0.52.1,<1",
     "woland-guard-contracts",
 ]
 
