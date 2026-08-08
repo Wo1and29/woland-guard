@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # 1.19 changes how autogenerate names check constraints, which makes
+      # `alembic check` report false-positive drift against migrations
+      # written under <1.19's naming -- see PR #6, closed 2026-08-08, and
+      # the roadmap issue tracking the fix. Remove once that's resolved.
+      - dependency-name: "alembic"
+        versions: [">=1.19"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -19,3 +26,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # 3.13 needs a coordinated bump (pyproject.toml's python pin, mypy
+      # config, a re-resolved uv.lock) -- see PR #2, closed 2026-08-08: `uv
+      # sync` fails outright with a bare image-tag bump since UV_PYTHON_DOWNLOADS=0
+      # and no 3.13 interpreter is available. Remove this once that migration
+      # is deliberately scheduled.
+      - dependency-name: "python"
+        versions: [">=3.13"]

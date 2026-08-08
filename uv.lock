@@ -844,7 +844,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "alembic", specifier = ">=1.15,<2" },
+    { name = "alembic", specifier = ">=1.15,<1.19" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "httpx2", specifier = ">=2,<3" },
     { name = "jinja2", specifier = ">=3.1,<4" },
