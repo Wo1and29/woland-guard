@@ -66,18 +66,20 @@ vulnerabilities:
     statement: "Requires attacker-controlled arbitrary SQL execution as a precondition; app uses PostgreSQL exclusively, never exposes SQLite to untrusted SQL. No Debian fix yet."
     expired_at: 2027-02-08
 
-  # util-linux-extra: libblkid partition-table parsing needs block-device
-  # access, which the container never has (no privileged mode, no device
-  # mounts) and the app never calls blkid/lsblk or their libraries.
+  # util-linux/util-linux-extra: same source package, two sub-packages both
+  # linking libblkid. Partition-table parsing needs block-device access,
+  # which the container never has (no privileged mode, no device mounts),
+  # and the app never calls blkid/lsblk or their libraries.
   - id: CVE-2026-53615 # libblkid dos.c partition parsing integer overflow
-    purls: ["pkg:deb/debian/util-linux-extra"]
+    purls: ["pkg:deb/debian/util-linux-extra", "pkg:deb/debian/util-linux"]
     statement: "Requires block-device access this container never has; app never calls blkid. No Debian fix yet."
     expired_at: 2027-02-08
 
-  # ncurses-bin: only affects the infocmp CLI tool, which nothing in this
-  # project invokes (no terminfo compilation, no interactive terminal UI).
+  # ncurses-bin/ncurses-base: same source package, two sub-packages; only
+  # affects the infocmp CLI tool, which nothing in this project invokes (no
+  # terminfo compilation, no interactive terminal UI).
   - id: CVE-2025-69720 # infocmp analyze_string stack buffer overflow
-    purls: ["pkg:deb/debian/ncurses-bin"]
+    purls: ["pkg:deb/debian/ncurses-bin", "pkg:deb/debian/ncurses-base"]
     statement: "infocmp is never invoked by the app. No Debian fix yet."
     expired_at: 2027-02-08
 
