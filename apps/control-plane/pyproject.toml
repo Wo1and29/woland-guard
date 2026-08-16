@@ -24,5 +24,5 @@ woland-guard-outbox = "woland_guard_control_plane.outbox_cli:main"
 woland-guard-telegram-bot = "woland_guard_control_plane.telegram_bot_cli:main"
 
 [build-system]
-requires = ["uv_build>=0.11.16,<0.12"]
+requires = ["uv_build>=0.12.3,<0.13"]
 build-backend = "uv_build"
