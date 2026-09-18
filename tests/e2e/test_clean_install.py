@@ -18,4 +18,4 @@ def test_tracked_only_clean_install_release_gate() -> None:
     summary = verify_clean_install(project_root)
 
     assert summary.startswith("8B verification passed:")
-    assert "scenarios=32" in summary
+    assert "scenarios=52" in summary

@@ -32,7 +32,7 @@ def test_full_demo_browser_backup_and_restore() -> None:
     )
 
     assert result.source_head == source_head
-    assert result.scenario_count == 32
+    assert result.scenario_count == 52
     assert result.accepted_events == result.replayed_events
     assert result.delivered_notifications == result.final_snapshot.outbox
     assert result.final_snapshot.delivered == result.final_snapshot.outbox

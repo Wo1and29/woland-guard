@@ -42,7 +42,7 @@ pytestmark = [pytest.mark.e2e, pytest.mark.docker]
     os.environ.get("WG_RUN_DEMO_E2E") != "1",
     reason="set WG_RUN_DEMO_E2E=1 for the isolated 8B pipeline",
 )
-def test_all_32_manifests_real_worker_and_replay(tmp_path: Path) -> None:
+def test_all_52_manifests_real_worker_and_replay(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     identity = DemoRunIdentity.create()
     ledger_directory = tmp_path / "ledger"

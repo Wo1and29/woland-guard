@@ -198,7 +198,7 @@ def verify_exact_rules(session_factory: sessionmaker[Session], project_root: Pat
     # Versions are derived from the files, never pinned to a literal: a prose-only
     # rule bump must not silently break the demo stand.
     expected = {rule.rule_key: rule.version for rule in shipped if rule.enabled}
-    if len(shipped) != 8 or frozenset(expected) != EXPECTED_RULE_KEYS:
+    if len(shipped) != len(EXPECTED_RULE_KEYS) or frozenset(expected) != EXPECTED_RULE_KEYS:
         raise DemoPipelineError("shipped demo rule catalog is not the expected enabled set")
     with session_factory() as session:
         rows = session.execute(
@@ -209,7 +209,7 @@ def verify_exact_rules(session_factory: sessionmaker[Session], project_root: Pat
             ).where(DetectionRuleVersion.is_active.is_(True))
         ).all()
     actual = {rule_key: version for rule_key, version, enabled in rows if enabled}
-    if len(rows) != 8 or actual != expected:
+    if len(rows) != len(EXPECTED_RULE_KEYS) or actual != expected:
         raise DemoPipelineError("database active rule catalog does not match the shipped files")
 
 
