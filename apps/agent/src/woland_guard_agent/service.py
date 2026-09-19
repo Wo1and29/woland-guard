@@ -195,9 +195,7 @@ class AgentService:
             except SpoolFullError:
                 logger.warning("spool_full cursor_advanced=false")
                 break
-            if result is None:
-                logger.info("journal_record_skipped cursor_advanced=true")
-            else:
+            if result is not None:
                 logger.info("journal_record_stored result=%s", result.value)
 
     def _persist_record(self, source: JournalSource, record: JournalRecord) -> EnqueueResult | None:

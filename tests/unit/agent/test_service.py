@@ -246,6 +246,43 @@ def test_unknown_message_advances_cursor_without_creating_event(tmp_path: Path) 
     assert spool.statistics().total == 0
 
 
+def test_continuous_drain_silently_advances_self_and_external_unsupported_records(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = SyntheticSource([])
+    spool = SQLiteSpool(tmp_path / "continuous-skipped.sqlite3", max_events=10)
+    spool.initialize()
+    service = make_service(source, spool, FixedTransport(DeliveryClass.NETWORK_ERROR))
+    records = iter(
+        [
+            JournalRecord(
+                cursor="s=self;i=1",
+                fields={
+                    "_SYSTEMD_UNIT": "woland-guard-agent.service",
+                    "SYSLOG_IDENTIFIER": "woland-guard-agent",
+                    "MESSAGE": "journal_record_skipped cursor_advanced=true",
+                },
+            ),
+            JournalRecord(
+                cursor="s=external;i=2",
+                fields={
+                    "_SYSTEMD_UNIT": "example.service",
+                    "SYSLOG_IDENTIFIER": "example",
+                    "MESSAGE": "unsupported external record",
+                },
+            ),
+        ]
+    )
+
+    with caplog.at_level("INFO", logger="woland_guard_agent.service"):
+        service._drain(source, records)
+
+    assert spool.cursor("journald") == "s=external;i=2"
+    assert spool.statistics().total == 0
+    assert caplog.record_tuples == []
+
+
 def test_stale_cursor_records_persistent_gap_before_rebase(tmp_path: Path) -> None:
     class StaleSource(SyntheticSource):
         def backlog(
