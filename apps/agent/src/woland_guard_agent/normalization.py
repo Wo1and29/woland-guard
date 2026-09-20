@@ -26,7 +26,9 @@ _SSH_FAILED = re.compile(
 )
 _SSH_SUCCEEDED = re.compile(
     rf"^Accepted (?P<method>[a-z0-9-]+) for (?P<actor>{_ACCOUNT}) from "
-    r"(?P<source_ip>\S+)(?: port \d+)?(?: ssh\d+)?$",
+    r"(?P<source_ip>\S+)(?: port \d+)?"
+    r"(?: ssh\d+(?:: (?P<key_type>RSA|ECDSA|ED25519) "
+    r"SHA256:[A-Za-z0-9+/]{43})?)?$",
     re.IGNORECASE,
 )
 _SUDO_FAILURE = re.compile(
@@ -151,6 +153,9 @@ def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEven
 
         succeeded = _SSH_SUCCEEDED.fullmatch(message)
         if succeeded is not None:
+            method = succeeded.group("method").lower()
+            if succeeded.group("key_type") is not None and method != "publickey":
+                return None
             source_ip = _validated_ip(succeeded.group("source_ip"))
             if source_ip is None:
                 return None
@@ -159,7 +164,7 @@ def _parse_supported_message(fields: Mapping[str, object]) -> ParsedSecurityEven
                 summary="SSH login succeeded",
                 actor=succeeded.group("actor").lower(),
                 source_ip=source_ip,
-                attributes={"authentication_method": succeeded.group("method").lower()},
+                attributes={"authentication_method": method},
             )
 
     if identifier == "sudo":

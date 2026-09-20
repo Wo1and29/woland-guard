@@ -31,6 +31,76 @@ def test_normalizes_supported_ssh_fixture_with_fixed_fields() -> None:
 
 
 @pytest.mark.parametrize(
+    ("message", "actor", "source_ip"),
+    [
+        (
+            "Accepted publickey for alice from 192.0.2.10 port 22 ssh2",
+            "alice",
+            "192.0.2.10",
+        ),
+        (
+            "Accepted publickey for woland from 198.51.100.20 port 2200 "
+            "ssh2: ED25519 SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+            "woland",
+            "198.51.100.20",
+        ),
+        (
+            "Accepted publickey for root from 2001:db8::1 port 22 "
+            "ssh2: RSA SHA256:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq",
+            "root",
+            "2001:db8::1",
+        ),
+        (
+            "Accepted publickey for deploy from 203.0.113.7 port 2222 "
+            "ssh2: ECDSA SHA256:0123456789abcdefghijklmnopqrstuvwxyzABCDEFG",
+            "deploy",
+            "203.0.113.7",
+        ),
+    ],
+)
+def test_normalizes_publickey_success_with_optional_key_fingerprint(
+    message: str,
+    actor: str,
+    source_ip: str,
+) -> None:
+    event = normalize_record(
+        JournalRecord(
+            cursor=f"s=synthetic;i={actor}",
+            fields={"SYSLOG_IDENTIFIER": "sshd", "MESSAGE": message},
+        )
+    )
+
+    assert event is not None
+    assert event.event_type == "linux.ssh.login_succeeded"
+    assert event.actor == actor
+    assert str(event.source_ip) == source_ip
+    assert event.attributes == {"authentication_method": "publickey"}
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Accepted publickey for alice from 192.0.2.10 port 22 ssh2: ED25519 SHA256:too-short",
+        "Accepted publickey for alice from 192.0.2.10 port 22 "
+        "ssh2: DSA SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+        "Accepted publickey for alice from 192.0.2.10 port 22 ssh2: ED25519 MD5:aa:bb:cc",
+        "Accepted password for alice from 192.0.2.10 port 22 "
+        "ssh2: ED25519 SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+        "Accepted publickey for alice from 192.0.2.10 port 22 ssh2 trailing-data",
+    ],
+)
+def test_malformed_publickey_success_remains_unsupported(message: str) -> None:
+    event = normalize_record(
+        JournalRecord(
+            cursor="s=synthetic;i=malformed-publickey",
+            fields={"SYSLOG_IDENTIFIER": "sshd", "MESSAGE": message},
+        )
+    )
+
+    assert event is None
+
+
+@pytest.mark.parametrize(
     ("identifier", "message", "event_type"),
     [
         (
