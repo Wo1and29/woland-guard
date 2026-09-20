@@ -51,6 +51,18 @@ _ALLOWED_ACTIONS: tuple[tuple[str, AuditActorType, str, Mapping[str, object]], .
         {"operator_id": _OPERATOR_ID},
     ),
     (
+        "agent_api_key.issued",
+        AuditActorType.LOCAL_CLI,
+        "agent_api_key",
+        {"server_id": _OPERATOR_ID},
+    ),
+    (
+        "agent_api_key.revoked",
+        AuditActorType.LOCAL_CLI,
+        "agent_api_key",
+        {"server_id": _OPERATOR_ID},
+    ),
+    (
         "incident.status_changed",
         AuditActorType.OPERATOR,
         "incident",

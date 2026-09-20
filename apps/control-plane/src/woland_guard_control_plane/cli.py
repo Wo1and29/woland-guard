@@ -9,6 +9,12 @@ from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from woland_guard_control_plane.application.agent_key_management import (
+    AgentKeyManagementError,
+    IssuedAgentApiKey,
+    issue_agent_api_key,
+    revoke_agent_api_key,
+)
 from woland_guard_control_plane.application.detection.rules import (
     RuleValidationError,
     load_rules_directory,
@@ -69,6 +75,7 @@ _OPERATOR_COMMANDS = {
     "rotate-operator-key",
     "revoke-operator-key",
 }
+_AGENT_KEY_COMMANDS = {"issue-agent-key", "revoke-agent-key"}
 _TELEGRAM_LINK_COMMANDS = {
     "link-telegram-operator",
     "revoke-telegram-operator",
@@ -101,6 +108,17 @@ def build_parser() -> argparse.ArgumentParser:
     create_agent.add_argument("--name", required=True)
     create_agent.add_argument("--hostname", required=True)
     create_agent.add_argument("--label")
+    issue_agent_key = subcommands.add_parser(
+        "issue-agent-key",
+        help="issue and print a new key for an existing active server exactly once",
+    )
+    issue_agent_key.add_argument("--server", required=True, metavar="ID_OR_NAME")
+    issue_agent_key.add_argument("--label")
+    revoke_agent_key = subcommands.add_parser(
+        "revoke-agent-key",
+        help="revoke an agent key by public identifier without deleting its history",
+    )
+    revoke_agent_key.add_argument("public_id")
     validate_rules = subcommands.add_parser(
         "validate-rules",
         help="validate every YAML rule without changing PostgreSQL",
@@ -233,6 +251,9 @@ def main() -> None:
     if arguments.command in {"validate-rules", "sync-rules"}:
         _run_rules_command(arguments)
         return
+    if arguments.command in _AGENT_KEY_COMMANDS:
+        _run_agent_key_command(arguments)
+        return
     if arguments.command in _OPERATOR_COMMANDS:
         _run_operator_command(arguments)
         return
@@ -321,6 +342,41 @@ def _run_create_test_agent(arguments: argparse.Namespace) -> None:
     print(f"public_id={provisioned.public_id}")
     print("Сохраните токен сейчас: повторно получить его из базы данных невозможно.")
     print(f"token={provisioned.token}")
+
+
+def _run_agent_key_command(arguments: argparse.Namespace) -> None:
+    try:
+        with get_session_factory().begin() as session:
+            if arguments.command == "issue-agent-key":
+                issued = issue_agent_api_key(
+                    session,
+                    server_selector=arguments.server,
+                    label=arguments.label,
+                )
+                revoked = None
+            else:
+                revoked = revoke_agent_api_key(session, public_id=arguments.public_id)
+                issued = None
+    except (AgentKeyManagementError, IntegrityError):
+        print(
+            "Не удалось изменить агентский ключ: проверьте server/public ID и аргументы.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+    except SQLAlchemyError:
+        print("Не удалось изменить агентский ключ из-за ошибки базы данных.", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    if issued is not None:
+        _print_issued_agent_key(issued)
+        return
+    if revoked is None:
+        raise RuntimeError("agent key command did not produce a result")
+    print(f"server_id={revoked.server_id}")
+    print(f"key_id={revoked.key_id}")
+    print(f"public_id={revoked.public_id}")
+    print(f"revoked_at={revoked.revoked_at.isoformat()}")
+    print(f"revoked={'true' if revoked.changed else 'already'}")
 
 
 def _run_operator_command(arguments: argparse.Namespace) -> None:
@@ -468,6 +524,16 @@ def _print_issued_operator_key(issued: IssuedOperatorApiKey) -> None:
     print(f"expires_at={issued.expires_at.isoformat() if issued.expires_at else 'none'}")
     if issued.rotated_from_id is not None:
         print(f"rotated_from_id={issued.rotated_from_id}")
+    print("Сохраните токен сейчас: повторно получить его из базы данных невозможно.")
+    print(f"token={issued.token}")
+
+
+def _print_issued_agent_key(issued: IssuedAgentApiKey) -> None:
+    print(f"server_id={issued.server_id}")
+    print(f"key_id={issued.key_id}")
+    print(f"public_id={issued.public_id}")
+    print(f"label={issued.label if issued.label is not None else 'none'}")
+    print(f"created_at={issued.created_at.isoformat()}")
     print("Сохраните токен сейчас: повторно получить его из базы данных невозможно.")
     print(f"token={issued.token}")
 

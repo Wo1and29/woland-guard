@@ -98,6 +98,16 @@ AUDIT_ACTION_REGISTRY: Mapping[str, AuditActionSpec] = MappingProxyType(
             target_type="operator_api_key",
             detail_fields=_fields(operator_id=AuditDetailType.UUID),
         ),
+        "agent_api_key.issued": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="agent_api_key",
+            detail_fields=_fields(server_id=AuditDetailType.UUID),
+        ),
+        "agent_api_key.revoked": AuditActionSpec(
+            actor_type=AuditActorType.LOCAL_CLI,
+            target_type="agent_api_key",
+            detail_fields=_fields(server_id=AuditDetailType.UUID),
+        ),
         "incident.status_changed": AuditActionSpec(
             actor_type=AuditActorType.OPERATOR,
             target_type="incident",
