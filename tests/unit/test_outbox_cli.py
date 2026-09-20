@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from woland_guard_control_plane import outbox_cli
@@ -82,6 +83,33 @@ def test_status_prints_safe_oldest_pending_age(
     assert "payload" not in output.casefold()
     assert "last_error" not in output.casefold()
     assert "destination" not in output.casefold()
+
+
+def test_status_exits_nonzero_without_reflecting_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    canary = "synthetic-database-secret-canary"
+    monkeypatch.setattr(outbox_cli, "get_settings", Settings)
+
+    class UnavailableSessionFactory:
+        def _open(self) -> Session:
+            raise SQLAlchemyError(canary)
+
+        @contextmanager
+        def __call__(self) -> Iterator[Session]:
+            yield self._open()
+
+    monkeypatch.setattr(outbox_cli, "get_session_factory", UnavailableSessionFactory)
+
+    with pytest.raises(SystemExit) as captured:
+        outbox_cli.main(["status"])
+
+    output = capsys.readouterr()
+    assert captured.value.code == 1
+    assert output.out == ""
+    assert output.err == "Outbox operation failed because PostgreSQL is unavailable.\n"
+    assert canary not in output.err
 
 
 def test_settings_validate_recovery_interval_bounds_and_relationship() -> None:

@@ -123,6 +123,12 @@ services:
       dockerfile: deploy/docker/control-plane.Dockerfile
       target: runtime
     command: ["woland-guard-outbox", "run"]
+    healthcheck:
+      test: ["CMD", "woland-guard-outbox", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     user: "10001:10001"
     environment:
       WG_APP_ENV: ${WG_APP_ENV:-development}

@@ -74,6 +74,31 @@ def test_outbox_worker_has_read_only_staging_and_private_runtime_tmpfs() -> None
     assert service["profiles"] == ["telegram-notifications"]
 
 
+def test_outbox_worker_overrides_image_healthcheck_with_supported_status_command() -> None:
+    services = _services()
+
+    assert services["outbox-worker"]["healthcheck"] == {
+        "test": ["CMD", "woland-guard-outbox", "status"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5,
+        "start_period": "10s",
+    }
+    assert services["control-plane"]["healthcheck"] == {
+        "test": [
+            "CMD",
+            "python",
+            "-c",
+            "import urllib.request; "
+            "urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)",
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5,
+        "start_period": "10s",
+    }
+
+
 def test_no_service_receives_telegram_token_or_chat_id_through_environment() -> None:
     for service in _services().values():
         environment = str(service.get("environment", {})).casefold()
